@@ -5,6 +5,7 @@ import { History } from './history.js';
 import { Coder } from './coder.js';
 import { VisionInterpreter } from './vision/vision_interpreter.js';
 import { Prompter } from '../models/prompter.js';
+import { encodeText, decodeText, calculateSimilarity } from '../utils/unicode.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
@@ -112,6 +113,10 @@ export class Agent {
                 
                 console.log(`${this.name} spawned.`);
                 this.clearBotLogs();
+
+                const idMessage = "MINDCRAFT_COMMS_PING";
+                const encodedMessage = encodeText(idMessage);
+                this.bot.chat(encodedMessage);
               
                 this._setupEventHandlers(save_data, init_message);
                 this.startEvents();
@@ -228,20 +233,87 @@ export class Agent {
         
         const respondFunc = async (username, message) => {
             if (username === this.name) return;
-            if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
+
+            // 1. PING Detection (Unicode) - Applies to both chat and whisper
             try {
-                if (ignore_messages.some((m) => message.startsWith(m))) return;
-
-                this.shut_up = false;
-
-                console.log(this.name, 'received message from', username, ':', message);
-
-                if (convoManager.isOtherAgent(username)) {
-                    console.warn('received whisper from other bot??')
+                const decoded = decodeText(message);
+                if (decoded) { // Check if decoding produced any result at all
+                    const expectedIdMessage = "MINDCRAFT_COMMS_PING";
+                    const similarity = calculateSimilarity(decoded, expectedIdMessage);
+                    if (similarity > 0.9) {
+                        // console.log(`[${this.name}] Detected COMMS_PING from ${username} (Similarity: ${similarity.toFixed(2)}). Calling handleBotDetection.`);
+                        convoManager.handleBotDetection(username);
+                        return; // PING handled, stop further processing.
+                    }
                 }
-                else {
-                    let translation = await handleEnglishTranslation(message);
-                    this.handleMessage(username, translation);
+            } catch (e) {
+                // Likely not a unicode message, or some other error. Safe to ignore and proceed.
+                // console.warn(`[${this.name}] Error during PING decode for message from ${username}: ${e.message}`);
+            }
+
+            // 2. JSON Payload Handling (Mainly for whispers, but could be from chat if a bot misuses)
+            let parsedPayload = null;
+            try {
+                parsedPayload = JSON.parse(message);
+            } catch (e) {
+                // Not a JSON message. Will be handled as plain text further down.
+            }
+
+            if (parsedPayload) {
+                if (parsedPayload.type === "INITIATE_CONNECTION" || parsedPayload.type === "ACKNOWLEDGE_CONNECTION") {
+                    // console.log(`[${this.name}] Received connection payload from ${username}. Calling handleConnectionPayload.`);
+                    convoManager.handleConnectionPayload(username, parsedPayload);
+                    return; // Connection payload handled.
+                } else if (parsedPayload.type === "BOT_CHAT_MESSAGE") {
+                    // console.log(`[${this.name}] Received BOT_CHAT_MESSAGE from ${username}. Calling receiveFromBot.`);
+                    // This assumes receiveFromBot is robust enough to be called directly here for whispers.
+                    // The proxy usually calls receiveFromBot for messages it knows are from bots.
+                    // This ensures whispers directly from bots containing BOT_CHAT_MESSAGE are also processed.
+                    convoManager.receiveFromBot(username, parsedPayload);
+                    return; // BOT_CHAT_MESSAGE handled.
+                } else {
+                    // Unknown JSON type. Could be from another mod or an error.
+                    console.warn(`[${this.name}] Received unknown JSON payload type from ${username}: ${parsedPayload.type}. Message: ${message}`);
+                    // Fall through to plain text handling, as it's not a known system message.
+                }
+            }
+
+            // 3. Plain Text Message Handling (No PING, No known JSON payload)
+            if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) {
+                // console.log(`[${this.name}] Ignoring message from ${username} due to only_chat_with settings.`);
+                return;
+            }
+
+            if (ignore_messages.some((m) => message.startsWith(m))) {
+                // console.log(`[${this.name}] Ignoring message from ${username} due to ignore_messages settings: ${message}`);
+                return;
+            }
+
+            this.shut_up = false; // Allow bot to respond if it was previously silenced for some reason.
+
+            // At this point, the message is plain text (or unhandled JSON treated as plain text).
+            // It could be from a player or a bot sending an unexpected plain text message.
+            // The convoManager.isOtherAgent(username) check here helps determine if it's a *connected* bot.
+            if (convoManager.isOtherAgent(username)) {
+                // A connected bot sent a plain text message instead of a BOT_CHAT_MESSAGE payload.
+                console.warn(`[${this.name}] Received plain text message from connected bot ${username}: "${message}". Treating as regular chat.`);
+                // Fall through to handleMessage, which will add it to history and let the LLM decide.
+            } else if (agent_names.includes(username)) {
+                // A bot that is known in agent_names (so, a potential bot on the server)
+                // but is *not* currently in `convoManager.nearbyBots` or not `connected:true`
+                // sent a plain text message. This could be a bot that hasn't completed the handshake.
+                console.warn(`[${this.name}] Received plain text message from known but not (fully) connected bot ${username}: "${message}". Treating as regular chat.`);
+            } else {
+                // Standard message from a player.
+                console.log(`[${this.name}] Received plain text message from ${username}: "${message}"`);
+            }
+
+            // Process the message through translation and then main handler
+            try {
+                let translation = await handleEnglishTranslation(message);
+                this.handleMessage(username, translation);
+            } catch (error) {
+                console.error(`[${this.name}] Error in final message handling stage for ${username}:`, error);
                 }
             } catch (error) {
                 console.error('Error handling message:', error);
