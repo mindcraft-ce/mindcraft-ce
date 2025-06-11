@@ -3,19 +3,13 @@
   Mindcraft Community Edition 🧠⛏️
 </h3>
 <h4 align="center">
-  Maintained by 
-  <a href="https://github.com/uukelele-scratch">@uukelele-scratch</a>, 
-  <a href="https://github.com/sweaterdog">@Sweaterdog</a>, and 
-  <a href="https://github.com/riqvip">@riqvip</a>
+  Maintained by ME 😈
 </h4>
 <p align="center">
   <img alt="Static Badge" src="https://img.shields.io/badge/mindcraft-ce-badge">
   <img alt="GitHub Release Date" src="https://img.shields.io/github/release-date/mindcraft-ce/mindcraft-ce">
   <img alt="GitHub commits since latest release" src="https://img.shields.io/github/commits-since/mindcraft-ce/mindcraft-ce/latest">
-  <!--
-    uh we can make this visible when there are more downloads
     <img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/mindcraft-ce/mindcraft-ce/total">
-  -->
   <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/mindcraft-ce/mindcraft-ce">
 
 
