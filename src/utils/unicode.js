@@ -6,7 +6,7 @@
  * @param {string} text The text to encode.
  * @returns {string} The encoded string.
  */
-function encodeText(text) {
+function _originalEncodeText(text) { // Renamed
   let binaryText = '';
   for (let i = 0; i < text.length; i++) {
     binaryText += text[i].charCodeAt(0).toString(2).padStart(8, '0');
@@ -31,7 +31,7 @@ function encodeText(text) {
  * @param {string} encodedText The encoded string.
  * @returns {string} The decoded string.
  */
-function decodeText(encodedText) {
+function _originalDecodeText(encodedText) { // Renamed
   let binaryText = '';
   for (let i = 0; i < encodedText.length; i++) {
     if (encodedText[i] === '\u200B') {
@@ -106,4 +106,76 @@ function calculateSimilarity(s1, s2) {
   return jaro + l * p * (1 - jaro);
 }
 
-export { encodeText, decodeText, calculateSimilarity };
+const UNICODE_OBFUSCATION_KEY = "MINDCRAFT-123";
+
+/**
+ * XORs two strings. Loops keyString if it's shorter than input.
+ * @param {string} input The input string.
+ * @param {string} keyString The key string.
+ * @returns {string} The XORed string.
+ */
+function xorStrings(input, keyString) {
+  if (!keyString) return input; // No key, return original
+  let output = '';
+  for (let i = 0; i < input.length; i++) {
+    output += String.fromCharCode(input.charCodeAt(i) ^ keyString.charCodeAt(i % keyString.length));
+  }
+  return output;
+}
+
+// New encodeText that includes XOR obfuscation
+function encodeText(text) {
+  const obfuscatedText = xorStrings(text, UNICODE_OBFUSCATION_KEY);
+  return _originalEncodeText(obfuscatedText);
+}
+
+// New decodeText that includes XOR deobfuscation
+function decodeText(encodedText) {
+  const potentiallyObfuscatedText = _originalDecodeText(encodedText);
+  return xorStrings(potentiallyObfuscatedText, UNICODE_OBFUSCATION_KEY);
+}
+
+const JSON_PAYLOAD_PREFIX = "JSON_PAYLOAD::";
+
+/**
+ * Encodes a JSON payload object into a Unicode zero-width character string.
+ * The object is stringified, prefixed, and then encoded.
+ * @param {object} payloadObject The JSON object to encode.
+ * @returns {string} The Unicode-encoded string.
+ */
+function encodeJsonPayload(payloadObject) {
+  const stringifiedPayload = JSON.stringify(payloadObject);
+  const prefixedPayload = JSON_PAYLOAD_PREFIX + stringifiedPayload;
+  // Obfuscation is handled by encodeText now
+  return encodeText(prefixedPayload);
+}
+
+/**
+ * Decodes a Unicode zero-width character string that might contain a prefixed JSON payload.
+ * If the prefix is found, it extracts and returns the JSON string.
+ * Otherwise, it returns the decoded string as is (e.g., for PING messages).
+ *
+ * @param {string} encodedText The Unicode-encoded string.
+ * @returns {{ type: 'json', payload: string } | { type: 'ping', payload: string } | { type: 'unknown', payload: string }}
+ */
+function decodePayload(encodedText) {
+  // Deobfuscation is handled by decodeText now
+  const decodedString = decodeText(encodedText);
+  if (decodedString.startsWith(JSON_PAYLOAD_PREFIX)) {
+    return {
+      type: 'json',
+      payload: decodedString.substring(JSON_PAYLOAD_PREFIX.length)
+    };
+  } else if (decodedString.length > 0) {
+    return {
+      type: 'ping',
+      payload: decodedString
+    };
+  }
+  return {
+      type: 'unknown',
+      payload: decodedString
+  };
+}
+
+export { encodeText, decodeText, calculateSimilarity, encodeJsonPayload, decodePayload, JSON_PAYLOAD_PREFIX, UNICODE_OBFUSCATION_KEY };

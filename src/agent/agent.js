@@ -5,7 +5,7 @@ import { History } from './history.js';
 import { Coder } from './coder.js';
 import { VisionInterpreter } from './vision/vision_interpreter.js';
 import { Prompter } from '../models/prompter.js';
-import { encodeText, decodeText, calculateSimilarity } from '../utils/unicode.js';
+import { encodeText, decodeText, calculateSimilarity, decodePayload, JSON_PAYLOAD_PREFIX } from '../utils/unicode.js'; // Added decodePayload and JSON_PAYLOAD_PREFIX
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
@@ -231,54 +231,67 @@ export class Agent {
             "Gamerule "
         ];
         
-        const respondFunc = async (username, message) => {
+        const respondFunc = async (username, message) => { // This function now primarily handles public chat
             if (username === this.name) return;
 
-            // 1. PING Detection (Unicode) - Applies to both chat and whisper
-            try {
-                const decoded = decodeText(message);
-                if (decoded) { // Check if decoding produced any result at all
-                    const expectedIdMessage = "MINDCRAFT_COMMS_PING";
-                    const similarity = calculateSimilarity(decoded, expectedIdMessage);
-                    if (similarity > 0.9) {
-                        // console.log(`[${this.name}] Detected COMMS_PING from ${username} (Similarity: ${similarity.toFixed(2)}). Calling handleBotDetection.`);
-                        convoManager.handleBotDetection(username);
-                        return; // PING handled, stop further processing.
+            console.log(`[${this.name}] Received public chat from ${username}: ${message}`);
+
+            const decodedResult = decodePayload(message); // Use the new decodePayload
+
+            if (decodedResult.type === 'unknown' || !decodedResult.payload) {
+                // Not a valid Unicode encoding we care about or empty after decoding
+                // This could be regular player chat not meant for bot processing, or random Unicode
+                // console.log(`[${this.name}] Public chat from ${username} was not a valid PING or JSON payload after decoding. Original: ${message}`);
+                // Let it fall through to general player chat handling if settings allow
+            } else {
+                console.log(`[${this.name}] Decoded public chat from ${username}. Type: ${decodedResult.type}, Payload: ${decodedResult.payload}`);
+            }
+
+            if (decodedResult.type === 'json') {
+                const jsonString = decodedResult.payload;
+                try {
+                    const parsedPayload = JSON.parse(jsonString);
+                    console.log(`[${this.name}] Parsed JSON payload from ${username}: `, parsedPayload);
+
+                    if (parsedPayload.recipient === this.name) {
+                        const senderName = parsedPayload.senderName; // Use senderName from payload
+                        if (!senderName) {
+                            console.warn(`[${this.name}] JSON payload from ${username} for ${this.name} is missing senderName. Payload:`, parsedPayload);
+                            return;
+                        }
+
+                        console.log(`[${this.name}] Detected payload type ${parsedPayload.type} from ${senderName} (originally ${username}) for ${this.name}`);
+                        if (parsedPayload.type === "INITIATE_CONNECTION" || parsedPayload.type === "ACKNOWLEDGE_CONNECTION") {
+                            convoManager.handleConnectionPayload(senderName, parsedPayload);
+                            return;
+                        } else if (parsedPayload.type === "BOT_CHAT_MESSAGE") {
+                            convoManager.receiveFromBot(senderName, parsedPayload);
+                            return;
+                        } else {
+                            console.warn(`[${this.name}] Received unknown JSON payload type for ${this.name} from ${senderName}: ${parsedPayload.type}`);
+                            return; // Unknown JSON type specifically for this bot.
+                        }
+                    } else {
+                        // console.log(`[${this.name}] Ignoring JSON payload intended for ${parsedPayload.recipient} from ${username}`);
+                        return; // JSON payload not for this bot.
                     }
+                } catch (error) {
+                    console.error(`[${this.name}] Failed to parse JSON payload from ${username}: "${jsonString}". Error: ${error.message}`);
+                    return; // Error parsing JSON
                 }
-            } catch (e) {
-                // Likely not a unicode message, or some other error. Safe to ignore and proceed.
-                // console.warn(`[${this.name}] Error during PING decode for message from ${username}: ${e.message}`);
-            }
-
-            // 2. JSON Payload Handling (Mainly for whispers, but could be from chat if a bot misuses)
-            let parsedPayload = null;
-            try {
-                parsedPayload = JSON.parse(message);
-            } catch (e) {
-                // Not a JSON message. Will be handled as plain text further down.
-            }
-
-            if (parsedPayload) {
-                if (parsedPayload.type === "INITIATE_CONNECTION" || parsedPayload.type === "ACKNOWLEDGE_CONNECTION") {
-                    // console.log(`[${this.name}] Received connection payload from ${username}. Calling handleConnectionPayload.`);
-                    convoManager.handleConnectionPayload(username, parsedPayload);
-                    return; // Connection payload handled.
-                } else if (parsedPayload.type === "BOT_CHAT_MESSAGE") {
-                    // console.log(`[${this.name}] Received BOT_CHAT_MESSAGE from ${username}. Calling receiveFromBot.`);
-                    // This assumes receiveFromBot is robust enough to be called directly here for whispers.
-                    // The proxy usually calls receiveFromBot for messages it knows are from bots.
-                    // This ensures whispers directly from bots containing BOT_CHAT_MESSAGE are also processed.
-                    convoManager.receiveFromBot(username, parsedPayload);
-                    return; // BOT_CHAT_MESSAGE handled.
-                } else {
-                    // Unknown JSON type. Could be from another mod or an error.
-                    console.warn(`[${this.name}] Received unknown JSON payload type from ${username}: ${parsedPayload.type}. Message: ${message}`);
-                    // Fall through to plain text handling, as it's not a known system message.
+            } else if (decodedResult.type === 'ping') {
+                const decodedString = decodedResult.payload;
+                const expectedIdMessage = "MINDCRAFT_COMMS_PING";
+                const similarity = calculateSimilarity(decodedString, expectedIdMessage);
+                if (similarity > 0.9) {
+                    console.log(`[${this.name}] Detected PING message from ${username} (similarity: ${similarity.toFixed(2)})`);
+                    convoManager.handleBotDetection(username); // username is the MC username of the sender
+                    return;
                 }
             }
 
-            // 3. Plain Text Message Handling (No PING, No known JSON payload)
+            // If it wasn't a PING for us, or a JSON payload for us, it's regular player chat.
+            // (Or it was an unknown decoded payload type that we let fall through)
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) {
                 // console.log(`[${this.name}] Ignoring message from ${username} due to only_chat_with settings.`);
                 return;
