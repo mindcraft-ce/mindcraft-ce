@@ -376,13 +376,31 @@ export async function defendSelf(bot, range=9) {
         await equipHighestAttack(bot);
         if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'creeper' && enemy.name !== 'phantom') {
             try {
-                bot.pathfinder.setMovements(new pf.Movements(bot));
+                const movements = new pf.Movements(bot);
+                movements.canFloat = true; // Enable swimming
+                movements.allowSprinting = true; // Allow sprinting
+                movements.allowParkour = true; // Allow parkour
+                movements.canOpenDoors = true; // Enable automatic door opening
+                movements.liquidCost = 1; // Make water less costly to traverse
+                movements.climbCost = 1; // Adjust cost for climbing
+                movements.jumpCost = 1; // Adjust cost for jumping
+                movements.allowFreeMotion = true;
+                bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
         }
         if (bot.entity.position.distanceTo(enemy.position) <= 2) {
             try {
-                bot.pathfinder.setMovements(new pf.Movements(bot));
+                const movements = new pf.Movements(bot);
+                movements.canFloat = true; // Enable swimming
+                movements.allowSprinting = true; // Allow sprinting
+                movements.allowParkour = true; // Allow parkour
+                movements.canOpenDoors = true; // Enable automatic door opening
+                movements.liquidCost = 1; // Make water less costly to traverse
+                movements.climbCost = 1; // Adjust cost for climbing
+                movements.jumpCost = 1; // Adjust cost for jumping
+                movements.allowFreeMotion = true;
+                bot.pathfinder.setMovements(movements);
                 let inverted_goal = new pf.goals.GoalInvert(new pf.goals.GoalFollow(enemy, 2));
                 await bot.pathfinder.goto(inverted_goal, true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -440,6 +458,14 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             }
         }
         const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
             block => movements.safeToBreak(block)
@@ -502,7 +528,16 @@ export async function pickupNearbyItems(bot) {
     let nearestItem = getNearestItem(bot);
     let pickedUp = 0;
     while (nearestItem) {
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalFollow(nearestItem, 0.8), true);
         await new Promise(resolve => setTimeout(resolve, 200));
         let prev = nearestItem;
@@ -541,7 +576,15 @@ export async function breakBlockAt(bot, x, y, z) {
 
         if (bot.entity.position.distanceTo(block.position) > 4.5) {
             let pos = block.position;
-            let movements = new pf.Movements(bot);
+            const movements = new pf.Movements(bot);
+            movements.canFloat = true; // Enable swimming
+            movements.allowSprinting = true; // Allow sprinting
+            movements.allowParkour = true; // Allow parkour
+            movements.canOpenDoors = true; // Enable automatic door opening
+            movements.liquidCost = 1; // Make water less costly to traverse
+            movements.climbCost = 1; // Adjust cost for climbing
+            movements.jumpCost = 1; // Adjust cost for jumping
+            movements.allowFreeMotion = true;
             movements.canPlaceOn = false;
             movements.allow1by1towers = false;
             bot.pathfinder.setMovements(movements);
@@ -712,14 +755,31 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         // too close
         let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
         let inverted_goal = new pf.goals.GoalInvert(goal);
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movementsClose = new pf.Movements(bot);
+        movementsClose.canFloat = true; // Enable swimming
+        movementsClose.allowSprinting = true; // Allow sprinting
+        movementsClose.allowParkour = true; // Allow parkour
+        movementsClose.canOpenDoors = true; // Enable automatic door opening
+        movementsClose.liquidCost = 1; // Make water less costly to traverse
+        movementsClose.climbCost = 1; // Adjust cost for climbing
+        movementsClose.jumpCost = 1; // Adjust cost for jumping
+        movementsClose.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movementsClose);
         await bot.pathfinder.goto(inverted_goal);
     }
     if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
         // too far
         let pos = targetBlock.position;
-        let movements = new pf.Movements(bot);
-        bot.pathfinder.setMovements(movements);
+        const movementsFar = new pf.Movements(bot);
+        movementsFar.canFloat = true; // Enable swimming
+        movementsFar.allowSprinting = true; // Allow sprinting
+        movementsFar.allowParkour = true; // Allow parkour
+        movementsFar.canOpenDoors = true; // Enable automatic door opening
+        movementsFar.liquidCost = 1; // Make water less costly to traverse
+        movementsFar.climbCost = 1; // Adjust cost for climbing
+        movementsFar.jumpCost = 1; // Adjust cost for jumping
+        movementsFar.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movementsFar);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     
@@ -1027,6 +1087,14 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     }
     
     const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true; // Allow more direct paths in open areas
     bot.pathfinder.setMovements(movements);
     
     const checkProgress = () => {
@@ -1042,8 +1110,30 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     };
     
     const progressInterval = setInterval(checkProgress, 1000);
+    let headMovementInterval = null;
+
+    const lookRandomly = async () => {
+        if (!bot.pathfinder.isMoving()) {
+            if (headMovementInterval) clearInterval(headMovementInterval);
+            return;
+        }
+        try {
+            const currentYaw = bot.entity.yaw;
+            const currentPitch = bot.entity.pitch;
+            // Look around +/- 45 degrees (PI/4 radians) from current yaw, and slightly up/down
+            const randomYaw = currentYaw + (Math.random() - 0.5) * (Math.PI / 2);
+            const randomPitch = currentPitch + (Math.random() - 0.5) * (Math.PI / 8);
+            await bot.look(randomYaw, randomPitch, false); // false for not forcing (not strictly needed here)
+        } catch (lookError) {
+            // log(bot, `Error during random look: ${lookError.message}`);
+            // Ignore minor look errors that might occur if interrupted
+        }
+    };
     
     try {
+        // Start random head movements
+        headMovementInterval = setInterval(lookRandomly, 1500 + Math.random() * 1000); // every 1.5-2.5 seconds
+
         await bot.pathfinder.goto(new pf.goals.GoalNear(x, y, z, min_distance));
         log(bot, `You have reached at ${x}, ${y}, ${z}.`);
         return true;
@@ -1052,6 +1142,9 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         return false;
     } finally {
         clearInterval(progressInterval);
+        if (headMovementInterval) clearInterval(headMovementInterval);
+        // Optional: look at the destination point upon arrival or error
+        // try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
     }
 }
 
@@ -1127,11 +1220,40 @@ export async function goToPlayer(bot, username, distance=3) {
         return false;
     }
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    await bot.pathfinder.goto(new pf.goals.GoalFollow(player, distance), true);
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    bot.pathfinder.setMovements(movements);
 
-    log(bot, `You have reached ${username}.`);
+    let headMovementInterval = null;
+    const lookRandomlyWhileGoingToPlayer = async () => {
+        if (!bot.pathfinder.isMoving()) {
+            if (headMovementInterval) clearInterval(headMovementInterval);
+            return;
+        }
+        try {
+            const currentYaw = bot.entity.yaw;
+            const randomYawOffset = (Math.random() - 0.5) * (Math.PI / 2); // +/- 45 degrees
+            await bot.look(currentYaw + randomYawOffset, bot.entity.pitch, false);
+        } catch (e) { /* log(bot, `Minor error during random look: ${e.message}`); */ }
+    };
+
+    try {
+        headMovementInterval = setInterval(lookRandomlyWhileGoingToPlayer, 1800 + Math.random() * 1000); // every 1.8-2.8 seconds
+        await bot.pathfinder.goto(new pf.goals.GoalFollow(player, distance), true);
+        log(bot, `You have reached ${username}.`);
+    } catch (err) {
+        log(bot, `Error in goToPlayer: ${err.message}`);
+        // return false; // Depending on desired error handling
+    } finally {
+        if (headMovementInterval) clearInterval(headMovementInterval);
+    }
 }
 
 
@@ -1148,18 +1270,83 @@ export async function followPlayer(bot, username, distance=4) {
     if (!player)
         return false;
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true);
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    bot.pathfinder.setMovements(movements);
+    bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
 
-    while (!bot.interrupt_code) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // in cheat mode, if the distance is too far, teleport to the player
-        if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(player.position) > 100 && player.isOnGround) {
-            await goToPlayer(bot, username);
+    let headMovementIntervalFollow = null;
+    const lookRandomlyWhileFollowing = async () => {
+        // Check if still following; goal will be null if stopped or interrupted
+        if (!bot.pathfinder.goal || bot.interrupt_code) {
+            if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+            return;
         }
-        if (bot.modes.isOn('unstuck')) {
+        try {
+            const targetPlayer = bot.players[username]?.entity;
+            if (!targetPlayer) { // Player might have left
+                if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+                return;
+            }
+            // Occasionally look at the player, otherwise look around
+            if (Math.random() < 0.6) { // 60% chance to look towards player
+                 await bot.lookAt(targetPlayer.position.offset(0, targetPlayer.height, 0), false);
+            } else { // 40% chance to look around randomly
+                const currentYaw = bot.entity.yaw;
+                // Wider random range for "following" behavior, feels more natural than strict forward
+                const randomYawOffset = (Math.random() - 0.5) * (Math.PI / 1.5); // +/- 60 degrees
+                await bot.look(currentYaw + randomYawOffset, bot.entity.pitch, false);
+            }
+        } catch (e) { /* log(bot, `Minor error during random look while following: ${e.message}`); */ }
+    };
+
+    headMovementIntervalFollow = setInterval(lookRandomlyWhileFollowing, 2000 + Math.random() * 1500); // every 2-3.5 seconds
+
+    try {
+        while (!bot.interrupt_code) {
+            const currentPlayer = bot.players[username]?.entity;
+            if (!currentPlayer) {
+                log(bot, `${username} not found, stopping follow.`);
+                break; // Exit while loop
+            }
+            // The goal is dynamic (set with true), so pathfinder handles continuous following.
+            // We just need to keep this loop alive and allow head movements.
+
+            await new Promise(resolve => setTimeout(resolve, 500)); // Main loop check interval
+
+            // In cheat mode, if the distance is too far, teleport to the player
+            if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(currentPlayer.position) > 100 && currentPlayer.isOnGround) {
+                // Teleporting might interrupt pathfinder and head movement interval.
+                // goToPlayer will have its own head movement.
+                // If goToPlayer fails or player moves, this loop will re-evaluate.
+                await goToPlayer(bot, username, distance); // Use the same follow distance
+            }
+
+            if (bot.modes.isOn('unstuck')) {
+                const is_nearby = bot.entity.position.distanceTo(currentPlayer.position) <= distance + 1;
+                if (is_nearby)
+                    bot.modes.pause('unstuck');
+                else
+                    bot.modes.unpause('unstuck');
+            }
+        }
+    } finally {
+        if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+        if (bot.pathfinder.goal) bot.pathfinder.setGoal(null); // Stop pathfinding if it was active
+    }
+    return true;
+}
+
+
+export async function moveAway(bot, distance) {
             const is_nearby = bot.entity.position.distanceTo(player.position) <= distance + 1;
             if (is_nearby)
                 bot.modes.pause('unstuck');
@@ -1183,11 +1370,28 @@ export async function moveAway(bot, distance) {
     const pos = bot.entity.position;
     let goal = new pf.goals.GoalNear(pos.x, pos.y, pos.z, distance);
     let inverted_goal = new pf.goals.GoalInvert(goal);
-    bot.pathfinder.setMovements(new pf.Movements(bot));
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true;
+    bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {
-        const move = new pf.Movements(bot);
-        const path = await bot.pathfinder.getPathTo(move, inverted_goal, 10000);
+        const cheatMovements = new pf.Movements(bot); // Separate instance for cheat mode if needed, or reuse 'movements'
+        cheatMovements.canFloat = true; // Enable swimming
+        cheatMovements.allowSprinting = true; // Allow sprinting
+        cheatMovements.allowParkour = true; // Allow parkour
+        cheatMovements.canOpenDoors = true; // Enable automatic door opening
+        cheatMovements.liquidCost = 1; // Make water less costly to traverse
+        cheatMovements.climbCost = 1; // Adjust cost for climbing
+        cheatMovements.jumpCost = 1; // Adjust cost for jumping
+        cheatMovements.allowFreeMotion = true;
+        const path = await bot.pathfinder.getPathTo(cheatMovements, inverted_goal, 10000);
         let last_move = path.path[path.path.length-1];
         console.log(last_move);
         if (last_move) {
@@ -1215,7 +1419,16 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
      **/
     let goal = new pf.goals.GoalFollow(entity, distance);
     let inverted_goal = new pf.goals.GoalInvert(goal);
-    bot.pathfinder.setMovements(new pf.Movements(bot));
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true;
+    bot.pathfinder.setMovements(movements);
     await bot.pathfinder.goto(inverted_goal);
     return true;
 }
@@ -1234,7 +1447,16 @@ export async function avoidEnemies(bot, distance=16) {
     while (enemy) {
         const follow = new pf.goals.GoalFollow(enemy, distance+1); // move a little further away
         const inverted_goal = new pf.goals.GoalInvert(follow);
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movements);
         bot.pathfinder.setGoal(inverted_goal, true);
         await new Promise(resolve => setTimeout(resolve, 500));
         enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
@@ -1281,40 +1503,139 @@ export async function useDoor(bot, door_pos=null) {
      * @param {Vec3} door_pos, the position of the door to use. If null, the nearest door will be used.
      * @returns {Promise<boolean>} true if the door was used, false otherwise.
      * @example
-     * let door = world.getNearestBlock(bot, "oak_door", 16).position;
-     * await skills.useDoor(bot, door);
+     * let door = world.getNearestBlock(bot, "oak_door", 16);
+     * if (door) await skills.useDoor(bot, door.position);
      **/
-    if (!door_pos) {
-        for (let door_type of ['oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
-                               'mangrove_door', 'cherry_door', 'bamboo_door', 'crimson_door', 'warped_door']) {
-            door_pos = world.getNearestBlock(bot, door_type, 16).position;
-            if (door_pos) break;
+    const woodenDoorTypes = [
+        'oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
+        'mangrove_door', 'cherry_door', 'bamboo_door', // Wooden doors
+        'crimson_door', 'warped_door' // Nether wood doors
+        // Iron doors are excluded as they typically require redstone
+    ];
+
+    let doorBlock = null;
+
+    if (door_pos) {
+        door_pos = Vec3(door_pos.x, door_pos.y, door_pos.z);
+        const blockAtPos = bot.blockAt(door_pos);
+        if (blockAtPos && woodenDoorTypes.includes(blockAtPos.name)) {
+            doorBlock = blockAtPos;
+        } else {
+            log(bot, `No valid wooden door at specified position ${door_pos}.`);
+            return false;
         }
     } else {
-        door_pos = Vec3(door_pos.x, door_pos.y, door_pos.z);
+        const foundDoors = bot.findBlocks({
+            matching: (block) => woodenDoorTypes.includes(block.name),
+            maxDistance: 16,
+            count: 10 // Find a few and pick the closest
+        });
+        if (foundDoors.length === 0) {
+            log(bot, `Could not find any wooden doors nearby.`);
+            return false;
+        }
+        // Sort by distance and pick the closest one
+        foundDoors.sort((a, b) => bot.entity.position.distanceTo(a) - bot.entity.position.distanceTo(b));
+        const nearestDoorVec = foundDoors[0];
+        doorBlock = bot.blockAt(nearestDoorVec);
+        if (!doorBlock) { // Should not happen if findBlocks found it
+             log(bot, `Could not get block info for nearest door at ${nearestDoorVec}.`);
+             return false;
+        }
+        door_pos = doorBlock.position; // Update door_pos to the found door
+        log(bot, `Found nearest door: ${doorBlock.name} at ${door_pos}.`);
     }
-    if (!door_pos) {
-        log(bot, `Could not find a door to use.`);
+
+    if (!doorBlock) {
+        log(bot, `Could not find a valid door to use.`);
         return false;
     }
 
-    bot.pathfinder.setGoal(new pf.goals.GoalNear(door_pos.x, door_pos.y, door_pos.z, 1));
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    while (bot.pathfinder.isMoving()) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+    // Approach the door
+    const approachGoal = new pf.goals.GoalNear(door_pos.x, door_pos.y, door_pos.z, 1.5); // Get closer than 2
+    const movements = new pf.Movements(bot); // Use the new movement settings
+    movements.canFloat = true;
+    movements.allowSprinting = true;
+    movements.allowParkour = true;
+    movements.canOpenDoors = true; // This should ideally handle opening, but we'll manage explicitly for closing
+    movements.liquidCost = 1;
+    movements.climbCost = 1;
+    movements.jumpCost = 1;
+    movements.allowFreeMotion = true;
+    bot.pathfinder.setMovements(movements);
+
+    try {
+        await bot.pathfinder.goto(approachGoal);
+    } catch (err) {
+        log(bot, `Error approaching door: ${err.message}`);
+        return false;
+    }
+
+    await bot.lookAt(door_pos, true); // Force look at the door
+
+    let doorIsOpen = doorBlock.getProperties().open;
+
+    if (!doorIsOpen) {
+        log(bot, `Door at ${door_pos} is closed. Opening...`);
+        await bot.activateBlock(doorBlock);
+        await wait(bot, 500); // Wait for door to open
+        const updatedDoorBlock = bot.blockAt(door_pos); // Re-check block state
+        if (!updatedDoorBlock || !updatedDoorBlock.getProperties().open) {
+            log(bot, `Failed to open door at ${door_pos}.`);
+            // Check if something is blocking the door physically from opening
+            // This is a complex check, for now, we assume it should have opened.
+            return false;
+        }
+        doorBlock = updatedDoorBlock; // update our reference
+        log(bot, `Door at ${door_pos} is now open.`);
+    } else {
+        log(bot, `Door at ${door_pos} is already open.`);
+    }
+
+    // Move through the door
+    // Determine a point on the other side of the door
+    // This is a simplified approach, assuming the bot is facing the door
+    const doorFacing = doorBlock.getProperties().facing; // e.g., 'north', 'south', 'east', 'west'
+    const inOpen = doorBlock.getProperties().in_wall; // if the door is set in a wall, this is true
+    const hinge = doorBlock.getProperties().hinge; // 'left' or 'right'
+    
+    let moveDirection = Vec3(0,0,0);
+    // This logic might need refinement based on how facing and hinge affect passage
+    if (doorFacing === 'north') moveDirection = Vec3(0, 0, -2);
+    else if (doorFacing === 'south') moveDirection = Vec3(0, 0, 2);
+    else if (doorFacing === 'west') moveDirection = Vec3(-2, 0, 0);
+    else if (doorFacing === 'east') moveDirection = Vec3(2, 0, 0);
+
+    const throughPos = door_pos.plus(moveDirection);
+    const throughGoal = new pf.goals.GoalBlock(throughPos.x, throughPos.y, throughPos.z);
+
+    try {
+        // bot.setControlState("forward", true); // More direct movement
+        // await wait(bot, 700); // Adjust time as needed
+        // bot.setControlState("forward", false);
+        await bot.pathfinder.goto(throughGoal); // Use pathfinder to move through
+        log(bot, `Moved through door at ${door_pos}.`);
+    } catch (err) {
+        log(bot, `Error moving through door: ${err.message}. Trying manual move.`);
+        // Fallback to manual move if pathfinder fails (e.g. door is tricky)
+        bot.setControlState("forward", true);
+        await wait(bot, 700);
+        bot.setControlState("forward", false);
     }
     
-    let door_block = bot.blockAt(door_pos);
-    await bot.lookAt(door_pos);
-    if (!door_block._properties.open)
-        await bot.activateBlock(door_block);
-    
-    bot.setControlState("forward", true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    bot.setControlState("forward", false);
-    await bot.activateBlock(door_block);
+    // Close the door if it was opened by the bot
+    // Re-fetch block, it might be null if we moved far or into an unloaded chunk (unlikely for a door)
+    const doorAfterPassage = bot.blockAt(door_pos);
+    if (doorAfterPassage && woodenDoorTypes.includes(doorAfterPassage.name) && doorAfterPassage.getProperties().open) {
+        log(bot, `Closing door at ${door_pos}.`);
+        await bot.activateBlock(doorAfterPassage); // Close the door
+        await wait(bot, 300); // Wait for door to close
+    } else if (!doorAfterPassage) {
+        log(bot, `Could not find door at ${door_pos} after passing, cannot close.`);
+    }
 
-    log(bot, `Used door at ${door_pos}.`);
+
+    log(bot, `Successfully used door at ${door_pos}.`);
     return true;
 }
 
@@ -1392,7 +1713,16 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     // if distance is too far, move to the block
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     if (block.name !== 'farmland') {
@@ -1438,7 +1768,16 @@ export async function activateNearestBlock(bot, type) {
     }
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     await bot.activateBlock(block);
