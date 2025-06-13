@@ -1140,16 +1140,17 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     let chosenMovements = null;
     let nonDestructivePath = null;
     let destructivePath = null;
-    const pathTimeout = bot.pathfinder.thinkTimeout / 2 ; // Use half for each attempt initially
+    // Use the full default timeout for each path calculation attempt.
+    const pathTimeout = bot.pathfinder.thinkTimeout;
 
-    log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z}...`);
+    log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
     try {
         nonDestructivePath = await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathTimeout);
     } catch (e) {
         log(bot, `Non-destructive path calculation failed or timed out: ${e.message}`);
     }
 
-    log(bot, `Calculating destructive path to ${x}, ${y}, ${z}...`);
+    log(bot, `Calculating destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
     try {
         destructivePath = await bot.pathfinder.getPathTo(destructiveMovements, goal, pathTimeout);
     } catch (e) {
@@ -1499,7 +1500,8 @@ export async function moveAway(bot, distance) {
 
     await bot.pathfinder.goto(inverted_goal);
     let new_pos = bot.entity.position;
-    log(bot, `Moved away from nearest entity to ${new_pos}.`);
+    const original_pos_str = pos ? `from x:${pos.x.toFixed(1)}, y:${pos.y.toFixed(1)}, z:${pos.z.toFixed(1)}` : "previous location";
+    log(bot, `Moved away ${original_pos_str} to x:${new_pos.x.toFixed(1)}, y:${new_pos.y.toFixed(1)}, z:${new_pos.z.toFixed(1)}.`);
     return true;
 }
 
