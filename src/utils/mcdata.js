@@ -50,7 +50,22 @@ export const WOOL_COLORS = [
     'green',
     'red',
     'black'
-]
+];
+
+export const ALL_WOODEN_DOORS = [
+    'oak_door', 'spruce_door', 'birch_door', 'jungle_door',
+    'acacia_door', 'dark_oak_door', 'mangrove_door', 'cherry_door', 'bamboo_door'
+];
+
+export const ALL_NON_WOODEN_DOORS_ACTIVATABLE = [
+    'crimson_door', 'warped_door'
+    // Iron doors are not included as they typically require redstone.
+];
+
+export const ALL_OPENABLE_DOORS = [
+    ...ALL_WOODEN_DOORS,
+    ...ALL_NON_WOODEN_DOORS_ACTIVATABLE
+];
 
 
 export function initBot(username) {

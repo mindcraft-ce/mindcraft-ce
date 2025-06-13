@@ -388,6 +388,18 @@ export async function defendSelf(bot, range=9) {
                 movements.digCost = 100; // High cost for digging
                 if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
                 if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+                if (mc.ALL_OPENABLE_DOORS) {
+                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                        const doorId = mc.getBlockId(doorName);
+                        if (doorId) movements.blocksToOpen.add(doorId);
+                    });
+                }
+                if (mc.ALL_OPENABLE_DOORS) {
+                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                        const doorId = mc.getBlockId(doorName);
+                        if (doorId) movements.blocksToOpen.add(doorId);
+                    });
+                }
                 bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -406,6 +418,10 @@ export async function defendSelf(bot, range=9) {
                 movements.digCost = 100; // High cost for digging
                 if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
                 if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+                mc.ALL_WOODEN_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
                 bot.pathfinder.setMovements(movements);
                 let inverted_goal = new pf.goals.GoalInvert(new pf.goals.GoalFollow(enemy, 2));
                 await bot.pathfinder.goto(inverted_goal, true);
@@ -472,6 +488,12 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
         // For collectBlock, we don't want to set a high digCost or avoid common blocks.
         // Specific settings for block breaking are handled by the logic within collectBlock.
         movements.dontMineUnderFallingBlock = false;
@@ -548,6 +570,12 @@ export async function pickupNearbyItems(bot) {
         movements.digCost = 100;
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalFollow(nearestItem, 0.8), true);
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -601,6 +629,12 @@ export async function breakBlockAt(bot, x, y, z) {
             // The pathfinding to get *near* the block might still have these settings if we are not careful.
             // For now, let's assume pathfinding to the block to break it should be less restrictive.
             // We will NOT add high digCost or blocksToAvoid to this specific pathfinder instance.
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Still allow opening doors to get to a block to break
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
+            }
             movements.canPlaceOn = false;
             movements.allow1by1towers = false;
             bot.pathfinder.setMovements(movements);
@@ -783,6 +817,12 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         movementsClose.digCost = 100;
         if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movementsClose.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movementsClose);
         await bot.pathfinder.goto(inverted_goal);
     }
@@ -801,6 +841,12 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         movementsFar.digCost = 100;
         if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movementsFar.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movementsFar);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
@@ -1120,6 +1166,12 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     movements.digCost = 100; // High cost for digging
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to non-destructive
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     // This is now the non-destructive default
     const nonDestructiveMovements = movements;
 
@@ -1134,6 +1186,12 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     destructiveMovements.jumpCost = 1;
     destructiveMovements.allowFreeMotion = true;
     destructiveMovements.digCost = 1; // Default (or slightly higher, e.g., 10, if some discouragement is still desired)
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to destructive as well
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) destructiveMovements.blocksToOpen.add(doorId);
+        });
+    }
     // destructiveMovements.blocksToAvoid should not include glass for this strategy. Default is an empty Set.
 
     const goal = new pf.goals.GoalNear(x, y, z, min_distance);
@@ -1317,6 +1375,12 @@ export async function goToPlayer(bot, username, distance=3) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     bot.pathfinder.setMovements(movements);
 
     let headMovementInterval = null;
@@ -1370,6 +1434,12 @@ export async function followPlayer(bot, username, distance=4) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     bot.pathfinder.setMovements(movements);
     bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
@@ -1473,6 +1543,12 @@ export async function moveAway(bot, distance) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {
@@ -1485,6 +1561,12 @@ export async function moveAway(bot, distance) {
         cheatMovements.climbCost = 1; // Adjust cost for climbing
         cheatMovements.jumpCost = 1; // Adjust cost for jumping
         cheatMovements.allowFreeMotion = true;
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Cheat movements should still open doors
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) cheatMovements.blocksToOpen.add(doorId);
+            });
+        }
         // No specific digCost or blocksToAvoid for cheat movement, assuming direct path.
         const path = await bot.pathfinder.getPathTo(cheatMovements, inverted_goal, 10000);
         let last_move = path.path[path.path.length-1];
@@ -1527,6 +1609,12 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     bot.pathfinder.setMovements(movements);
     await bot.pathfinder.goto(inverted_goal);
     return true;
@@ -1558,6 +1646,12 @@ export async function avoidEnemies(bot, distance=16) {
         movements.digCost = 100;
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movements);
         bot.pathfinder.setGoal(inverted_goal, true);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -1667,6 +1761,12 @@ export async function useDoor(bot, door_pos=null) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
     bot.pathfinder.setMovements(movements);
 
     try {
@@ -1678,24 +1778,92 @@ export async function useDoor(bot, door_pos=null) {
 
     await bot.lookAt(door_pos, true); // Force look at the door
 
-    let doorIsOpen = doorBlock.getProperties().open;
+    let attempts = 0;
+    const maxAttempts = 2;
+    let successfullyOpened = false;
+    let doorWasInitiallyOpen = false;
+    let doorBrokenByForce = false;
 
-    if (!doorIsOpen) {
-        log(bot, `Door at ${door_pos} is closed. Opening...`);
-        await bot.activateBlock(doorBlock);
-        await wait(bot, 500); // Wait for door to open
-        const updatedDoorBlock = bot.blockAt(door_pos); // Re-check block state
-        if (!updatedDoorBlock || !updatedDoorBlock.getProperties().open) {
-            log(bot, `Failed to open door at ${door_pos}.`);
-            // Check if something is blocking the door physically from opening
-            // This is a complex check, for now, we assume it should have opened.
+    // Initial check of the door state
+    let currentDoorBlock = bot.blockAt(doorBlock.position); // Use the initially identified doorBlock's position
+    if (!currentDoorBlock) {
+        log(bot, `Door at ${doorBlock.position} not found before activation attempts.`);
+        return false;
+    }
+    if (!mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+        log(bot, `Block at ${currentDoorBlock.position} is not a door: ${currentDoorBlock.name}. Cannot use 'useDoor'.`);
+        return false;
+    }
+    doorWasInitiallyOpen = currentDoorBlock.getProperties().open;
+
+    while (attempts < maxAttempts && !successfullyOpened) {
+        attempts++;
+        log(bot, `Attempting to activate door at ${currentDoorBlock.position} (attempt ${attempts}/${maxAttempts})...`);
+        await bot.lookAt(currentDoorBlock.position); // Ensure bot is looking
+
+        // Re-fetch block state before interacting
+        currentDoorBlock = bot.blockAt(doorBlock.position);
+        if (!currentDoorBlock || !mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+            log(bot, `Door at ${doorBlock.position} no longer exists or changed type.`);
             return false;
         }
-        doorBlock = updatedDoorBlock; // update our reference
-        log(bot, `Door at ${door_pos} is now open.`);
-    } else {
-        log(bot, `Door at ${door_pos} is already open.`);
+
+        if (currentDoorBlock.getProperties().open) {
+            log(bot, `Door at ${currentDoorBlock.position} is already open.`);
+            successfullyOpened = true;
+            // doorWasInitiallyOpen = true; // Re-affirm if found open during attempts
+            break;
+        }
+
+        await bot.activateBlock(currentDoorBlock);
+        await wait(bot, 750); // Use existing wait skill
+
+        currentDoorBlock = bot.blockAt(doorBlock.position); // Re-fetch after activation
+        if (!currentDoorBlock || !mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+            log(bot, `Door at ${doorBlock.position} no longer exists or changed type after activation attempt.`);
+            return false;
+        }
+
+        if (currentDoorBlock.getProperties().open) {
+            log(bot, "Door successfully opened.");
+            successfullyOpened = true;
+            // doorWasInitiallyOpen would be false if we had to open it here
+        } else {
+            log(bot, `Door at ${currentDoorBlock.position} still closed after attempt ${attempts}.`);
+            if (attempts < maxAttempts) {
+                await wait(bot, 500); // Short pause before retry
+            }
+        }
     }
+
+    if (!successfullyOpened) {
+        log(bot, `Failed to open door at ${doorBlock.position} after ${maxAttempts} attempts. Attempting forceful entry.`);
+
+        // Forceful Entry Logic
+        const doorToBreak = bot.blockAt(doorBlock.position); // Re-fetch for safety
+        if (doorToBreak && mc.ALL_OPENABLE_DOORS.includes(doorToBreak.name)) {
+            try {
+                // log(bot, `Equipping tool for ${doorToBreak.name}...`); // Optional: too verbose?
+                await bot.tool.equipForBlock(doorToBreak, {});
+                // log(bot, `Digging door at ${doorToBreak.position}...`);
+                await bot.dig(doorToBreak);
+                log(bot, `Successfully broke door at ${doorToBreak.position}.`);
+                bot.emit('skill_info', `Broke door at ${doorToBreak.position.x}, ${doorToBreak.position.y}, ${doorToBreak.position.z} after failed open attempts.`); // For apology later
+                successfullyOpened = true; // Treat as "opened" for movement purposes
+                doorBrokenByForce = true; // Flag that we broke it
+            } catch (err) {
+                log(bot, `Error trying to break door at ${doorToBreak.position}: ${err.message}`);
+                return false; // Failed to break the door
+            }
+        } else {
+            log(bot, `Door at ${doorBlock.position} is no longer a breakable door or does not exist. Cannot use forceful entry.`);
+            return false;
+        }
+    }
+
+    // If successfullyOpened (either by activation or by force), proceed.
+    // Update doorBlock to the latest state (though it might be air if broken)
+    doorBlock = bot.blockAt(doorBlock.position);
 
     // Move through the door
     // Determine a point on the other side of the door
@@ -1727,20 +1895,24 @@ export async function useDoor(bot, door_pos=null) {
         await wait(bot, 700);
         bot.setControlState("forward", false);
     }
-    
+
     // Close the door if it was opened by the bot
     // Re-fetch block, it might be null if we moved far or into an unloaded chunk (unlikely for a door)
-    const doorAfterPassage = bot.blockAt(door_pos);
-    if (doorAfterPassage && woodenDoorTypes.includes(doorAfterPassage.name) && doorAfterPassage.getProperties().open) {
-        log(bot, `Closing door at ${door_pos}.`);
-        await bot.activateBlock(doorAfterPassage); // Close the door
-        await wait(bot, 300); // Wait for door to close
-    } else if (!doorAfterPassage) {
-        log(bot, `Could not find door at ${door_pos} after passing, cannot close.`);
+    const doorStateAfterMovement = bot.blockAt(door_pos);
+
+    // Only attempt to close if it wasn't broken, was NOT initially open, AND we successfully opened it (not found it already open)
+    if (!doorBrokenByForce && doorStateAfterMovement && mc.ALL_OPENABLE_DOORS.includes(doorStateAfterMovement.name) &&
+        doorStateAfterMovement.getProperties().open && !doorWasInitiallyOpen) {
+        log(bot, `Closing door at ${door_pos} (it was opened by the bot and not broken).`);
+        await bot.activateBlock(doorStateAfterMovement);
+        await wait(bot, 300);
+    } else if (!doorStateAfterMovement && !doorBrokenByForce) {
+        log(bot, `Could not find door at ${door_pos} after passing, cannot evaluate closing.`);
+    } else if (doorBrokenByForce) {
+        log(bot, `Door at ${door_pos} was broken, no need to close.`);
     }
 
-
-    log(bot, `Successfully used door at ${door_pos}.`);
+    log(bot, `Successfully used door at ${door_pos} (opened: ${successfullyOpened}, broken: ${doorBrokenByForce}).`);
     return true;
 }
 
@@ -1830,6 +2002,12 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
         movements.digCost = 100; // High dig cost for pathing to till
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
@@ -1888,6 +2066,12 @@ export async function activateNearestBlock(bot, type) {
         movements.digCost = 100;
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }

@@ -1,6 +1,7 @@
 import * as skills from '../library/skills.js';
 import settings from '../../../settings.js';
 import convoManager from '../conversation.js';
+import * as mc from '../../utils/mcdata.js'; // Adjusted path
 
 export function runAsAction (actionFn, resume = false, timeout = -1) {
     let actionLabel = null;  // Will be set on first use
@@ -332,10 +333,16 @@ export const actionsList = [
     },
     {
         name: '!activate',
-        description: 'Activate the nearest object of a given type.',
+        description: 'Activate the nearest object of a given type. If the type is a door, it will use the enhanced useDoor skill.',
         params: {'type': { type: 'BlockName', description: 'The type of object to activate.' }},
         perform: runAsAction(async (agent, type) => {
-            await skills.activateNearestBlock(agent.bot, type);
+            const typeLowerCase = type.toLowerCase();
+            if (mc.ALL_OPENABLE_DOORS && mc.ALL_OPENABLE_DOORS.includes(typeLowerCase)) {
+                console.log(`!activate command: Type '${type}' is a door. Using skills.useDoor.`);
+                await skills.useDoor(agent.bot, null); // Pass null to find and use the nearest door
+            } else {
+                await skills.activateNearestBlock(agent.bot, type);
+            }
         })
     },
     {

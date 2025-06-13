@@ -254,6 +254,24 @@ export class Agent {
         if (settings.profiles.length === 1)
             this.bot.on('chat', respondFunc);
 
+        this.bot.on('skill_info', (skillName, message, data) => {
+            if (skillName === 'useDoor' && message && message.startsWith('Broke door at')) {
+                // Adjusted to match the actual event emit from skills.js
+                // Example: "Broke door at x, y, z after failed open attempts."
+                // We can make this more robust if skills.js emits a more structured message or specific event name for this.
+
+                const apologyMessage = "I apologize; I had to break that door as I couldn't get it open.";
+                this.openChat(apologyMessage);
+
+                // Log this action to the agent's history
+                // The 'data' object from the emit in skills.js should be passed here.
+                // If skills.js emits { position: doorBlock.position.toArray() } as data:
+                // let positionString = data && data.position ? `x:${data.position[0]}, y:${data.position[1]}, z:${data.position[2]}` : 'unknown location';
+                // For now, use the message which contains the position.
+                this.history.add('system', `Apologized for breaking a door. Details: ${message}`);
+            }
+        });
+
         // Set up auto-eat
         this.bot.autoEat.options = {
             priority: 'foodPoints',
