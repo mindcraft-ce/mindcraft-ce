@@ -385,6 +385,9 @@ export async function defendSelf(bot, range=9) {
                 movements.climbCost = 1; // Adjust cost for climbing
                 movements.jumpCost = 1; // Adjust cost for jumping
                 movements.allowFreeMotion = true;
+                movements.digCost = 100; // High cost for digging
+                if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+                if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
                 bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -400,6 +403,9 @@ export async function defendSelf(bot, range=9) {
                 movements.climbCost = 1; // Adjust cost for climbing
                 movements.jumpCost = 1; // Adjust cost for jumping
                 movements.allowFreeMotion = true;
+                movements.digCost = 100; // High cost for digging
+                if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+                if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
                 bot.pathfinder.setMovements(movements);
                 let inverted_goal = new pf.goals.GoalInvert(new pf.goals.GoalFollow(enemy, 2));
                 await bot.pathfinder.goto(inverted_goal, true);
@@ -466,6 +472,8 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        // For collectBlock, we don't want to set a high digCost or avoid common blocks.
+        // Specific settings for block breaking are handled by the logic within collectBlock.
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
             block => movements.safeToBreak(block)
@@ -537,6 +545,9 @@ export async function pickupNearbyItems(bot) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalFollow(nearestItem, 0.8), true);
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -585,6 +596,11 @@ export async function breakBlockAt(bot, x, y, z) {
             movements.climbCost = 1; // Adjust cost for climbing
             movements.jumpCost = 1; // Adjust cost for jumping
             movements.allowFreeMotion = true;
+            // breakBlockAt is intended to break blocks, so no high digCost or blocksToAvoid here for the pathfinding movement part.
+            // However, the primary action of breaking the target block should not be hindered.
+            // The pathfinding to get *near* the block might still have these settings if we are not careful.
+            // For now, let's assume pathfinding to the block to break it should be less restrictive.
+            // We will NOT add high digCost or blocksToAvoid to this specific pathfinder instance.
             movements.canPlaceOn = false;
             movements.allow1by1towers = false;
             bot.pathfinder.setMovements(movements);
@@ -764,6 +780,9 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         movementsClose.climbCost = 1; // Adjust cost for climbing
         movementsClose.jumpCost = 1; // Adjust cost for jumping
         movementsClose.allowFreeMotion = true;
+        movementsClose.digCost = 100;
+        if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movementsClose);
         await bot.pathfinder.goto(inverted_goal);
     }
@@ -779,6 +798,9 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         movementsFar.climbCost = 1; // Adjust cost for climbing
         movementsFar.jumpCost = 1; // Adjust cost for jumping
         movementsFar.allowFreeMotion = true;
+        movementsFar.digCost = 100;
+        if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movementsFar);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
@@ -1095,7 +1117,68 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     movements.climbCost = 1; // Adjust cost for climbing
     movements.jumpCost = 1; // Adjust cost for jumping
     movements.allowFreeMotion = true; // Allow more direct paths in open areas
-    bot.pathfinder.setMovements(movements);
+    movements.digCost = 100; // High cost for digging
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    // This is now the non-destructive default
+    const nonDestructiveMovements = movements;
+
+    // Define destructive movements
+    const destructiveMovements = new pf.Movements(bot);
+    destructiveMovements.canFloat = true;
+    destructiveMovements.allowSprinting = true;
+    destructiveMovements.allowParkour = true;
+    destructiveMovements.canOpenDoors = true;
+    destructiveMovements.liquidCost = 1;
+    destructiveMovements.climbCost = 1;
+    destructiveMovements.jumpCost = 1;
+    destructiveMovements.allowFreeMotion = true;
+    destructiveMovements.digCost = 1; // Default (or slightly higher, e.g., 10, if some discouragement is still desired)
+    // destructiveMovements.blocksToAvoid should not include glass for this strategy. Default is an empty Set.
+
+    const goal = new pf.goals.GoalNear(x, y, z, min_distance);
+    let chosenMovements = null;
+    let nonDestructivePath = null;
+    let destructivePath = null;
+    const pathTimeout = bot.pathfinder.thinkTimeout / 2 ; // Use half for each attempt initially
+
+    log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z}...`);
+    try {
+        nonDestructivePath = await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathTimeout);
+    } catch (e) {
+        log(bot, `Non-destructive path calculation failed or timed out: ${e.message}`);
+    }
+
+    log(bot, `Calculating destructive path to ${x}, ${y}, ${z}...`);
+    try {
+        destructivePath = await bot.pathfinder.getPathTo(destructiveMovements, goal, pathTimeout);
+    } catch (e) {
+        log(bot, `Destructive path calculation failed or timed out: ${e.message}`);
+    }
+
+    if (nonDestructivePath && destructivePath) {
+        const ndLength = nonDestructivePath.length; // Assuming .length gives a comparable metric (number of nodes)
+        const dLength = destructivePath.length;
+        log(bot, `Non-destructive path length: ${ndLength}, Destructive path length: ${dLength}`);
+        if (ndLength <= dLength + 150) {
+            log(bot, `Choosing non-destructive path as it's within 150 blocks of destructive path or shorter.`);
+            chosenMovements = nonDestructiveMovements;
+        } else {
+            log(bot, `Choosing destructive path as non-destructive path is too long.`);
+            chosenMovements = destructiveMovements;
+        }
+    } else if (nonDestructivePath) {
+        log(bot, `Choosing non-destructive path (destructive path not found).`);
+        chosenMovements = nonDestructiveMovements;
+    } else if (destructivePath) {
+        log(bot, `Choosing destructive path (non-destructive path not found).`);
+        chosenMovements = destructiveMovements;
+    } else {
+        log(bot, `Neither destructive nor non-destructive path found to ${x}, ${y}, ${z}.`);
+        return false;
+    }
+
+    bot.pathfinder.setMovements(chosenMovements);
     
     const checkProgress = () => {
         if (bot.targetDigBlock) {
@@ -1134,7 +1217,8 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         // Start random head movements
         headMovementInterval = setInterval(lookRandomly, 1500 + Math.random() * 1000); // every 1.5-2.5 seconds
 
-        await bot.pathfinder.goto(new pf.goals.GoalNear(x, y, z, min_distance));
+        // The goal is already defined above
+        await bot.pathfinder.goto(goal);
         log(bot, `You have reached at ${x}, ${y}, ${z}.`);
         return true;
     } catch (err) {
@@ -1229,6 +1313,9 @@ export async function goToPlayer(bot, username, distance=3) {
     movements.climbCost = 1; // Adjust cost for climbing
     movements.jumpCost = 1; // Adjust cost for jumping
     movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
     bot.pathfinder.setMovements(movements);
 
     let headMovementInterval = null;
@@ -1279,6 +1366,9 @@ export async function followPlayer(bot, username, distance=4) {
     movements.climbCost = 1; // Adjust cost for climbing
     movements.jumpCost = 1; // Adjust cost for jumping
     movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
     bot.pathfinder.setMovements(movements);
     bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
@@ -1379,6 +1469,9 @@ export async function moveAway(bot, distance) {
     movements.climbCost = 1; // Adjust cost for climbing
     movements.jumpCost = 1; // Adjust cost for jumping
     movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
     bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {
@@ -1391,6 +1484,7 @@ export async function moveAway(bot, distance) {
         cheatMovements.climbCost = 1; // Adjust cost for climbing
         cheatMovements.jumpCost = 1; // Adjust cost for jumping
         cheatMovements.allowFreeMotion = true;
+        // No specific digCost or blocksToAvoid for cheat movement, assuming direct path.
         const path = await bot.pathfinder.getPathTo(cheatMovements, inverted_goal, 10000);
         let last_move = path.path[path.path.length-1];
         console.log(last_move);
@@ -1428,6 +1522,9 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
     movements.climbCost = 1; // Adjust cost for climbing
     movements.jumpCost = 1; // Adjust cost for jumping
     movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
     bot.pathfinder.setMovements(movements);
     await bot.pathfinder.goto(inverted_goal);
     return true;
@@ -1456,6 +1553,9 @@ export async function avoidEnemies(bot, distance=16) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movements);
         bot.pathfinder.setGoal(inverted_goal, true);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -1562,6 +1662,9 @@ export async function useDoor(bot, door_pos=null) {
     movements.climbCost = 1;
     movements.jumpCost = 1;
     movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
     bot.pathfinder.setMovements(movements);
 
     try {
@@ -1598,7 +1701,7 @@ export async function useDoor(bot, door_pos=null) {
     const doorFacing = doorBlock.getProperties().facing; // e.g., 'north', 'south', 'east', 'west'
     const inOpen = doorBlock.getProperties().in_wall; // if the door is set in a wall, this is true
     const hinge = doorBlock.getProperties().hinge; // 'left' or 'right'
-    
+
     let moveDirection = Vec3(0,0,0);
     // This logic might need refinement based on how facing and hinge affect passage
     if (doorFacing === 'north') moveDirection = Vec3(0, 0, -2);
@@ -1722,6 +1825,9 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        movements.digCost = 100; // High dig cost for pathing to till
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
@@ -1777,6 +1883,9 @@ export async function activateNearestBlock(bot, type) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
