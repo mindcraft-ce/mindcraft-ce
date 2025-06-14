@@ -72,6 +72,8 @@ for (let profile of settings.profiles) {
     Mindcraft.createAgent(settings);
 }
 initSTT();
+
+
 process.on('uncaughtException', (error) => {
     console.error('An error occurred:', error);
     console.error(error.stack || '', error.message || '');
