@@ -737,7 +737,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     if (item_name == "redstone_wire")
         item_name = "redstone";
     let block = bot.inventory.items().find(item => item.name === item_name);
-    if (!block && bot.game.gameMode === 'creative' && !bot.restrict_to_inventory) {
+    if (block && bot.game.gameMode === 'creative' && !bot.restrict_to_inventory) {
         await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1)); // 36 is first hotbar slot
         block = bot.inventory.items().find(item => item.name === item_name);
     }
@@ -856,9 +856,11 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
 
     // will throw error if an entity is in the way, and sometimes even if the block was placed
     try {
+        bot.setControlState("sneak", true);
         await bot.placeBlock(buildOffBlock, faceVec);
         log(bot, `Placed ${blockType} at ${target_dest}.`);
         await new Promise(resolve => setTimeout(resolve, 200));
+        bot.setControlState("sneak", false);
         return true;
     } catch (err) {
         log(bot, `Failed to place ${blockType} at ${target_dest}.`);
