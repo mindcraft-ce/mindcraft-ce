@@ -376,13 +376,53 @@ export async function defendSelf(bot, range=9) {
         await equipHighestAttack(bot);
         if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'creeper' && enemy.name !== 'phantom') {
             try {
-                bot.pathfinder.setMovements(new pf.Movements(bot));
+                const movements = new pf.Movements(bot);
+                movements.canFloat = true; // Enable swimming
+                movements.allowSprinting = true; // Allow sprinting
+                movements.allowParkour = true; // Allow parkour
+                movements.canOpenDoors = true; // Enable automatic door opening
+                movements.liquidCost = 1; // Make water less costly to traverse
+                movements.climbCost = 1; // Adjust cost for climbing
+                movements.jumpCost = 1; // Adjust cost for jumping
+                movements.allowFreeMotion = true;
+                movements.digCost = 100; // High cost for digging
+                if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+                if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+                if (mc.ALL_OPENABLE_DOORS) {
+                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                        const doorId = mc.getBlockId(doorName);
+                        if (doorId) movements.blocksToOpen.add(doorId);
+                    });
+                }
+                if (mc.ALL_OPENABLE_DOORS) {
+                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                        const doorId = mc.getBlockId(doorName);
+                        if (doorId) movements.blocksToOpen.add(doorId);
+                    });
+                }
+                bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
         }
         if (bot.entity.position.distanceTo(enemy.position) <= 2) {
             try {
-                bot.pathfinder.setMovements(new pf.Movements(bot));
+                const movements = new pf.Movements(bot);
+                movements.canFloat = true; // Enable swimming
+                movements.allowSprinting = true; // Allow sprinting
+                movements.allowParkour = true; // Allow parkour
+                movements.canOpenDoors = true; // Enable automatic door opening
+                movements.liquidCost = 1; // Make water less costly to traverse
+                movements.climbCost = 1; // Adjust cost for climbing
+                movements.jumpCost = 1; // Adjust cost for jumping
+                movements.allowFreeMotion = true;
+                movements.digCost = 100; // High cost for digging
+                if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+                if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+                mc.ALL_WOODEN_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
+                bot.pathfinder.setMovements(movements);
                 let inverted_goal = new pf.goals.GoalInvert(new pf.goals.GoalFollow(enemy, 2));
                 await bot.pathfinder.goto(inverted_goal, true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -440,6 +480,22 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             }
         }
         const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
+        // For collectBlock, we don't want to set a high digCost or avoid common blocks.
+        // Specific settings for block breaking are handled by the logic within collectBlock.
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
             block => movements.safeToBreak(block)
@@ -502,7 +558,25 @@ export async function pickupNearbyItems(bot) {
     let nearestItem = getNearestItem(bot);
     let pickedUp = 0;
     while (nearestItem) {
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalFollow(nearestItem, 0.8), true);
         await new Promise(resolve => setTimeout(resolve, 200));
         let prev = nearestItem;
@@ -541,7 +615,26 @@ export async function breakBlockAt(bot, x, y, z) {
 
         if (bot.entity.position.distanceTo(block.position) > 4.5) {
             let pos = block.position;
-            let movements = new pf.Movements(bot);
+            const movements = new pf.Movements(bot);
+            movements.canFloat = true; // Enable swimming
+            movements.allowSprinting = true; // Allow sprinting
+            movements.allowParkour = true; // Allow parkour
+            movements.canOpenDoors = true; // Enable automatic door opening
+            movements.liquidCost = 1; // Make water less costly to traverse
+            movements.climbCost = 1; // Adjust cost for climbing
+            movements.jumpCost = 1; // Adjust cost for jumping
+            movements.allowFreeMotion = true;
+            // breakBlockAt is intended to break blocks, so no high digCost or blocksToAvoid here for the pathfinding movement part.
+            // However, the primary action of breaking the target block should not be hindered.
+            // The pathfinding to get *near* the block might still have these settings if we are not careful.
+            // For now, let's assume pathfinding to the block to break it should be less restrictive.
+            // We will NOT add high digCost or blocksToAvoid to this specific pathfinder instance.
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Still allow opening doors to get to a block to break
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
+            }
             movements.canPlaceOn = false;
             movements.allow1by1towers = false;
             bot.pathfinder.setMovements(movements);
@@ -712,14 +805,49 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         // too close
         let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
         let inverted_goal = new pf.goals.GoalInvert(goal);
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movementsClose = new pf.Movements(bot);
+        movementsClose.canFloat = true; // Enable swimming
+        movementsClose.allowSprinting = true; // Allow sprinting
+        movementsClose.allowParkour = true; // Allow parkour
+        movementsClose.canOpenDoors = true; // Enable automatic door opening
+        movementsClose.liquidCost = 1; // Make water less costly to traverse
+        movementsClose.climbCost = 1; // Adjust cost for climbing
+        movementsClose.jumpCost = 1; // Adjust cost for jumping
+        movementsClose.allowFreeMotion = true;
+        movementsClose.digCost = 100;
+        if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movementsClose.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movementsClose);
         await bot.pathfinder.goto(inverted_goal);
     }
     if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
         // too far
         let pos = targetBlock.position;
-        let movements = new pf.Movements(bot);
-        bot.pathfinder.setMovements(movements);
+        const movementsFar = new pf.Movements(bot);
+        movementsFar.canFloat = true; // Enable swimming
+        movementsFar.allowSprinting = true; // Allow sprinting
+        movementsFar.allowParkour = true; // Allow parkour
+        movementsFar.canOpenDoors = true; // Enable automatic door opening
+        movementsFar.liquidCost = 1; // Make water less costly to traverse
+        movementsFar.climbCost = 1; // Adjust cost for climbing
+        movementsFar.jumpCost = 1; // Adjust cost for jumping
+        movementsFar.allowFreeMotion = true;
+        movementsFar.digCost = 100;
+        if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movementsFar.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movementsFar);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     
@@ -1027,7 +1155,89 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     }
     
     const movements = new pf.Movements(bot);
-    bot.pathfinder.setMovements(movements);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    movements.digCost = 100; // High cost for digging
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to non-destructive
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
+    // This is now the non-destructive default
+    const nonDestructiveMovements = movements;
+
+    // Define destructive movements
+    const destructiveMovements = new pf.Movements(bot);
+    destructiveMovements.canFloat = true;
+    destructiveMovements.allowSprinting = true;
+    destructiveMovements.allowParkour = true;
+    destructiveMovements.canOpenDoors = true;
+    destructiveMovements.liquidCost = 1;
+    destructiveMovements.climbCost = 1;
+    destructiveMovements.jumpCost = 1;
+    destructiveMovements.allowFreeMotion = true;
+    destructiveMovements.digCost = 1; // Default (or slightly higher, e.g., 10, if some discouragement is still desired)
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to destructive as well
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) destructiveMovements.blocksToOpen.add(doorId);
+        });
+    }
+    // destructiveMovements.blocksToAvoid should not include glass for this strategy. Default is an empty Set.
+
+    const goal = new pf.goals.GoalNear(x, y, z, min_distance);
+    let chosenMovements = null;
+    let nonDestructivePath = null;
+    let destructivePath = null;
+    // Use the full default timeout for each path calculation attempt.
+    const pathTimeout = bot.pathfinder.thinkTimeout;
+
+    log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
+    try {
+        nonDestructivePath = await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathTimeout);
+    } catch (e) {
+        log(bot, `Non-destructive path calculation failed or timed out: ${e.message}`);
+    }
+
+    log(bot, `Calculating destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
+    try {
+        destructivePath = await bot.pathfinder.getPathTo(destructiveMovements, goal, pathTimeout);
+    } catch (e) {
+        log(bot, `Destructive path calculation failed or timed out: ${e.message}`);
+    }
+
+    if (nonDestructivePath && destructivePath) {
+        const ndLength = nonDestructivePath.length; // Assuming .length gives a comparable metric (number of nodes)
+        const dLength = destructivePath.length;
+        log(bot, `Non-destructive path length: ${ndLength}, Destructive path length: ${dLength}`);
+        if (ndLength <= dLength + 150) {
+            log(bot, `Choosing non-destructive path as it's within 150 blocks of destructive path or shorter.`);
+            chosenMovements = nonDestructiveMovements;
+        } else {
+            log(bot, `Choosing destructive path as non-destructive path is too long.`);
+            chosenMovements = destructiveMovements;
+        }
+    } else if (nonDestructivePath) {
+        log(bot, `Choosing non-destructive path (destructive path not found).`);
+        chosenMovements = nonDestructiveMovements;
+    } else if (destructivePath) {
+        log(bot, `Choosing destructive path (non-destructive path not found).`);
+        chosenMovements = destructiveMovements;
+    } else {
+        log(bot, `Neither destructive nor non-destructive path found to ${x}, ${y}, ${z}.`);
+        return false;
+    }
+
+    bot.pathfinder.setMovements(chosenMovements);
     
     const checkProgress = () => {
         if (bot.targetDigBlock) {
@@ -1042,9 +1252,32 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     };
     
     const progressInterval = setInterval(checkProgress, 1000);
+    let headMovementInterval = null;
+
+    const lookRandomly = async () => {
+        if (!bot.pathfinder.isMoving()) {
+            if (headMovementInterval) clearInterval(headMovementInterval);
+            return;
+        }
+        try {
+            const currentYaw = bot.entity.yaw;
+            const currentPitch = bot.entity.pitch;
+            // Look around +/- 45 degrees (PI/4 radians) from current yaw, and slightly up/down
+            const randomYaw = currentYaw + (Math.random() - 0.5) * (Math.PI / 2);
+            const randomPitch = currentPitch + (Math.random() - 0.5) * (Math.PI / 8);
+            await bot.look(randomYaw, randomPitch, false); // false for not forcing (not strictly needed here)
+        } catch (lookError) {
+            // log(bot, `Error during random look: ${lookError.message}`);
+            // Ignore minor look errors that might occur if interrupted
+        }
+    };
     
     try {
-        await bot.pathfinder.goto(new pf.goals.GoalNear(x, y, z, min_distance));
+        // Start random head movements
+        headMovementInterval = setInterval(lookRandomly, 1500 + Math.random() * 1000); // every 1.5-2.5 seconds
+
+        // The goal is already defined above
+        await bot.pathfinder.goto(goal);
         log(bot, `You have reached at ${x}, ${y}, ${z}.`);
         return true;
     } catch (err) {
@@ -1052,6 +1285,9 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         return false;
     } finally {
         clearInterval(progressInterval);
+        if (headMovementInterval) clearInterval(headMovementInterval);
+        // Optional: look at the destination point upon arrival or error
+        // try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
     }
 }
 
@@ -1102,36 +1338,154 @@ export async function goToNearestEntity(bot, entityType, min_distance=2, range=6
     return true;
 }
 
-export async function goToPlayer(bot, username, distance=3) {
-    /**
-     * Navigate to the given player.
-     * @param {MinecraftBot} bot, reference to the minecraft bot.
-     * @param {string} username, the username of the player to navigate to.
-     * @param {number} distance, the goal distance to the player.
-     * @returns {Promise<boolean>} true if the player was found, false otherwise.
-     * @example
-     * await skills.goToPlayer(bot, "player");
-     **/
 
-    if (bot.modes.isOn('cheat')) {
-        bot.chat('/tp @s ' + username);
-        log(bot, `Teleported to ${username}.`);
-        return true;
-    }
-
-    bot.modes.pause('self_defense');
-    bot.modes.pause('cowardice');
-    let player = bot.players[username].entity
-    if (!player) {
-        log(bot, `Could not find ${username}.`);
+export async function goToPlayer(bot, username, targetDistance = 3) {
+    const playerEntity = bot.players[username] ? bot.players[username].entity : null;
+    if (!playerEntity) {
+        log(bot, `Player ${username} not found.`);
         return false;
     }
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    await bot.pathfinder.goto(new pf.goals.GoalFollow(player, distance), true);
+    const nonDestructiveMovements = new pf.Movements(bot);
+    nonDestructiveMovements.canOpenDoors = true;
+    nonDestructiveMovements.canFloat = true;
+    nonDestructiveMovements.allowSprinting = true;
+    nonDestructiveMovements.allowParkour = true;
+    nonDestructiveMovements.climbCost = 1;
+    nonDestructiveMovements.jumpCost = 1;
+    nonDestructiveMovements.allowFreeMotion = true;
+    nonDestructiveMovements.digCost = 100;
 
-    log(bot, `You have reached ${username}.`);
+    const destructiveMovements = new pf.Movements(bot);
+    destructiveMovements.canOpenDoors = true;
+    destructiveMovements.canFloat = true;
+    destructiveMovements.allowSprinting = true;
+    destructiveMovements.allowParkour = true;
+    destructiveMovements.climbCost = 1;
+    destructiveMovements.jumpCost = 1;
+    destructiveMovements.allowFreeMotion = true;
+    destructiveMovements.digCost = 1;
+
+    const goal = new pf.goals.GoalFollow(playerEntity, targetDistance);
+    let chosenMovements = null;
+    let nonDestructivePath = null;
+    let destructivePath = null;
+    const pathTimeout = bot.pathfinder.thinkTimeout || 10000;
+
+    try {
+        console.log("Attempting a non-destructive route...")
+        nonDestructivePath = await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathTimeout);
+    } catch {}
+    try {
+        console.log("Attempting a destructive route...")
+        destructivePath = await bot.pathfinder.getPathTo(destructiveMovements, goal, pathTimeout);
+    } catch {}
+
+    if (
+        nonDestructivePath &&
+        nonDestructivePath.path &&
+        nonDestructivePath.path.length > 0 &&
+        nonDestructivePath.status !== 'noPath'
+    ) {
+        chosenMovements = nonDestructiveMovements;
+        log(bot, `Using non-destructive path to player ${username}.`);
+    } else if (
+        destructivePath &&
+        destructivePath.path &&
+        destructivePath.path.length > 0 &&
+        destructivePath.status !== 'noPath'
+    ) {
+        chosenMovements = destructiveMovements;
+        log(bot, `Using destructive path to player ${username}.`);
+    } else {
+        log(bot, `No path found to player ${username}.`);
+        return false;
+    }
+
+    bot.pathfinder.setMovements(chosenMovements);
+    bot.pathfinder.thinkTimeout = 10000;
+    bot.pathfinder.tickTimeout = 80;
+
+    let lastPosition = bot.entity.position.clone();
+    let stuckCounter = 0;
+    let stuckCheckInterval = null;
+    let isPathfindingComplete = false;
+    let manuallyStoppedByProximity = false;
+
+    const checkStuck = async () => {
+        if (isPathfindingComplete || bot.interrupt_code) {
+            if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+            return;
+        }
+        const currentPosition = bot.entity.position.clone();
+        const distanceToPlayer = playerEntity ? currentPosition.distanceTo(playerEntity.position) : Infinity;
+
+        if (distanceToPlayer <= targetDistance) {
+            log(bot, `Target distance reached (${distanceToPlayer.toFixed(2)}m). Stopping pathfinder.`);
+            manuallyStoppedByProximity = true;
+            bot.pathfinder.setGoal(null);
+            isPathfindingComplete = true;
+            if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+            return;
+        }
+
+        const distanceMoved = lastPosition.distanceTo(currentPosition);
+        if (distanceMoved < 0.1) {
+            stuckCounter++;
+            if (stuckCounter >= 5 && !isPathfindingComplete && !bot.interrupt_code) {
+                log(bot, `Stuck for ${(stuckCounter * 0.2).toFixed(1)}s. Trying to open doors or trapdoors...`);
+                const botPos = bot.entity.position;
+                const blocksToCheck = [
+                    bot.blockAt(botPos),
+                    bot.blockAt(botPos.offset(0, -1, 0)),
+                    bot.blockAt(botPos.offset(0, 1, 0)),
+                    bot.blockAt(botPos.offset(1, 0, 0)),
+                    bot.blockAt(botPos.offset(-1, 0, 0)),
+                    bot.blockAt(botPos.offset(0, 0, 1)),
+                    bot.blockAt(botPos.offset(0, 0, -1))
+                ];
+                for (const block of blocksToCheck) {
+                    if (isPathfindingComplete || bot.interrupt_code) break;
+                    if (
+                        block &&
+                        block.name &&
+                        (block.name.includes('door') ||
+                         block.name.includes('trapdoor') ||
+                         block.name.includes('fence_gate'))
+                    ) {
+                        try {
+                            await bot.activateBlock(block);
+                            log(bot, `Activated ${block.name} at ${block.position}`);
+                            stuckCounter = 0;
+                            break;
+                        } catch {}
+                    }
+                }
+            }
+        } else stuckCounter = 0;
+
+        lastPosition = currentPosition;
+    };
+
+    stuckCheckInterval = setInterval(checkStuck, 200);
+
+    try {
+        await bot.pathfinder.goto(goal);
+        isPathfindingComplete = true;
+        log(bot, `Arrived near player ${username}.`);
+        return true;
+    } catch (err) {
+        isPathfindingComplete = true;
+        if (manuallyStoppedByProximity) {
+            log(bot, `Stopped as target distance to ${username} was met.`);
+            return true;
+        }
+        log(bot, `Error in goToPlayer for ${username}: ${err.message}`);
+        return false;
+    } finally {
+        if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+        if (bot.pathfinder.goal) bot.pathfinder.setGoal(null);
+    }
 }
 
 
@@ -1148,28 +1502,89 @@ export async function followPlayer(bot, username, distance=4) {
     if (!player)
         return false;
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true);
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true; // Allow more direct paths in open areas
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
+    bot.pathfinder.setMovements(movements);
+    bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
 
-    while (!bot.interrupt_code) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // in cheat mode, if the distance is too far, teleport to the player
-        if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(player.position) > 100 && player.isOnGround) {
-            await goToPlayer(bot, username);
+    let headMovementIntervalFollow = null;
+    const lookRandomlyWhileFollowing = async () => {
+        // Check if still following; goal will be null if stopped or interrupted
+        if (!bot.pathfinder.goal || bot.interrupt_code) {
+            if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+            return;
         }
-        if (bot.modes.isOn('unstuck')) {
-            const is_nearby = bot.entity.position.distanceTo(player.position) <= distance + 1;
-            if (is_nearby)
-                bot.modes.pause('unstuck');
-            else
-                bot.modes.unpause('unstuck');
+        try {
+            const targetPlayer = bot.players[username]?.entity;
+            if (!targetPlayer) { // Player might have left
+                if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+                return;
+            }
+            // Occasionally look at the player, otherwise look around
+            if (Math.random() < 0.6) { // 60% chance to look towards player
+                 await bot.lookAt(targetPlayer.position.offset(0, targetPlayer.height, 0), false);
+            } else { // 40% chance to look around randomly
+                const currentYaw = bot.entity.yaw;
+                // Wider random range for "following" behavior, feels more natural than strict forward
+                const randomYawOffset = (Math.random() - 0.5) * (Math.PI / 1.5); // +/- 60 degrees
+                await bot.look(currentYaw + randomYawOffset, bot.entity.pitch, false);
+            }
+        } catch (e) { /* log(bot, `Minor error during random look while following: ${e.message}`); */ }
+    };
+
+    headMovementIntervalFollow = setInterval(lookRandomlyWhileFollowing, 2000 + Math.random() * 1500); // every 2-3.5 seconds
+
+    try {
+        while (!bot.interrupt_code) {
+            const currentPlayer = bot.players[username]?.entity;
+            if (!currentPlayer) {
+                log(bot, `${username} not found, stopping follow.`);
+                break; // Exit while loop
+            }
+            // The goal is dynamic (set with true), so pathfinder handles continuous following.
+            // We just need to keep this loop alive and allow head movements.
+
+            await new Promise(resolve => setTimeout(resolve, 500)); // Main loop check interval
+
+            // In cheat mode, if the distance is too far, teleport to the player
+            if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(currentPlayer.position) > 100 && currentPlayer.isOnGround) {
+                // Teleporting might interrupt pathfinder and head movement interval.
+                // goToPlayer will have its own head movement.
+                // If goToPlayer fails or player moves, this loop will re-evaluate.
+                await goToPlayer(bot, username, distance); // Use the same follow distance
+            }
+
+            if (bot.modes.isOn('unstuck')) {
+                const is_nearby = bot.entity.position.distanceTo(currentPlayer.position) <= distance + 1;
+                if (is_nearby)
+                    bot.modes.pause('unstuck');
+                else
+                    bot.modes.unpause('unstuck');
+            }
         }
+    } finally {
+        if (headMovementIntervalFollow) clearInterval(headMovementIntervalFollow);
+        if (bot.pathfinder.goal) bot.pathfinder.setGoal(null); // Stop pathfinding if it was active
     }
     return true;
 }
-
 
 export async function moveAway(bot, distance) {
     /**
@@ -1183,11 +1598,44 @@ export async function moveAway(bot, distance) {
     const pos = bot.entity.position;
     let goal = new pf.goals.GoalNear(pos.x, pos.y, pos.z, distance);
     let inverted_goal = new pf.goals.GoalInvert(goal);
-    bot.pathfinder.setMovements(new pf.Movements(bot));
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
+    bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {
-        const move = new pf.Movements(bot);
-        const path = await bot.pathfinder.getPathTo(move, inverted_goal, 10000);
+        const cheatMovements = new pf.Movements(bot); // Separate instance for cheat mode if needed, or reuse 'movements'
+        cheatMovements.canFloat = true; // Enable swimming
+        cheatMovements.allowSprinting = true; // Allow sprinting
+        cheatMovements.allowParkour = true; // Allow parkour
+        cheatMovements.canOpenDoors = true; // Enable automatic door opening
+        cheatMovements.liquidCost = 1; // Make water less costly to traverse
+        cheatMovements.climbCost = 1; // Adjust cost for climbing
+        cheatMovements.jumpCost = 1; // Adjust cost for jumping
+        cheatMovements.allowFreeMotion = true;
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Cheat movements should still open doors
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) cheatMovements.blocksToOpen.add(doorId);
+            });
+        }
+        // No specific digCost or blocksToAvoid for cheat movement, assuming direct path.
+        const path = await bot.pathfinder.getPathTo(cheatMovements, inverted_goal, 10000);
         let last_move = path.path[path.path.length-1];
         console.log(last_move);
         if (last_move) {
@@ -1201,7 +1649,8 @@ export async function moveAway(bot, distance) {
 
     await bot.pathfinder.goto(inverted_goal);
     let new_pos = bot.entity.position;
-    log(bot, `Moved away from nearest entity to ${new_pos}.`);
+    const original_pos_str = pos ? `from x:${pos.x.toFixed(1)}, y:${pos.y.toFixed(1)}, z:${pos.z.toFixed(1)}` : "previous location";
+    log(bot, `Moved away ${original_pos_str} to x:${new_pos.x.toFixed(1)}, y:${new_pos.y.toFixed(1)}, z:${new_pos.z.toFixed(1)}.`);
     return true;
 }
 
@@ -1215,7 +1664,25 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
      **/
     let goal = new pf.goals.GoalFollow(entity, distance);
     let inverted_goal = new pf.goals.GoalInvert(goal);
-    bot.pathfinder.setMovements(new pf.Movements(bot));
+    const movements = new pf.Movements(bot);
+    movements.canFloat = true; // Enable swimming
+    movements.allowSprinting = true; // Allow sprinting
+    movements.allowParkour = true; // Allow parkour
+    movements.canOpenDoors = true; // Enable automatic door opening
+    movements.liquidCost = 1; // Make water less costly to traverse
+    movements.climbCost = 1; // Adjust cost for climbing
+    movements.jumpCost = 1; // Adjust cost for jumping
+    movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
+    }
+    bot.pathfinder.setMovements(movements);
     await bot.pathfinder.goto(inverted_goal);
     return true;
 }
@@ -1234,7 +1701,25 @@ export async function avoidEnemies(bot, distance=16) {
     while (enemy) {
         const follow = new pf.goals.GoalFollow(enemy, distance+1); // move a little further away
         const inverted_goal = new pf.goals.GoalInvert(follow);
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movements);
         bot.pathfinder.setGoal(inverted_goal, true);
         await new Promise(resolve => setTimeout(resolve, 500));
         enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
@@ -1281,40 +1766,220 @@ export async function useDoor(bot, door_pos=null) {
      * @param {Vec3} door_pos, the position of the door to use. If null, the nearest door will be used.
      * @returns {Promise<boolean>} true if the door was used, false otherwise.
      * @example
-     * let door = world.getNearestBlock(bot, "oak_door", 16).position;
-     * await skills.useDoor(bot, door);
+     * let door = world.getNearestBlock(bot, "oak_door", 16);
+     * if (door) await skills.useDoor(bot, door.position);
      **/
-    if (!door_pos) {
-        for (let door_type of ['oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
-                               'mangrove_door', 'cherry_door', 'bamboo_door', 'crimson_door', 'warped_door']) {
-            door_pos = world.getNearestBlock(bot, door_type, 16).position;
-            if (door_pos) break;
+    const woodenDoorTypes = [
+        'oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
+        'mangrove_door', 'cherry_door', 'bamboo_door', // Wooden doors
+        'crimson_door', 'warped_door' // Nether wood doors
+        // Iron doors are excluded as they typically require redstone
+    ];
+
+    let doorBlock = null;
+
+    if (door_pos) {
+        door_pos = Vec3(door_pos.x, door_pos.y, door_pos.z);
+        const blockAtPos = bot.blockAt(door_pos);
+        if (blockAtPos && woodenDoorTypes.includes(blockAtPos.name)) {
+            doorBlock = blockAtPos;
+        } else {
+            log(bot, `No valid wooden door at specified position ${door_pos}.`);
+            return false;
         }
     } else {
-        door_pos = Vec3(door_pos.x, door_pos.y, door_pos.z);
+        const foundDoors = bot.findBlocks({
+            matching: (block) => woodenDoorTypes.includes(block.name),
+            maxDistance: 16,
+            count: 10 // Find a few and pick the closest
+        });
+        if (foundDoors.length === 0) {
+            log(bot, `Could not find any wooden doors nearby.`);
+            return false;
+        }
+        // Sort by distance and pick the closest one
+        foundDoors.sort((a, b) => bot.entity.position.distanceTo(a) - bot.entity.position.distanceTo(b));
+        const nearestDoorVec = foundDoors[0];
+        doorBlock = bot.blockAt(nearestDoorVec);
+        if (!doorBlock) { // Should not happen if findBlocks found it
+             log(bot, `Could not get block info for nearest door at ${nearestDoorVec}.`);
+             return false;
+        }
+        door_pos = doorBlock.position; // Update door_pos to the found door
+        log(bot, `Found nearest door: ${doorBlock.name} at ${door_pos}.`);
     }
-    if (!door_pos) {
-        log(bot, `Could not find a door to use.`);
+
+    if (!doorBlock) {
+        log(bot, `Could not find a valid door to use.`);
         return false;
     }
 
-    bot.pathfinder.setGoal(new pf.goals.GoalNear(door_pos.x, door_pos.y, door_pos.z, 1));
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    while (bot.pathfinder.isMoving()) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+    // Approach the door
+    const approachGoal = new pf.goals.GoalNear(door_pos.x, door_pos.y, door_pos.z, 1.5); // Get closer than 2
+    const movements = new pf.Movements(bot); // Use the new movement settings
+    movements.canFloat = true;
+    movements.allowSprinting = true;
+    movements.allowParkour = true;
+    movements.canOpenDoors = true; // This should ideally handle opening, but we'll manage explicitly for closing
+    movements.liquidCost = 1;
+    movements.climbCost = 1;
+    movements.jumpCost = 1;
+    movements.allowFreeMotion = true;
+    movements.digCost = 100;
+    if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+    if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+    if (mc.ALL_OPENABLE_DOORS) {
+        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+            const doorId = mc.getBlockId(doorName);
+            if (doorId) movements.blocksToOpen.add(doorId);
+        });
     }
-    
-    let door_block = bot.blockAt(door_pos);
-    await bot.lookAt(door_pos);
-    if (!door_block._properties.open)
-        await bot.activateBlock(door_block);
-    
-    bot.setControlState("forward", true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    bot.setControlState("forward", false);
-    await bot.activateBlock(door_block);
+    bot.pathfinder.setMovements(movements);
 
-    log(bot, `Used door at ${door_pos}.`);
+    try {
+        await bot.pathfinder.goto(approachGoal);
+    } catch (err) {
+        log(bot, `Error approaching door: ${err.message}`);
+        return false;
+    }
+
+    await bot.lookAt(door_pos, true); // Force look at the door
+
+    let attempts = 0;
+    const maxAttempts = 2;
+    let successfullyOpened = false;
+    let doorWasInitiallyOpen = false;
+    let doorBrokenByForce = false;
+
+    // Initial check of the door state
+    let currentDoorBlock = bot.blockAt(doorBlock.position); // Use the initially identified doorBlock's position
+    if (!currentDoorBlock) {
+        log(bot, `Door at ${doorBlock.position} not found before activation attempts.`);
+        return false;
+    }
+    if (!mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+        log(bot, `Block at ${currentDoorBlock.position} is not a door: ${currentDoorBlock.name}. Cannot use 'useDoor'.`);
+        return false;
+    }
+    doorWasInitiallyOpen = currentDoorBlock.getProperties().open;
+
+    while (attempts < maxAttempts && !successfullyOpened) {
+        attempts++;
+        log(bot, `Attempting to activate door at ${currentDoorBlock.position} (attempt ${attempts}/${maxAttempts})...`);
+        await bot.lookAt(currentDoorBlock.position); // Ensure bot is looking
+
+        // Re-fetch block state before interacting
+        currentDoorBlock = bot.blockAt(doorBlock.position);
+        if (!currentDoorBlock || !mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+            log(bot, `Door at ${doorBlock.position} no longer exists or changed type.`);
+            return false;
+        }
+
+        if (currentDoorBlock.getProperties().open) {
+            log(bot, `Door at ${currentDoorBlock.position} is already open.`);
+            successfullyOpened = true;
+            // doorWasInitiallyOpen = true; // Re-affirm if found open during attempts
+            break;
+        }
+
+        await bot.activateBlock(currentDoorBlock);
+        await wait(bot, 750); // Use existing wait skill
+
+        currentDoorBlock = bot.blockAt(doorBlock.position); // Re-fetch after activation
+        if (!currentDoorBlock || !mc.ALL_OPENABLE_DOORS.includes(currentDoorBlock.name)) {
+            log(bot, `Door at ${doorBlock.position} no longer exists or changed type after activation attempt.`);
+            return false;
+        }
+
+        if (currentDoorBlock.getProperties().open) {
+            log(bot, "Door successfully opened.");
+            successfullyOpened = true;
+            // doorWasInitiallyOpen would be false if we had to open it here
+        } else {
+            log(bot, `Door at ${currentDoorBlock.position} still closed after attempt ${attempts}.`);
+            if (attempts < maxAttempts) {
+                await wait(bot, 500); // Short pause before retry
+            }
+        }
+    }
+
+    if (!successfullyOpened) {
+        log(bot, `Failed to open door at ${doorBlock.position} after ${maxAttempts} attempts. Attempting forceful entry.`);
+
+        // Forceful Entry Logic
+        const doorToBreak = bot.blockAt(doorBlock.position); // Re-fetch for safety
+        if (doorToBreak && mc.ALL_OPENABLE_DOORS.includes(doorToBreak.name)) {
+            try {
+                // log(bot, `Equipping tool for ${doorToBreak.name}...`); // Optional: too verbose?
+                await bot.tool.equipForBlock(doorToBreak, {});
+                // log(bot, `Digging door at ${doorToBreak.position}...`);
+                await bot.dig(doorToBreak);
+                log(bot, `Successfully broke door at ${doorToBreak.position}.`);
+                bot.emit('skill_info', `Broke door at ${doorToBreak.position.x}, ${doorToBreak.position.y}, ${doorToBreak.position.z} after failed open attempts.`); // For apology later
+                successfullyOpened = true; // Treat as "opened" for movement purposes
+                doorBrokenByForce = true; // Flag that we broke it
+            } catch (err) {
+                log(bot, `Error trying to break door at ${doorToBreak.position}: ${err.message}`);
+                return false; // Failed to break the door
+            }
+        } else {
+            log(bot, `Door at ${doorBlock.position} is no longer a breakable door or does not exist. Cannot use forceful entry.`);
+            return false;
+        }
+    }
+
+    // If successfullyOpened (either by activation or by force), proceed.
+    // Update doorBlock to the latest state (though it might be air if broken)
+    doorBlock = bot.blockAt(doorBlock.position);
+
+    // Move through the door
+    // Determine a point on the other side of the door
+    // This is a simplified approach, assuming the bot is facing the door
+    const doorFacing = doorBlock.getProperties().facing; // e.g., 'north', 'south', 'east', 'west'
+    const inOpen = doorBlock.getProperties().in_wall; // if the door is set in a wall, this is true
+    const hinge = doorBlock.getProperties().hinge; // 'left' or 'right'
+
+    let moveDirection = Vec3(0,0,0);
+    // This logic might need refinement based on how facing and hinge affect passage
+    if (doorFacing === 'north') moveDirection = Vec3(0, 0, -2);
+    else if (doorFacing === 'south') moveDirection = Vec3(0, 0, 2);
+    else if (doorFacing === 'west') moveDirection = Vec3(-2, 0, 0);
+    else if (doorFacing === 'east') moveDirection = Vec3(2, 0, 0);
+
+    const throughPos = door_pos.plus(moveDirection);
+    const throughGoal = new pf.goals.GoalBlock(throughPos.x, throughPos.y, throughPos.z);
+
+    try {
+        // bot.setControlState("forward", true); // More direct movement
+        // await wait(bot, 700); // Adjust time as needed
+        // bot.setControlState("forward", false);
+        await bot.pathfinder.goto(throughGoal); // Use pathfinder to move through
+        log(bot, `Moved through door at ${door_pos}.`);
+    } catch (err) {
+        log(bot, `Error moving through door: ${err.message}. Trying manual move.`);
+        // Fallback to manual move if pathfinder fails (e.g. door is tricky)
+        bot.setControlState("forward", true);
+        await wait(bot, 700);
+        bot.setControlState("forward", false);
+    }
+
+    // Close the door if it was opened by the bot
+    // Re-fetch block, it might be null if we moved far or into an unloaded chunk (unlikely for a door)
+    const doorStateAfterMovement = bot.blockAt(door_pos);
+
+    // Only attempt to close if it wasn't broken, was NOT initially open, AND we successfully opened it (not found it already open)
+    if (!doorBrokenByForce && doorStateAfterMovement && mc.ALL_OPENABLE_DOORS.includes(doorStateAfterMovement.name) &&
+        doorStateAfterMovement.getProperties().open && !doorWasInitiallyOpen) {
+        log(bot, `Closing door at ${door_pos} (it was opened by the bot and not broken).`);
+        await bot.activateBlock(doorStateAfterMovement);
+        await wait(bot, 300);
+    } else if (!doorStateAfterMovement && !doorBrokenByForce) {
+        log(bot, `Could not find door at ${door_pos} after passing, cannot evaluate closing.`);
+    } else if (doorBrokenByForce) {
+        log(bot, `Door at ${door_pos} was broken, no need to close.`);
+    }
+
+    log(bot, `Successfully used door at ${door_pos} (opened: ${successfullyOpened}, broken: ${doorBrokenByForce}).`);
     return true;
 }
 
@@ -1392,7 +2057,25 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     // if distance is too far, move to the block
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        movements.digCost = 100; // High dig cost for pathing to till
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     if (block.name !== 'farmland') {
@@ -1438,7 +2121,25 @@ export async function activateNearestBlock(bot, type) {
     }
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
-        bot.pathfinder.setMovements(new pf.Movements(bot));
+        const movements = new pf.Movements(bot);
+        movements.canFloat = true; // Enable swimming
+        movements.allowSprinting = true; // Allow sprinting
+        movements.allowParkour = true; // Allow parkour
+        movements.canOpenDoors = true; // Enable automatic door opening
+        movements.liquidCost = 1; // Make water less costly to traverse
+        movements.climbCost = 1; // Adjust cost for climbing
+        movements.jumpCost = 1; // Adjust cost for jumping
+        movements.allowFreeMotion = true;
+        movements.digCost = 100;
+        if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
+        if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+        if (mc.ALL_OPENABLE_DOORS) {
+            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                const doorId = mc.getBlockId(doorName);
+                if (doorId) movements.blocksToOpen.add(doorId);
+            });
+        }
+        bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     await bot.activateBlock(block);

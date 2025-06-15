@@ -27,7 +27,7 @@
 
 <p align="center">
   <a href="/FAQ.md">FAQ</a> |
-  <a href="https://discord.gg/mp73p35dzC">Discord Support</a> |
+  <a href="https://discord.gg/DNnBQvCtwr">Discord Support</a> |
   <a href="https://kolbynottingham.com/mindcraft/">Blog Post</a> |
   <a href="https://mindcraft-minecollab.github.io/index.html">Paper Website</a> |
   <a href="/minecollab.md">MineCollab</a>
@@ -43,7 +43,7 @@
 | **Development Status** | Inactive | **Active** |
 | **Minecraft Version** | Up to 1.21.1 | Up to **1.21.4** |
 | **Node.js Version** | v14+ | **v18+** (v22 recommended) |
-| **Default Ollama Model**| `llama3.1` | **`ollama/sweaterdog/andy-4`** (specialized model) |
+| **Default Ollama Model**| `llama3.1` (Generic) | **`Andy-4`** (Built for Minecraft) |
 | **Free API Option** | No | **Yes** (`pollinations`) |
 | **Voice Interaction** | Basic Text-to-Speech (TTS) | Advanced TTS & **Speech-to-Text (STT)** |
 | **Vision Mode** | Simple on/off toggle | **Modes**: `off`, `prompted`, `always` |
@@ -51,6 +51,7 @@
 | **Dataset Tools** | No | **Yes**, built-in tools for data collection |
 | **Dependencies** | Older | **Updated** (e.g., Mineflayer 4.29.0) |
 | **Error Handling** | Shows technical error message, difficult to troubleshoot | **Includes suggested fix** for easy fixing |
+| **Pathfinding** | Basic, standard robotic movement. | **Upgraded movements**, ability to use doors, fence gates, and swim better.|
 
 > [!Caution]
 > Do not connect this bot to public servers with coding enabled. This project allows an LLM to write/execute code on your computer. The code is sandboxed, but still vulnerable to injection attacks. Code writing is disabled by default. You can enable it by setting <code>allow_insecure_coding</code> to <code>true</code> in <code>settings.js</code>. Ye be warned.
@@ -72,6 +73,7 @@
       <li><a href="https://ollama.com/download">Ollama Installed</a></li>
       <li><a href="https://docs.mistral.ai/getting-started/models/models_overview/">Mistral API Key</a></li>
       <li><a href="https://www.alibabacloud.com/help/en/model-studio/developer-reference/get-api-key">Qwen API Key [Intl.]</a> / <a href="https://help.aliyun.com/zh/model-studio/getting-started/first-api-call-to-qwen?">[cn]</a></li>
+      <li><a href="https://www.volcengine.com/docs/82379/1099455">Doubao API Key [Intl.]</a> / <a href="https://www.volcengine.com/docs/82379/1399008">[cn]</a></li>
       <li><a href="https://novita.ai/settings?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link#key-management">Novita AI API Key</a></li>
     </ul>
   </details>
@@ -81,6 +83,7 @@
 
 > [!Note]
 > An experimental Windows-only single-click installer + launcher, with extra features like a GUI editor for changing settings, is being worked on.
+> Additionally, there is also another single-click installer + launcher available [here](https://github.com/freeload101/MSC_MINDcraft_Single_Click). The single click installer auto-configures everything for you, and uses the optimal Andy-4 model based on your setup.
 
 1. Make sure you have the requirements above. <!-- Removed since `Mic` is the default for STT now, just added naudiodon in case Mic bugs out, since it has before.If you plan to use the STT (Speech-to-Text) feature, also review the "Installation Prerequisites" section regarding `naudiodon`. -->
 
@@ -98,7 +101,7 @@
 
 6. Run `node main.js` from the installed directory
 
-If you encounter issues, check the [FAQ](/FAQ.md) or find support on [discord](https://discord.gg/mp73p35dzC). If that fails, you can [create an issue](https://github.com/mindcraft-ce/mindcraft-ce/issues/new).
+If you encounter issues, check the [FAQ](/FAQ.md) or find support on [discord](https://discord.gg/DNnBQvCtwr). If that fails, you can [create an issue](https://github.com/mindcraft-ce/mindcraft-ce/issues/new).
 
 ## Model Customization
 
@@ -115,6 +118,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat` | [docs](https://api-docs.deepseek.com/) |
 | `ollama` (local) | n/a | `ollama/sweaterdog/andy-4` | [docs](https://ollama.com/library) |
 | `qwen` | `QWEN_API_KEY` | `qwen-max` | [Intl.](https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api)/[cn](https://help.aliyun.com/zh/model-studio/getting-started/models) |
+| `doubao` | `DOUBAO_API_KEY` | `doubao-1-5-pro-32k-250115` | [cn](https://www.volcengine.com/docs/82379/1330310) |
 | `mistral` | `MISTRAL_API_KEY` | `mistral-large-latest` | [docs](https://docs.mistral.ai/getting-started/models/models_overview/) |
 | `replicate` | `REPLICATE_API_KEY` | `replicate/meta/meta-llama-3-70b-instruct` | [docs](https://replicate.com/collections/language-models) |
 | `groq` (not grok) | `GROQCLOUD_API_KEY` | `groq/mixtral-8x7b-32768` | [docs](https://console.groq.com/docs/models) |
