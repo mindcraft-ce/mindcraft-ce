@@ -2,6 +2,7 @@ import settings from '../../settings.js';
 import { readFileSync } from 'fs';
 import { containsCommand } from './commands/index.js';
 import { sendBotChatToServer } from './agent_proxy.js';
+import { encodeJsonPayload } from '../utils/unicode.js'; // Import the new encoding function
 
 let agent;
 let agent_names = settings.profiles.map((p) => JSON.parse(readFileSync(p, 'utf8')).name);
@@ -50,6 +51,8 @@ class ConversationManager {
         this.awaiting_response = false;
         this.connection_timeout = null;
         this.wait_time_limit = WAIT_TIME_START;
+        this.nearbyBots = new Map(); // Stores bot name -> { name, connected }
+        this.pendingConnections = new Set(); // Stores names of bots an invitation has been sent to
     }
 
     initAgent(a) {
@@ -142,8 +145,8 @@ class ConversationManager {
     }
 
     sendToBot(send_to, message, start=false, open_chat=true) {
-        if (!this.isOtherAgent(send_to)) {
-            console.warn(`${agent.name} tried to send bot message to non-bot ${send_to}`);
+        if (!this.isOtherAgent(send_to)) { // Check if 'send_to' is a connected bot
+            console.warn(`[${agent.name}] Tried to send BOT_CHAT_MESSAGE to non-connected bot ${send_to}. Current nearbyBots:`, this.nearbyBots);
             return;
         }
         const convo = this._getConvo(send_to);
@@ -151,33 +154,53 @@ class ConversationManager {
         if (settings.chat_bot_messages && open_chat)
             agent.openChat(`(To ${send_to}) ${message}`);
         
-        if (convo.ignore_until_start)
+        if (convo.ignore_until_start && !start) // If ignoring until start, only allow start messages
             return;
         convo.active = true;
         
         const end = message.includes('!endConversation');
-        const json = {
-            'message': message,
+        const payload = {
+            recipient: send_to, // Added recipient for the new comms model
+            type: "BOT_CHAT_MESSAGE",
+            message: message,
             start,
             end,
+            senderName: agent.name // Added senderName
         };
+        console.log(`[${agent.name}] Attempting to send BOT_CHAT_MESSAGE to ${send_to} (publicly encoded): `, payload.message);
+
+        const encodedPayload = encodeJsonPayload(payload);
+        agent.bot.chat(encodedPayload); // Send via public chat
 
         this.awaiting_response = true;
-        sendBotChatToServer(send_to, json);
+        // sendBotChatToServer(send_to, payload); // This line is now replaced by agent.bot.chat(encodedPayload)
     }
 
-    async receiveFromBot(sender, received) {
+    async receiveFromBot(sender, received) { // received is already the parsed JSON payload
+        if (!received || typeof received !== 'object') {
+            console.warn(`[${agent.name}] receiveFromBot called with invalid 'received' payload from ${sender}:`, received);
+            return;
+        }
+
+        if (received.type !== "BOT_CHAT_MESSAGE") {
+            console.warn(`[${agent.name}] receiveFromBot called with non-BOT_CHAT_MESSAGE type from ${sender}:`, received.type);
+            return;
+        }
+
+        console.log(`[${agent.name}] Received BOT_CHAT_MESSAGE from ${sender}: `, received.message);
+
         const convo = this._getConvo(sender);
 
         if (convo.ignore_until_start && !received.start)
             return;
 
-        // check if any convo is active besides the sender
         if (this.inConversation() && !this.inConversation(sender)) {
             this.sendToBot(sender, `I'm talking to someone else, try again later. !endConversation("${sender}")`, false, false);
             this.endConversation(sender);
             return;
         }
+
+        // console.log(`[${agent.name}] Processing BOT_CHAT_MESSAGE from ${sender}:`, received); // Original log, good for debugging full payload
 
         if (received.start) {
             convo.reset();
@@ -187,7 +210,6 @@ class ConversationManager {
         this._clearMonitorTimeouts();
         convo.queue(received);
         
-        // responding to conversation takes priority over self prompting
         if (agent.self_prompter.isActive()){
             await agent.self_prompter.pause();
         }
@@ -203,7 +225,7 @@ class ConversationManager {
     }
 
     isOtherAgent(name) {
-        return agent_names.some((n) => n === name);
+        return this.nearbyBots.has(name) && this.nearbyBots.get(name).connected;
     }
 
     otherAgentInGame(name) {
@@ -213,6 +235,24 @@ class ConversationManager {
     updateAgents(agents) {
         agent_names = agents.map(a => a.name);
         agents_in_game = agents.filter(a => a.in_game).map(a => a.name);
+
+        const currentServerBotNames = new Set(agent_names);
+        for (const botName of this.nearbyBots.keys()) {
+            if (!currentServerBotNames.has(botName)) {
+                this.nearbyBots.delete(botName);
+                this.pendingConnections.delete(botName);
+                if (this.activeConversation && this.activeConversation.name === botName) {
+                    this.endConversation(botName);
+                }
+                console.log(`[${agent.name}] Removed ${botName} from nearbyBots and pendingConnections as it's no longer listed by server.`);
+            }
+        }
+         for (const botName of this.pendingConnections) {
+            if (!currentServerBotNames.has(botName)) {
+                this.pendingConnections.delete(botName);
+                 console.log(`[${agent.name}] Removed ${botName} from pendingConnections as it's no longer listed by server.`);
+            }
+        }
     }
 
     getInGameAgents() {
@@ -228,7 +268,7 @@ class ConversationManager {
     endConversation(sender) {
         if (this.convos[sender]) {
             this.convos[sender].end();
-            if (this.activeConversation.name === sender) {
+            if (this.activeConversation && this.activeConversation.name === sender) { // Check if activeConversation is not null
                 this._stopMonitor();
                 this.activeConversation = null;
                 if (agent.self_prompter.isPaused() && !this.inConversation()) {
@@ -252,6 +292,72 @@ class ConversationManager {
             let sender = this.activeConversation.name;
             this.sendToBot(sender, '!endConversation("' + sender + '")', false, false);
             this.endConversation(sender);
+        }
+    }
+
+    handleBotDetection(detectedBotName) {
+        if (!agent || !agent.bot) {
+            console.error(`[${agent.name || 'ConversationManager'}] Agent or agent.bot is not initialized in ConversationManager for handleBotDetection.`);
+            return;
+        }
+        if (detectedBotName === agent.name || this.pendingConnections.has(detectedBotName)) {
+            // Don't send if already trying to connect or if it's self.
+            // nearbyBots check for established connection is implicitly handled by not re-initiating if already connected.
+            return;
+        }
+
+        console.log(`[${agent.name}] Attempting to send INITIATE_CONNECTION to ${detectedBotName} (publicly encoded). Current pending: `, Array.from(this.pendingConnections));
+        const payload = {
+            recipient: detectedBotName, // Add recipient
+            type: "INITIATE_CONNECTION",
+            senderName: agent.name
+        };
+
+        const encodedPayload = encodeJsonPayload(payload);
+        agent.bot.chat(encodedPayload); // Send via public chat
+        this.pendingConnections.add(detectedBotName);
+        console.log(`[${agent.name}] INITIATE_CONNECTION (encoded) supposedly sent to ${detectedBotName}`);
+    }
+
+    handleConnectionPayload(senderNameFromPayload, parsedPayload) { // senderName is from parsedPayload.senderName
+        if (!agent || !agent.bot) {
+             console.error(`[${agent.name || 'ConversationManager'}] Agent or agent.bot is not initialized for handleConnectionPayload.`);
+            return;
+        }
+        // senderNameFromPayload is used for logging context if needed, but payload.senderName is the actual bot identity.
+        console.log(`[${agent.name}] handleConnectionPayload (originally from ${senderNameFromPayload}, processing for ${parsedPayload.senderName}): `, parsedPayload);
+
+        if (parsedPayload.type === "INITIATE_CONNECTION") {
+            if (parsedPayload.senderName === agent.name) return; // Ignore own initiation messages
+
+            console.log(`[${agent.name}] Processing INITIATE_CONNECTION from ${parsedPayload.senderName}. nearbyBots: `, new Map(this.nearbyBots));
+            // Set connected: false initially, will be true upon ACK from them or ACK to their INITIATE.
+            this.nearbyBots.set(parsedPayload.senderName, { name: parsedPayload.senderName, connected: false });
+
+            const responsePayload = {
+                recipient: parsedPayload.senderName, // Acknowledge back to the sender
+                type: "ACKNOWLEDGE_CONNECTION",
+                senderName: agent.name
+            };
+            console.log(`[${agent.name}] Attempting to send ACKNOWLEDGE_CONNECTION to ${parsedPayload.senderName} (publicly encoded)`);
+            const encodedResponse = encodeJsonPayload(responsePayload);
+            agent.bot.chat(encodedResponse); // Send via public chat
+            console.log(`[${agent.name}] ACKNOWLEDGE_CONNECTION (encoded) supposedly sent to ${parsedPayload.senderName}`);
+
+            // Mark as connected since we've acknowledged their initiation.
+            this.nearbyBots.set(parsedPayload.senderName, { name: parsedPayload.senderName, connected: true });
+            this.pendingConnections.delete(parsedPayload.senderName);
+            console.log(`[${agent.name}] Updated nearbyBots after INITIATE from ${parsedPayload.senderName}: `, new Map(this.nearbyBots));
+
+        } else if (parsedPayload.type === "ACKNOWLEDGE_CONNECTION") {
+            if (parsedPayload.senderName === agent.name) return; // Ignore own acknowledgement messages
+
+            console.log(`[${agent.name}] Processing ACKNOWLEDGE_CONNECTION from ${parsedPayload.senderName}. nearbyBots: `, new Map(this.nearbyBots));
+            console.log(`[${agent.name}] ${parsedPayload.senderName} was in pendingConnections: `, this.pendingConnections.has(parsedPayload.senderName));
+
+            this.nearbyBots.set(parsedPayload.senderName, { name: parsedPayload.senderName, connected: true });
+            this.pendingConnections.delete(parsedPayload.senderName);
+            console.log(`[${agent.name}] Updated nearbyBots after ACKNOWLEDGE from ${parsedPayload.senderName}: `, new Map(this.nearbyBots));
         }
     }
 }
