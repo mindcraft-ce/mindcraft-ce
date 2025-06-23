@@ -1,5 +1,5 @@
 import * as skills from '../library/skills.js';
-import settings from '../../../settings.js';
+import settings from '../settings.js';
 import convoManager from '../conversation.js';
 
 export function runAsAction (actionFn, resume = false, timeout = -1) {
@@ -45,7 +45,7 @@ export const actionsList = [
                     result = 'Error generating code: ' + e.toString();
                 }
             };
-            await agent.actions.runAction('action:newAction', actionFn);
+            await agent.actions.runAction('action:newAction', actionFn, {timeout: settings.code_timeout_mins});
             return result;
         }
     },

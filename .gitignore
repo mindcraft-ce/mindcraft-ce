@@ -27,22 +27,4 @@ tasks/construction_tasks/test/**
 tasks/construction_tasks/train/**
 server_data*
 **/.DS_Store
-._*
-
-# (to @Sweaterdog) DO NOT ignore `settings.js` as it is a required file for the repo to function.
-# If `settings.js` is put in the `.gitignore` file, changes made to do things like add new features - e.g. adding a new key to the file
-# will not be pushed to the repo.
-
-# Instead, when playtesting, run this command:
-
-# git update-index --assume-unchanged settings.js
-
-# This will tell `git` to ignore any changes made to settings.js.
-
-# Then, when you have finished, clean up settings.js and run this command:
-
-# git update-index --no-assume-unchanged settings.js
-
-# This will tell `git` to start tracking changes to `settings.js` again.
-
-# (To @uukelele-scratch) Thanks for the tips! it probably wont happen again 👍
+src/mindcraft-py/__pycache__/
