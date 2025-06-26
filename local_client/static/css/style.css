@@ -1,0 +1,250 @@
+/* local_client/static/css/style.css */
+
+:root {
+    --bg-color: #000000;
+    --text-color: #a9a9a9;
+    --heading-color: #ffffff;
+    --primary-color: #4a90e2;
+    --secondary-color: #8a63d2;
+    --card-bg-color: rgba(26, 26, 26, 0.7);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --success-color: #4CAF50;
+    --danger-color: #f44336;
+    --warning-color: #ff9800;
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+#smoke-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header & Nav */
+.header {
+    background: var(--card-bg-color);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    padding: 20px 30px;
+    border-radius: 15px;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    color: var(--heading-color);
+    margin: 0;
+    font-size: 2.2em;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.header .subtitle {
+    text-align: center;
+    color: var(--text-color);
+    font-size: 1.1em;
+    margin-bottom: 20px;
+}
+
+.nav {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.nav a {
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.nav a:hover, .nav a.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+/* Main Content Grid */
+.main-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* Cards */
+.card {
+    background: var(--card-bg-color);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    padding: 25px;
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(74, 144, 226, 0.5);
+}
+
+.card h2 {
+    color: var(--heading-color);
+    margin-bottom: 20px;
+    font-size: 1.5em;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 12px 25px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    margin: 5px;
+}
+
+.btn:hover:not(:disabled) {
+    filter: brightness(1.2);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(74, 144, 226, 0.2);
+}
+
+.btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-success { background: var(--success-color); }
+.btn-danger { background: var(--danger-color); }
+.btn-secondary { background: #6c757d; }
+
+.actions {
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Forms & Settings */
+.setting-item {
+    margin-bottom: 20px;
+}
+
+.setting-item label {
+    display: block;
+    font-weight: 500;
+    color: var(--heading-color);
+    margin-bottom: 8px;
+}
+
+.setting-item input, .setting-item select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    background-color: rgba(0,0,0,0.2);
+    color: var(--text-color);
+    transition: border-color 0.3s ease;
+}
+
+.setting-item input:focus, .setting-item select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.setting-item .help-text {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 5px;
+}
+
+.toggle-switch {
+    position: relative; display: inline-block; width: 60px; height: 34px;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--primary-color); }
+input:checked + .slider:before { transform: translateX(26px); }
+
+/* Status Indicators */
+.connection-status {
+    text-align: center;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+.status-connected { background: rgba(76, 175, 80, 0.2); color: var(--success-color); border: 1px solid var(--success-color); }
+.status-disconnected { background: rgba(244, 67, 54, 0.2); color: var(--danger-color); border: 1px solid var(--danger-color); }
+
+/* Other components */
+.models-list {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.model-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+.model-item:last-child { border-bottom: none; }
+.model-name { font-weight: 500; color: var(--heading-color); }
+.model-status { padding: 4px 12px; border-radius: 15px; font-size: 0.8em; font-weight: 500; }
+.status-enabled { background: var(--success-color); color: white; }
+.status-disabled { background: var(--danger-color); color: white; }
+
+.footer {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 20px;
+    margin-top: 40px;
+    font-size: 0.9em;
+}

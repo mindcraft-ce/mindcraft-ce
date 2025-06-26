@@ -13,7 +13,7 @@ export class Local {
     }
 
     async sendRequest(turns, systemMessage, imageData = null) {
-        let model = this.model_name || 'sweaterdog/andy-4:latest'; // Changed to Andy-4
+        let model = this.model_name || 'sweaterdog/andy-4:micro-q5_k_m'; // Changed to Andy-4 micro
         let messages = strictFormat(turns);
         messages.unshift({ role: 'system', content: systemMessage });
 

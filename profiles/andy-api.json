@@ -1,0 +1,7 @@
+{
+    "name": "andy-api",
+
+    "model": "andy/sweaterdog/andy-4:latest",
+    
+    "embedding": "andy"
+}

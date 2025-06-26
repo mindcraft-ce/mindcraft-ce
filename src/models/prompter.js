@@ -24,6 +24,7 @@ import { OpenRouter } from './openrouter.js';
 import { Pollinations } from './pollinations.js';
 import { Doubao } from './doubao.js';
 import { VLLM } from './vllm.js';
+import { Andy } from './andy.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -146,6 +147,8 @@ export class Prompter {
         if (!profile.api) {
             if (profile.model.includes('openrouter/'))
                 profile.api = 'openrouter'; // must do first because shares names with other models
+            else if (profile.model.includes('andy/'))
+                profile.api = 'andy'; // add andy api right after openrouter since it may share model names
             else if (profile.model.includes('ollama/'))
                 profile.api = 'ollama'; // also must do early because shares names with other models
             else if (profile.model.includes('pollinations/'))
@@ -225,6 +228,8 @@ export class Prompter {
             model = new Pollinations(profile.model.replace('pollinations/', ''), profile.url, profile.params);
         else if (profile.api === 'vllm')
             model = new VLLM(profile.model.replace('vllm/', ''), profile.url, profile.params);
+        else if (profile.api === 'andy')
+            model = new Andy(profile.model.replace('andy/', ''), profile.url, profile.params);
         else
             throw new Error('Unknown API:', profile.api);
         return model;

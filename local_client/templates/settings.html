@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Andy API Local Client</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <canvas id="smoke-canvas"></canvas>
+
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-cog"></i> Settings</h1>
+            <p class="subtitle">Configure your local client and connection preferences</p>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/models">Models</a>
+                <a href="/metrics">Metrics</a>
+                <a href="/settings" class="active">Settings</a>
+            </nav>
+        </header>
+
+        <div class="main-content">
+            <div class="card">
+                <h2><i class="fas fa-link"></i> Connection</h2>
+                <div class="setting-item">
+                    <label for="andy_api_url">Andy API URL</label>
+                    <input type="url" id="andy_api_url" value="{{ config.andy_api_url }}">
+                    <p class="help-text">The URL of the central Andy API server.</p>
+                </div>
+                <div class="setting-item">
+                    <label for="ollama_url">Ollama URL</label>
+                    <input type="url" id="ollama_url" value="{{ config.ollama_url }}">
+                    <p class="help-text">Your local Ollama server URL.</p>
+                </div>
+                 <div class="setting-item">
+                    <label for="client_name">Client Name</label>
+                    <input type="text" id="client_name" value="{{ config.client_name }}">
+                    <p class="help-text">A friendly name for this client in the pool dashboard.</p>
+                </div>
+                <div class="setting-item">
+                    <label for="api_key">API Key (Optional)</label>
+                    <input type="password" id="api_key" value="{{ config.api_key or '' }}" placeholder="Leave empty for anonymous access">
+                    <p class="help-text">API key for higher rate limits on the central server.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-cogs"></i> Behavior</h2>
+                 <div class="setting-item">
+                    <label>Auto-Connect on Startup</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto_connect" {{ 'checked' if config.auto_connect else '' }}>
+                        <span class="slider"></span>
+                    </label>
+                    <p class="help-text">Automatically connect to the pool when the client starts.</p>
+                </div>
+                <div class="setting-item">
+                    <label for="report_interval">Status Report Interval (seconds)</label>
+                    <input type="number" id="report_interval" min="10" max="300" value="{{ config.report_interval }}">
+                    <p class="help-text">How often to send a heartbeat to the central server.</p>
+                </div>
+                <div class="setting-item">
+                    <label for="max_vram_gb">Maximum VRAM (GB)</label>
+                    <input type="number" id="max_vram_gb" min="0" max="128" value="{{ config.max_vram_gb }}">
+                    <p class="help-text">Total VRAM available for model hosting (0 for unknown).</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="actions">
+                <button class="btn btn-success" onclick="saveSettings()"><i class="fas fa-save"></i> Save All Settings</button>
+                <button class="btn btn-secondary" onclick="testConnection()"><i class="fas fa-plug"></i> Test Connection</button>
+                <button class="btn btn-danger" onclick="resetSettings()"><i class="fas fa-undo"></i> Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        function showLoading(btn, text = 'Loading...') {
+            btn.disabled = true;
+            btn.dataset.originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
+        }
+
+        function hideLoading(btn) {
+            btn.disabled = false;
+            btn.innerHTML = btn.dataset.originalText || 'Submit';
+        }
+
+        async function saveSettings() {
+            const btn = event.target;
+            showLoading(btn, 'Saving...');
+            const settings = {
+                andy_api_url: document.getElementById('andy_api_url').value,
+                ollama_url: document.getElementById('ollama_url').value,
+                client_name: document.getElementById('client_name').value,
+                api_key: document.getElementById('api_key').value,
+                max_vram_gb: parseInt(document.getElementById('max_vram_gb').value),
+                report_interval: parseInt(document.getElementById('report_interval').value),
+                auto_connect: document.getElementById('auto_connect').checked
+            };
+
+            try {
+                const response = await fetch('/api/save_config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Settings saved successfully!');
+                } else {
+                    alert('Failed to save settings: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error saving settings: ' + error.message);
+            } finally {
+                hideLoading(btn);
+            }
+        }
+
+        async function testConnection() {
+            const btn = event.target;
+            showLoading(btn, 'Testing...');
+            const ollamaUrl = document.getElementById('ollama_url').value;
+            const andyUrl = document.getElementById('andy_api_url').value;
+            
+            let ollamaOk = false;
+            let andyOk = false;
+
+            try {
+                const ollamaRes = await fetch(ollamaUrl + '/api/tags', { signal: AbortSignal.timeout(3000) });
+                ollamaOk = ollamaRes.ok;
+            } catch (e) { /* ignore */ }
+            
+            try {
+                const andyRes = await fetch(andyUrl + '/api/ping', { signal: AbortSignal.timeout(3000) });
+                andyOk = andyRes.ok;
+            } catch (e) { /* ignore */ }
+
+            hideLoading(btn);
+            alert(`Connection Test Results:\n- Ollama (${ollamaUrl}): ${ollamaOk ? '✅ Connected' : '❌ Failed'}\n- Andy API (${andyUrl}): ${andyOk ? '✅ Connected' : '❌ Failed'}`);
+        }
+
+        function resetSettings() {
+            if (confirm('Are you sure you want to reset all settings to their defaults?')) {
+                document.getElementById('andy_api_url').value = 'http://localhost:3002';
+                document.getElementById('ollama_url').value = 'http://localhost:11434';
+                document.getElementById('client_name').value = 'Unnamed Client';
+                document.getElementById('api_key').value = '';
+                document.getElementById('max_vram_gb').value = 0;
+                document.getElementById('report_interval').value = 30;
+                document.getElementById('auto_connect').checked = false;
+                alert('Settings reset. Click "Save All Settings" to apply.');
+            }
+        }
+    </script>
+</body>
+</html>

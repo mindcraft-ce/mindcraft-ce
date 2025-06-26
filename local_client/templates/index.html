@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Andy API Local Client - Dashboard</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <canvas id="smoke-canvas"></canvas>
+
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-desktop"></i> Andy API Local Client</h1>
+            <p class="subtitle">Your local gateway to the distributed AI compute pool</p>
+            
+            {% if is_connected %}
+            <div class="connection-status status-connected">
+                <i class="fas fa-check-circle"></i> Connected to Andy API Pool
+                {% if host_id %}
+                <br><small><strong>Host ID:</strong> {{ host_id }}</small>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="connection-status status-disconnected">
+                <i class="fas fa-times-circle"></i> Not Connected to Andy API Pool
+            </div>
+            {% endif %}
+            
+            <nav class="nav">
+                <a href="/" class="active">Dashboard</a>
+                <a href="/models">Models</a>
+                <a href="/metrics">Metrics</a>
+                <a href="/settings">Settings</a>
+            </nav>
+        </header>
+
+        <div class="main-content">
+            <div class="card">
+                <h2><i class="fas fa-link"></i> Connection</h2>
+                {% if is_connected %}
+                <p>You are connected and contributing to the pool.</p>
+                <div class="actions">
+                    <button class="btn btn-danger" onclick="disconnectFromPool()">Disconnect</button>
+                    <button class="btn btn-secondary" onclick="refreshStatus()">Refresh Status</button>
+                </div>
+                {% else %}
+                <p>Connect your client to start processing requests.</p>
+                {% if models.values()|selectattr('enabled')|list|length == 0 %}
+                <p style="color: var(--warning-color); margin-top: 10px;">⚠️ No models enabled. Go to the Models page to enable at least one.</p>
+                {% endif %}
+                <div class="actions">
+                    <button class="btn btn-success" onclick="connectToPool()" 
+                            {% if models.values()|selectattr('enabled')|list|length == 0 %}disabled{% endif %}>
+                        Connect to Pool
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-brain"></i> Models Overview</h2>
+                <div class="models-list">
+                    {% for model_name, model in models.items() %}
+                    <div class="model-item">
+                        <span class="model-name">{{ model_name }}</span>
+                        <span class="model-status {{ 'status-enabled' if model.enabled else 'status-disabled' }}">
+                            {{ 'Enabled' if model.enabled else 'Disabled' }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <p style="text-align: center; opacity: 0.7; padding: 20px;">No models found. Try discovering them in Settings.</p>
+                    {% endfor %}
+                </div>
+                <div class="actions">
+                    <a href="/models" class="btn">Manage Models</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-chart-line"></i> Quick Stats</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div><strong>Total Requests:</strong> {{ stats.total_requests or 0 }}</div>
+                    <div><strong>Successful:</strong> {{ stats.successful_requests or 0 }}</div>
+                    <div><strong>Failed:</strong> {{ stats.failed_requests or 0 }}</div>
+                    <div><strong>Total Tokens:</strong> {{ (stats.total_tokens or 0) | int }}</div>
+                </div>
+                 <div class="actions">
+                    <a href="/metrics" class="btn">View Detailed Metrics</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-cog"></i> Configuration</h2>
+                <div style="font-size: 0.9em; line-height: 1.8;">
+                    <p><strong>Andy API URL:</strong> {{ config.andy_api_url }}</p>
+                    <p><strong>Ollama URL:</strong> {{ config.ollama_url }}</p>
+                </div>
+                <div class="actions">
+                    <a href="/settings" class="btn">Update Settings</a>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>Andy API Local Client</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        function showLoading(btn, text = 'Loading...') {
+            btn.disabled = true;
+            btn.dataset.originalText = btn.textContent;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
+        }
+
+        function hideLoading(btn) {
+            btn.disabled = false;
+            btn.innerHTML = btn.dataset.originalText || 'Submit';
+        }
+
+        function connectToPool() {
+            const btn = event.target;
+            showLoading(btn, 'Connecting...');
+            fetch('/api/connect', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Successfully connected to Andy API pool!');
+                    location.reload();
+                } else {
+                    alert('Failed to connect: ' + (data.error || 'Unknown error'));
+                    hideLoading(btn);
+                }
+            }).catch(err => {
+                alert('Failed to connect: ' + err.message);
+                hideLoading(btn);
+            });
+        }
+
+        function disconnectFromPool() {
+            const btn = event.target;
+            showLoading(btn, 'Disconnecting...');
+            fetch('/api/disconnect', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Successfully disconnected from Andy API pool!');
+                    location.reload();
+                } else {
+                    alert('Failed to disconnect: ' + (data.error || 'Unknown error'));
+                    hideLoading(btn);
+                }
+            }).catch(err => {
+                alert('Failed to disconnect: ' + err.message);
+                hideLoading(btn);
+            });
+        }
+
+        function refreshStatus() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>

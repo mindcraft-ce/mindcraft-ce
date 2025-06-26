@@ -1,0 +1,15 @@
+{
+  "name": "andy",
+  "model": "andy-4",
+  "api": "andy",
+  "url": "https://mindcraft.riqvip.dev/api/andy/v1/chat/completions",
+  "api_key": "",
+  "endpoint": "",
+  "chat": true,
+  "embedding": false,
+  "image_input": true,
+  "image_output": false,
+  "audio_input": false,
+  "audio_output": false,
+  "thinking": false
+}

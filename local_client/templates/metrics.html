@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics & Analytics - Andy API Local Client</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+</head>
+<body>
+    <canvas id="smoke-canvas"></canvas>
+
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-chart-bar"></i> Metrics & Analytics</h1>
+            <p class="subtitle">Monitor your client's performance and contribution</p>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/models">Models</a>
+                <a href="/metrics" class="active">Metrics</a>
+                <a href="/settings">Settings</a>
+            </nav>
+        </header>
+
+        <div class="main-content">
+             <div class="card">
+                <h2><i class="fas fa-rocket"></i> Lifetime Stats</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div><strong>Total Requests:</strong> <span id="totalRequests">{{ stats.total_requests }}</span></div>
+                    <div><strong>Successful:</strong> <span id="successfulRequests">{{ stats.successful_requests }}</span></div>
+                    <div><strong>Failed:</strong> <span>{{ stats.total_requests - stats.successful_requests }}</span></div>
+                    <div><strong>Total Tokens:</strong> <span id="totalTokens">{{ stats.total_tokens }}</span></div>
+                    <div><strong>Uptime:</strong> <span>{{ uptime_hours }} hours</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <h2><i class="fas fa-tachometer-alt"></i> Success Rate</h2>
+                <div style="width: 100%; max-width: 250px; margin: 20px auto;">
+                     <canvas id="successRateChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><i class="fas fa-history"></i> Historical Performance</h2>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="historicalChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Metrics are updated automatically.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        let historicalChart, successRateChart;
+
+        function renderCharts() {
+            // Success Rate Doughnut Chart
+            const successRateCtx = document.getElementById('successRateChart').getContext('2d');
+            const totalRequests = parseInt('{{ stats.total_requests }}');
+            const successfulRequests = parseInt('{{ stats.successful_requests }}');
+            const failedRequests = totalRequests - successfulRequests;
+            
+            successRateChart = new Chart(successRateCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Successful', 'Failed'],
+                    datasets: [{
+                        data: [successfulRequests, failedRequests],
+                        backgroundColor: ['#4CAF50', '#f44336'],
+                        borderColor: 'var(--card-bg-color)',
+                        borderWidth: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '70%'
+                }
+            });
+
+            // Historical Chart (placeholder)
+            const historicalCtx = document.getElementById('historicalChart').getContext('2d');
+            historicalChart = new Chart(historicalCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: 'var(--text-color)' }, grid: { color: 'var(--border-color)' } },
+                        y: { ticks: { color: 'var(--text-color)' }, grid: { color: 'var(--border-color)' } }
+                    },
+                    plugins: { legend: { labels: { color: 'var(--text-color)' } } }
+                }
+            });
+        }
+
+        async function loadMetricsData() {
+             // In a real scenario, this would fetch data and update charts.
+             // The current local client doesn't store time-series data,
+             // so we'll just show the static lifetime stats.
+             console.log("Fetching new metrics data...");
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCharts();
+            setInterval(loadMetricsData, 30000);
+        });
+    </script>
+</body>
+</html>
