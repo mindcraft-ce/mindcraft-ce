@@ -856,9 +856,11 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
 
     // will throw error if an entity is in the way, and sometimes even if the block was placed
     try {
+        bot.setControlState("sneak", true);
         await bot.placeBlock(buildOffBlock, faceVec);
         log(bot, `Placed ${blockType} at ${target_dest}.`);
         await new Promise(resolve => setTimeout(resolve, 200));
+        bot.setControlState("sneak", false);
         return true;
     } catch (err) {
         log(bot, `Failed to place ${blockType} at ${target_dest}.`);
