@@ -3,6 +3,8 @@
 node_modules/
 package-lock.json
 logs/venv
+logs/normal_logs.csv
+logs/reasoning_logs.csv
 website/
 code_records/
 scratch.js

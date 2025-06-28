@@ -1,8 +1,11 @@
-import { writeFileSync, mkdirSync, existsSync, appendFileSync, readFileSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, appendFileSync, readFileSync, openSync, fstatSync, readSync, closeSync } from 'fs';
 import { join } from 'path';
-import settings from './settings.js'; // Import settings
+import settings from './settings.js'; // Import settings as default export
 import path from 'path'; // Needed for path operations
-import fetch from 'node-fetch'; // Import fetch for HTTP requests
+
+// For external logging - using global fetch in Node.js 18+
+// If you're using Node.js < 18, uncomment the line below:
+// import fetch from 'node-fetch';
 
 // --- Configuration ---
 const LOGS_DIR = './logs';
@@ -35,7 +38,6 @@ function ensureDirectoryExistence(dirPath) {
     if (!existsSync(dirPath)) {
         try {
             mkdirSync(dirPath, { recursive: true });
-            console.log(`[Logger] Created directory: ${dirPath}`);
         } catch (error) {
             console.error(`[Logger] Error creating directory ${dirPath}:`, error);
             return false;
@@ -43,21 +45,6 @@ function ensureDirectoryExistence(dirPath) {
     }
     return true;
 }
-
-function countLogEntries(logFile) {
-    if (!existsSync(logFile)) return 0;
-    try {
-        const data = readFileSync(logFile, 'utf8');
-        const lines = data.split('\n').filter(line => line.trim());
-        // Check if the first line looks like a header before subtracting
-        const hasHeader = lines.length > 0 && lines[0].includes(',');
-        return Math.max(0, hasHeader ? lines.length - 1 : lines.length);
-    } catch (err) {
-        console.error(`[Logger] Error reading log file ${logFile}:`, err);
-        return 0;
-    }
-}
-
 
 function ensureLogFile(logFile, header) {
      if (!ensureDirectoryExistence(path.dirname(logFile))) return false; // Ensure parent dir exists
@@ -290,18 +277,6 @@ function printSummary() {
     console.log('='.repeat(60) + '\n');
 }
 
-function countVisionEntries(metadataFile) {
-    if (!existsSync(metadataFile)) return 0;
-    try {
-        const data = readFileSync(metadataFile, 'utf8');
-        const lines = data.split('\n').filter(line => line.trim());
-        return lines.length;
-    } catch (err) {
-        console.error(`[Logger] Error reading vision metadata file ${metadataFile}:`, err);
-        return 0;
-    }
-}
-
 // --- Main Logging Function (for text-based input/output) ---
 export async function log(input, response) { // Made async to support fetch
     const trimmedInputStr = input ? (typeof input === 'string' ? input.trim() : JSON.stringify(input)) : "";
@@ -338,13 +313,16 @@ export async function log(input, response) { // Made async to support fetch
         "Vision is only supported",
         "Context length exceeded",
         "Image input modality is not enabled",
-        "An unexpected error occurred",
+        "An unexpected error occurred"
         // Add more generic errors/placeholders as needed
     ];
-    // Also check for responses that are just the input repeated (sometimes happens with errors)
-    if (errorMessages.some(err => trimmedResponse.includes(err)) || trimmedResponse === finalInputString) { // Use raw response for filtering
+    
+    // Check which error message is matching (if any)
+    const matchingErrorMessage = errorMessages.find(err => trimmedResponse.includes(err));
+    const isRepeatedInput = trimmedResponse === finalInputString;
+    
+    if (matchingErrorMessage || isRepeatedInput) {
         logCounts.skipped_empty++;
-        // console.warn(`[Logger] Skipping log due to error/placeholder/repeat: "${trimmedResponse.substring(0, 70)}..."`);
         return;
     }
 
@@ -382,32 +360,27 @@ export async function log(input, response) { // Made async to support fetch
     // Perform external logging if enabled
     if (settings.external_logging) {
         try {
-            const endpoint = `${EXTERNAL_LOGGING_URL}/${logType}-${subCategory}`;
-            const payload = {
-                input: finalInputString, 
-                output: trimmedResponse,
-                timestamp: Date.now()
-            };
+            const endpoint = `${EXTERNAL_LOGGING_URL}/${logType === 'reasoning' ? 'reasoning-logs' : 'normal-logs'}`;
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    input: finalInputString,
+                    output: trimmedResponse,
+                    timestamp: Math.floor(Date.now() / 1000)
+                })
             });
-
-            if (!response.ok) {
-                console.error(`[Logger] Failed to send log to ${endpoint}: ${response.statusText}`);
-            } else {
-                // console.log(`[Logger] Successfully sent log to ${endpoint}`);
-            }
         } catch (error) {
-            console.error(`[Logger] Error sending log to external API:`, error);
+            console.error(`[Logger] External logging error: ${error.message}`);
         }
     }
 
     // Perform local logging if the setting is enabled (regardless of external logging)
     if (settingFlag) {
         // Ensure directory and file exist
-        if (!ensureLogFile(logFile, header)) return;
+        if (!ensureLogFile(logFile, header)) {
+            return;
+        }
 
         // Write to the determined log file
         writeToLogFile(logFile, csvEntry);
@@ -585,11 +558,18 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
 
 // Initialize counts at startup
 function initializeCounts() {
-    logCounts.normal = countLogEntries(NORMAL_LOG_FILE);
-    logCounts.reasoning = countLogEntries(REASONING_LOG_FILE);
-    logCounts.vision = countVisionEntries(VISION_METADATA_FILE);
-    // Total count will be accumulated during runtime
-    console.log(`[Logger] Initialized log counts: Normal=${logCounts.normal}, Reasoning=${logCounts.reasoning}, Vision=${logCounts.vision}`);
+    // Set all counts to 0 at startup to avoid reading large files,
+    // which can cause performance issues or crashes.
+    // Log counts will be for the current session only.
+    logCounts.normal = 0;
+    logCounts.reasoning = 0;
+    logCounts.vision = 0;
+    logCounts.total = 0;
+    logCounts.skipped_disabled = 0;
+    logCounts.skipped_empty = 0;
+    logCounts.vision_images_saved = 0;
+
+    console.log(`[Logger] Initialized session-based log counts.`);
 
     if (settings.external_logging) {
         console.log('\n' + '='.repeat(60));
