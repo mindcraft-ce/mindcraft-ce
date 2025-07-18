@@ -1,9 +1,10 @@
 {
   "andy_api_url": "https://mindcraft.riqvip.dev",
   "ollama_url": "http://localhost:11434",
-  "auto_connect": false,
-  "max_vram_gb": 8.0,
-  "report_interval": 30,
   "client_name": "Default Client",
-  "api_key": ""
+  "auto_connect": false,
+  "max_vram_gb": 8,
+  "report_interval": 30,
+  "api_key": "",
+  "flask_port": 5000
 }

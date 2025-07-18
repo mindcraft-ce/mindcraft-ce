@@ -26,9 +26,9 @@ const settings = {
         // using more than 1 profile requires you to /msg each bot indivually
         // individual profiles override values from the base profile
     ],
-    "plugins" : [], // you can add plugins here, e.g. pre-installed plugin: "Dance"
+    "plugins" : ["Dance", "Memory"], // you can add plugins here, e.g. pre-installed plugin: "Dance"
     "load_memory": true, // load memory from previous session
-    "init_message": "Respond with hello world and your name", // sends to all on spawn
+    "init_message": "Respond with your name, purpose, and personality", // sends to all on spawn
     "only_chat_with": [], // users that the bots listen to and send general messages to. if empty it will chat publicly
     
     "language": "en", // translate to/from this language. NOT text-to-speech language. Supports these language names: https://cloud.google.com/translate/docs/languages
@@ -36,12 +36,12 @@ const settings = {
 
     "allow_insecure_coding": true, // allows newAction command and model can write/run code on your computer. enable at own risk
     "allow_vision": true, // allows vision model to interpret screenshots as inputs
-    "vision_mode": "prompted", // "off", "prompted", or "always"
-    "blocked_actions" : ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"] , // commands to disable and remove from docs. Ex: ["!setMode"]
+    "vision_mode": "always", // "off", "prompted", or "always"
+    "blocked_actions" : ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"] , // commands to disable and remove from docs. Ex: ["!setMode"] defaults: "!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"
     "code_timeout_mins": -1, // minutes code is allowed to run. -1 for no timeout
-    "relevant_docs_count": 5, // number of relevant code function docs to select for prompting. -1 for all
+    "relevant_docs_count": 10, // number of relevant code function docs to select for prompting. -1 for all
 
-    "max_messages": 15, // max number of messages to keep in context
+    "max_messages": 80, // max number of messages to keep in context
     "num_examples": 0, // number of examples to give to the model
     "max_commands": -1, // max number of commands that can be used in consecutive responses. -1 for no limit
     "verbose_commands": true, // show full command syntax
@@ -50,12 +50,12 @@ const settings = {
 
     // Allows for truly autonomous playing
     "auto_idle_trigger": {
-      "enabled": true,
-      "timeout_secs": 120, // 10 seconds inactivity before prompting
-      "message": "Continue Building diverse and creative structures. Aim to build something far different than what you have been."
+      "enabled": false,
+      "timeout_secs": 240, // 240 seconds inactivity before prompting
+      "message": "Hey you! I need you to keep playing Minecraft until you beat the game! If you don't have a goal, set one! Also, tell me your personality!"
     },
 
-    "speak": true,
+    "speak": false,
     // allows all bots to speak through text-to-speech. format: {provider}/{model}/{voice}. if set to "system" it will use system text-to-speech, which works on windows and mac, but on linux you need to `apt install espeak`.
     // specify speech model inside each profile - so that you can have each bot with different voices ;)
     

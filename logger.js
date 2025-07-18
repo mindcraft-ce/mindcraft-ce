@@ -435,7 +435,6 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
         "Context length exceeded",
         "Image input modality is not enabled",
         "An unexpected error occurred",
-        "Image captured for always active vision", // Filter out placeholder responses
     ];
     
     if (errorMessages.some(err => trimmedResponse.includes(err))) {
