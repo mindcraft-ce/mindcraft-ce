@@ -155,6 +155,11 @@ const modes_list = [
         on: true,
         active: false,
         update: async function (agent) {
+            // Don't hunt during user-initiated actions
+            if (agent.actions.currentActionLabel && agent.actions.currentActionLabel.startsWith('action:')) {
+                return;
+            }
+            
             const huntable = world.getNearestEntityWhere(agent.bot, entity => mc.isHuntable(entity), 8);
             if (huntable && await world.isClearPath(agent.bot, huntable)) {
                 execute(this, agent, async () => {
@@ -167,7 +172,7 @@ const modes_list = [
     {
         name: 'item_collecting',
         description: 'Collect nearby items when idle.',
-        interrupts: ['action:followPlayer'],
+        interrupts: ['action:followPlayer'], // Pause/interupt followPlayer
         on: true,
         active: false,
 
@@ -175,9 +180,10 @@ const modes_list = [
         prev_item: null,
         noticed_at: -1,
         update: async function (agent) {
-            let item = world.getNearestEntityWhere(agent.bot, entity => entity.name === 'item', 8);
+            // Only pick up items if the path length is <= 5
+            let item = await world.getNearestEntityWherePath(agent.bot, entity => entity.name === 'item', 5, 8);
             let empty_inv_slots = agent.bot.inventory.emptySlotCount();
-            if (item && item !== this.prev_item && await world.isClearPath(agent.bot, item) && empty_inv_slots > 1) {
+            if (item && item !== this.prev_item && empty_inv_slots > 1) {
                 if (this.noticed_at === -1) {
                     this.noticed_at = Date.now();
                 }
@@ -198,12 +204,16 @@ const modes_list = [
     {
         name: 'torch_placing',
         description: 'Place torches when idle and there are no torches nearby.',
-        interrupts: ['action:followPlayer'],
+        interrupts: ['action:followPlayer'], // Pause/interupt followPlayer
         on: true,
         active: false,
         cooldown: 5,
         last_place: Date.now(),
         update: function (agent) {
+            if (agent.actions.currentActionLabel === 'action:followPlayer' && world.shouldPlaceTorch(agent.bot)) {
+                agent.actions.cancelCurrentAction('Cancelled follow to place torch');
+                return;
+            }
             if (world.shouldPlaceTorch(agent.bot)) {
                 if (Date.now() - this.last_place < this.cooldown * 1000) return;
                 execute(this, agent, async () => {
@@ -217,11 +227,18 @@ const modes_list = [
     {
         name: 'elbow_room',
         description: 'Move away from nearby players when idle.',
-        interrupts: ['action:followPlayer'],
+        interrupts: ['action:followPlayer'], // Pause/interupt followPlayer
         on: true,
         active: false,
         distance: 0.5,
         update: async function (agent) {
+            if (agent.actions.currentActionLabel === 'action:followPlayer') {
+                const player = world.getNearestEntityWhere(agent.bot, entity => entity.type === 'player', this.distance);
+                if (player) {
+                    agent.actions.cancelCurrentAction('Cancelled follow to make elbow room');
+                }
+                return;
+            }
             const player = world.getNearestEntityWhere(agent.bot, entity => entity.type === 'player', this.distance);
             if (player) {
                 execute(this, agent, async () => {
@@ -287,9 +304,26 @@ async function execute(mode, agent, func, timeout=-1) {
         agent.self_prompter.stopLoop();
     let interrupted_action = agent.actions.currentActionLabel;
     mode.active = true;
-    let code_return = await agent.actions.runAction(`mode:${mode.name}`, async () => {
-        await func();
-    }, { timeout });
+    
+    let code_return;
+    try {
+        code_return = await agent.actions.runAction(`mode:${mode.name}`, async () => {
+            await func();
+        }, { timeout });
+    } catch (err) {
+        // Handle mode execution errors gracefully
+        console.error(`Error in mode ${mode.name}:`, err.message);
+        mode.active = false;
+        
+        // Create a mock code_return for error cases
+        code_return = {
+            success: false,
+            message: `Mode ${mode.name} failed: ${err.message}`,
+            interrupted: true,
+            timedout: false
+        };
+    }
+    
     mode.active = false;
     console.log(`Mode ${mode.name} finished executing, code_return: ${code_return.message}`);
 

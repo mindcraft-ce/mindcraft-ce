@@ -306,10 +306,28 @@ export class Agent {
 
     requestInterrupt() {
         this.bot.interrupt_code = true;
-        this.bot.stopDigging();
-        this.bot.collectBlock.cancelTask();
-        this.bot.pathfinder.stop();
-        this.bot.pvp.stop();
+        
+        try {
+            // Stop all bot activities safely
+            if (this.bot.stopDigging) this.bot.stopDigging();
+            if (this.bot.collectBlock && this.bot.collectBlock.cancelTask) this.bot.collectBlock.cancelTask();
+            if (this.bot.pathfinder && this.bot.pathfinder.stop) this.bot.pathfinder.stop();
+            if (this.bot.pvp && this.bot.pvp.stop) this.bot.pvp.stop();
+            
+            // Clear any control states
+            if (this.bot.clearControlStates) this.bot.clearControlStates();
+            
+            // Stop any fishing
+            if (this.bot.activateItem && this.bot.heldItem && this.bot.heldItem.name && this.bot.heldItem.name.includes('fishing_rod')) {
+                try {
+                    this.bot.deactivateItem();
+                } catch (e) {
+                    // Ignore fishing rod deactivation errors
+                }
+            }
+        } catch (error) {
+            console.warn('Error during interrupt request:', error.message);
+        }
     }
 
     clearBotLogs() {
@@ -608,6 +626,14 @@ export class Agent {
         });
         // Logging callbacks
         this.bot.on('error' , (err) => {
+            // Handle PartialReadError specifically - these are usually non-fatal protocol parsing errors
+            if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
+                console.warn('Protocol parsing error (non-fatal):', err.message);
+                // Don't kill the process for these errors, they're usually harmless
+                return;
+            }
+            
+            // Handle other errors
             console.error('Error event!', err);
         });
         this.bot.on('end', (reason) => {

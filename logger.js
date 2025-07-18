@@ -556,7 +556,14 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
 }
 
 // Initialize counts at startup
+let isInitialized = false;
 function initializeCounts() {
+    // Prevent duplicate initialization
+    if (isInitialized) {
+        return;
+    }
+    isInitialized = true;
+    
     // Set all counts to 0 at startup to avoid reading large files,
     // which can cause performance issues or crashes.
     // Log counts will be for the current session only.

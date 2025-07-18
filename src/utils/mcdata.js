@@ -54,15 +54,76 @@ export const WOOL_COLORS = [
 
 
 export function initBot(username) {
-    let bot = createBot({
-        username: username,
+    // Override console.error temporarily to catch PartialReadError stack traces
+    const originalConsoleError = console.error;
+    console.error = function(first, ...args) {
+        if (typeof first === 'string' && first.includes('PartialReadError')) {
+            console.warn('Protocol parsing error (non-fatal):', first);
+            return;
+        }
+        if (first && first.name === 'PartialReadError') {
+            console.warn('Protocol parsing error (non-fatal):', first.message);
+            return;
+        }
+        // Call original console.error for other messages
+        originalConsoleError.call(console, first, ...args);
+    };
+    
+    let bot;
+    try {
+        bot = createBot({
+            username: username,
 
-        host: settings.host,
-        port: settings.port,
-        auth: settings.auth,
+            host: settings.host,
+            port: settings.port,
+            auth: settings.auth,
 
-        version: mc_version,
+            version: mc_version,
+        });
+    } finally {
+        // Restore original console.error after bot creation
+        setTimeout(() => {
+            console.error = originalConsoleError;
+        }, 5000); // Keep the override for 5 seconds to catch startup errors
+    }
+    
+    // Add protocol error handling
+    bot.on('error', (err) => {
+        if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
+            console.warn('Protocol parsing error (non-fatal):', err.message);
+            // These errors are usually non-fatal and can be ignored
+            return;
+        }
+        // Re-throw other errors
+        throw err;
     });
+    
+    // Handle specific protocol parsing errors at the client level
+    bot._client.on('error', (err) => {
+        if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
+            console.warn('Client protocol parsing error (non-fatal):', err.message);
+            // These errors are usually non-fatal and can be ignored
+            return;
+        }
+        console.error('Client error:', err);
+    });
+    
+    // Override the protocol parser's error handler to catch PartialReadError at the source
+    if (bot._client.deserializer) {
+        const originalParsePacketBuffer = bot._client.deserializer.parsePacketBuffer;
+        bot._client.deserializer.parsePacketBuffer = function(buffer) {
+            try {
+                return originalParsePacketBuffer.call(this, buffer);
+            } catch (err) {
+                if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
+                    console.warn('Protocol deserializer error (non-fatal):', err.message);
+                    return null; // Return null to indicate failed parsing
+                }
+                throw err;
+            }
+        };
+    }
+    
     bot.loadPlugin(pathfinder);
     bot.loadPlugin(pvp);
     bot.loadPlugin(collectblock);

@@ -400,9 +400,9 @@ export class Prompter {
                         const agentScreenshotDir = path.join('bots', this.agent.name, 'screenshots');
                         const imageFullPath = path.join(agentScreenshotDir, lastMessage.imagePath);
 
-                        console.log(`[Prompter] Attempting to read image for always_active mode: ${imageFullPath}`);
+                        console.log(`[Prompter] Reading image: ${path.basename(lastMessage.imagePath)}`);
                         imageData = await fs.readFile(imageFullPath); // Read as buffer
-                        console.log('[Prompter] Image data prepared for chat model.');
+                        console.log('[Prompter] Image loaded for analysis.');
                     } catch (err) {
                         console.error(`[Prompter] Error reading image file ${lastMessage.imagePath}:`, err);
                         imageData = null; // Proceed without image data if reading fails
@@ -416,7 +416,7 @@ export class Prompter {
                     console.error('Error: Generated response is not a string', generation);
                     throw new Error('Generated response is not a string');
                 }
-                console.log("Generated response:", generation); 
+                console.log("Response generated:", generation.length > 100 ? generation.substring(0, 100) + '...' : generation); 
                 await this._saveLog(prompt, messages, generation, 'conversation');
 
                 // Remove the incorrect logVision call here since sendRequest should handle it

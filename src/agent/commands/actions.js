@@ -256,7 +256,7 @@ export const actionsList = [
         },
         perform: runAsAction(async (agent, type, num) => {
             await skills.collectBlock(agent.bot, type, num);
-        }, false, 10) // 10 minute timeout
+        }, false, 5) // 5 minute timeout instead of 10
     },
     {
         name: '!craftRecipe',
