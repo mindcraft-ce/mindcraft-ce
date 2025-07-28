@@ -175,7 +175,6 @@ const modes_list = [
         interrupts: ['action:followPlayer'], // Pause/interupt followPlayer
         on: true,
         active: false,
-
         wait: 2, // number of seconds to wait after noticing an item to pick it up
         prev_item: null,
         noticed_at: -1,
@@ -192,6 +191,15 @@ const modes_list = [
                     this.prev_item = item;
                     execute(this, agent, async () => {
                         await skills.pickupNearbyItems(agent.bot);
+                        // After picking up item, resume followPlayer if needed
+                        if (agent._resumeFollowPlayer && agent._resumeFollowPlayer.player) {
+                            await skills.followPlayer(
+                                agent.bot,
+                                agent._resumeFollowPlayer.player,
+                                agent._resumeFollowPlayer.distance
+                            );
+                            agent._resumeFollowPlayer = null;
+                        }
                     });
                     this.noticed_at = -1;
                 }
@@ -211,6 +219,11 @@ const modes_list = [
         last_place: Date.now(),
         update: function (agent) {
             if (agent.actions.currentActionLabel === 'action:followPlayer' && world.shouldPlaceTorch(agent.bot)) {
+                // Store follow parameters for resuming
+                agent._resumeFollowPlayer = {
+                    player: agent._lastFollowPlayer,
+                    distance: agent._lastFollowDistance
+                };
                 agent.actions.cancelCurrentAction('Cancelled follow to place torch');
                 return;
             }
@@ -219,6 +232,15 @@ const modes_list = [
                 execute(this, agent, async () => {
                     const pos = agent.bot.entity.position;
                     await skills.placeBlock(agent.bot, 'torch', pos.x, pos.y, pos.z, 'bottom', true);
+                    // Resume followPlayer if it was interrupted
+                    if (agent._resumeFollowPlayer && agent._resumeFollowPlayer.player) {
+                        await skills.followPlayer(
+                            agent.bot,
+                            agent._resumeFollowPlayer.player,
+                            agent._resumeFollowPlayer.distance
+                        );
+                        agent._resumeFollowPlayer = null;
+                    }
                 });
                 this.last_place = Date.now();
             }
@@ -235,6 +257,11 @@ const modes_list = [
             if (agent.actions.currentActionLabel === 'action:followPlayer') {
                 const player = world.getNearestEntityWhere(agent.bot, entity => entity.type === 'player', this.distance);
                 if (player) {
+                    // Store follow parameters for resuming
+                    agent._resumeFollowPlayer = {
+                        player: agent._lastFollowPlayer,
+                        distance: agent._lastFollowDistance
+                    };
                     agent.actions.cancelCurrentAction('Cancelled follow to make elbow room');
                 }
                 return;
@@ -247,6 +274,15 @@ const modes_list = [
                     await new Promise(resolve => setTimeout(resolve, wait_time));
                     if (player.position.distanceTo(agent.bot.entity.position) < this.distance) {
                         await skills.moveAway(agent.bot, this.distance);
+                        // After moving away, resume followPlayer if needed
+                        if (agent._resumeFollowPlayer && agent._resumeFollowPlayer.player) {
+                            await skills.followPlayer(
+                                agent.bot,
+                                agent._resumeFollowPlayer.player,
+                                agent._resumeFollowPlayer.distance
+                            );
+                            agent._resumeFollowPlayer = null;
+                        }
                     }
                 });
             }

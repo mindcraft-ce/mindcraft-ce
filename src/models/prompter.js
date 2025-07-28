@@ -59,6 +59,7 @@ export class Prompter {
         this.current_personality = null;
         this.personality_set_time = null;
         this._loadPersonalities();
+        this._usedPersonalities = new Set();
         this._selectNewPersonality();
         
         let name = this.profile.name;
@@ -183,7 +184,7 @@ export class Prompter {
                 profile.api = 'xai';
             else if (profile.model.includes('deepseek'))
                 profile.api = 'deepseek';
-	        else if (profile.model.includes('mistral'))
+            else if (profile.model.includes('mistral'))
                 profile.api = 'mistral';
             else 
                 throw new Error('Unknown model:', profile.model);
@@ -249,8 +250,18 @@ export class Prompter {
     
     _selectNewPersonality() {
         if (this.personalities && this.personalities.length > 0) {
-            const randomIndex = Math.floor(Math.random() * this.personalities.length);
-            this.current_personality = this.personalities[randomIndex];
+            // Filter out already used personalities
+            const unused = this.personalities.filter(p => !this._usedPersonalities.has(p));
+            let next;
+            if (unused.length === 0) {
+                // Reset if all have been used
+                this._usedPersonalities.clear();
+                next = this.personalities[Math.floor(Math.random() * this.personalities.length)];
+            } else {
+                next = unused[Math.floor(Math.random() * unused.length)];
+            }
+            this._usedPersonalities.add(next);
+            this.current_personality = next;
             this.personality_set_time = Date.now();
             console.log(`Selected new personality: ${this.current_personality.substring(0, 50)}...`);
         } else {
@@ -471,11 +482,11 @@ export class Prompter {
         prompt = await this.replaceStrings(prompt, null, null, to_summarize);
         let resp = await this.chat_model.sendRequest([], prompt);
         await this._saveLog(prompt, to_summarize, resp, 'memSaving');
-        
-        // Select new personality after memory summarization
+
+        // Select new personality after memory summarization (conversation reset)
         this._selectNewPersonality();
         console.log('Memory summarized - selecting new personality for next conversation cycle.');
-        
+
         if (resp?.includes('</think>')) {
             const [_, afterThink] = resp.split('</think>')
             resp = afterThink

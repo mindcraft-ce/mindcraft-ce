@@ -1,4 +1,15 @@
 export class ActionManager {
+    /**
+     * Cancels the current action, optionally with a reason.
+     * @param {string} reason - Optional reason for cancellation.
+     */
+    cancelCurrentAction(reason) {
+        if (reason) {
+            console.log(`Action cancelled: ${reason}`);
+        }
+        this.cancelResume();
+        this.stop();
+    }
     constructor(agent) {
         this.agent = agent;
         this.executing = false;

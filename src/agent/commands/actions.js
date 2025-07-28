@@ -106,6 +106,9 @@ export const actionsList = [
             'follow_dist': {type: 'float', description: 'The distance to follow from.', domain: [0, Infinity]}
         },
         perform: runAsAction(async (agent, player_name, follow_dist) => {
+            // Store the current follow target and distance for resuming
+            agent._lastFollowPlayer = player_name;
+            agent._lastFollowDistance = follow_dist;
             await skills.followPlayer(agent.bot, player_name, follow_dist);
         }, true)
     },
