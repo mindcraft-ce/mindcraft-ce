@@ -32,22 +32,12 @@ async function safePathfind(bot, pathfindingAction, actionName = 'pathfinding') 
         
         // Handle GoalChanged errors specially - they're usually due to mode interruptions
         if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-            if (bot.interrupt_code) {
-                log(bot, `${actionName} interrupted by user.`);
-            } else {
-                log(bot, `${actionName} goal changed by autonomous mode.`);
-            }
-            return false;
+            return handleGoalChangedError(bot, actionName, err);
         }
         
         // Handle GoalChanged errors - these happen when autonomous modes interrupt actions
         if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-            if (bot.interrupt_code) {
-                log(bot, `${actionName} interrupted by user.`);
-            } else {
-                log(bot, `${actionName} goal changed by autonomous mode.`);
-            }
-            return false;
+            return handleGoalChangedError(bot, actionName, err);
         }
         
         // Handle other pathfinding errors
