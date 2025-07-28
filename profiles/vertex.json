@@ -1,0 +1,10 @@
+{
+    "name": "vertex",
+
+    "model": "vertex/publishers/anthropic/models/claude-sonnet-4",
+
+    "code_model": "vertex/publishers/anthropic/models/claude-opus-4@20250514",
+
+    "vision_model": "vertex/publishers/google/models/gemini-2.5-flash"
+
+}

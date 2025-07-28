@@ -50,7 +50,7 @@ export class Pollinations {
             model: this.model_name || "openai-large",
             messages: strictFormat(messages),
             seed: Math.floor( Math.random() * (99999) ),
-            referrer: "mindcraft",
+            referrer: "mindcraft-ce",
             ...(this.params || {})
         };
 

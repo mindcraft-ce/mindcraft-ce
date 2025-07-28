@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description="Andy API Local Client Launcher")
     parser.add_argument("--mode", choices=["web", "cli", "enhanced"], default="web",
                        help="Launch mode: web interface, CLI client, or enhanced CLI client")
-    parser.add_argument("--server", default="https://mindcraft.riqvip.dev",
+    parser.add_argument("--server", default="https://mindcraft-ce.com",
                        help="Andy API server URL")
     parser.add_argument("--ollama", default="http://localhost:11434",
                        help="Ollama server URL")

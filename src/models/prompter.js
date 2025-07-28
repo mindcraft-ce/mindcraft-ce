@@ -7,6 +7,7 @@ import { getCommand } from '../agent/commands/index.js';
 import settings from '../../settings.js';
 
 import { Gemini } from './gemini.js';
+import { Vertex } from './vertex.js';
 import { GPT } from './gpt.js';
 import { Claude } from './claude.js';
 import { Mistral } from './mistral.js';
@@ -106,6 +107,8 @@ export class Prompter {
         try {
             if (embedding.api === 'google')
                 this.embedding_model = new Gemini(embedding.model, embedding.url);
+            else if (embedding.api === 'vertex')
+                this.embedding_model = new Vertex(embedding.model, embedding.url);
             else if (embedding.api === 'openai')
                 this.embedding_model = new GPT(embedding.model, embedding.url);
             else if (embedding.api === 'replicate')
@@ -154,6 +157,8 @@ export class Prompter {
                 profile.api = 'ollama'; // also must do early because shares names with other models
             else if (profile.model.includes('pollinations/'))
                 profile.api = 'pollinations'; // also shares some model names like llama
+            else if (profile.model.includes('vertex/') || profile.model.includes('vertex-'))
+                profile.api = 'vertex';
             else if (profile.model.includes('gemini'))
                 profile.api = 'google';
             else if (profile.model.includes('vllm/'))
@@ -195,6 +200,8 @@ export class Prompter {
         let model = null;
         if (profile.api === 'google')
             model = new Gemini(profile.model, profile.url, profile.params);
+        else if (profile.api === 'vertex')
+            model = new Vertex(profile.model.replace('vertex/', '').replace('vertex-', ''), profile.url, profile.params);
         else if (profile.api === 'openai')
             model = new GPT(profile.model, profile.url, profile.params);
         else if (profile.api === 'anthropic')

@@ -3,7 +3,7 @@ import { toSinglePrompt, strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 import { log, logVision } from '../../logger.js';
 
-export class Gemini {
+export class Vertex {
     constructor(model_name, url, params) {
         this.model_name = model_name || "gemini-2.0-flash";
         this.params = params;
@@ -16,12 +16,30 @@ export class Gemini {
             { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" },
             { "category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE" },
         ];
-        this.genAI = new GoogleGenAI({ apiKey: getKey('GEMINI_API_KEY') });
+        
+        // Get configuration from keys.json or environment variables
+        const project = getOptionalKey('VERTEX_PROJECT_ID') || process.env.GOOGLE_CLOUD_PROJECT;
+        const location = getOptionalKey('VERTEX_LOCATION') || process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+        
+        if (!project) {
+            throw new Error('VERTEX_PROJECT_ID must be set in keys.json or GOOGLE_CLOUD_PROJECT environment variable must be set');
+        }
+        
+        console.log(`Initializing Vertex AI with project: ${project}, location: ${location}`);
+        console.log('Authentication will use Application Default Credentials. Ensure you are authenticated with: gcloud auth application-default login');
+        
+        // Initialize with the new Google Gen AI SDK approach
+        this.genAI = new GoogleGenAI({
+            vertexai: true,
+            project: project,
+            location: location
+        });
+        
         this.supportsRawImageInput = true;
     }
 
     async sendRequest(turns, systemMessage, imageData = null) {
-        console.log('Awaiting Google API response...');
+        console.log('Awaiting Vertex AI response...');
         const originalTurnsForLog = [{role: 'system', content: systemMessage}, ...turns];
         turns.unshift({ role: 'system', content: systemMessage });
         turns = strictFormat(turns);
@@ -44,25 +62,18 @@ export class Gemini {
                     }
                 });
             } else {
-                console.warn('[Gemini] imageData provided, but the last content entry was not from a user. Image not sent.');
+                console.warn('[Vertex] imageData provided, but the last content entry was not from a user. Image not sent.');
             }
         }
 
         // Always enable thought summaries
-        try {
-                let config = {
-                ...this.params,
-                thinkingConfig: {
-                    includeThoughts: true,
-                    ...(this.params?.thinkingConfig || {})
-                }
-            };
-        } catch (err) {
-            let config = {
-                ...this.params,
-                }
+        let config = {
+            ...this.params,
+            thinkingConfig: {
+                includeThoughts: true,
+                ...(this.params?.thinkingConfig || {})
             }
-        
+        };
 
         // Add safety settings
         if (this.safetySettings) {
@@ -115,7 +126,7 @@ export class Gemini {
             return text;
 
         } catch (err) {
-            console.error('[Gemini] Error:', err);
+            console.error('[Vertex] Error:', err);
             const fallbackText = "An unexpected error occurred, please try again.";
             if (imageData) {
                 logVision(originalTurnsForLog, imageData, fallbackText);
@@ -132,7 +143,7 @@ export class Gemini {
         const prompt = toSinglePrompt(turns, systemMessage, stop_seq, 'model');
         
         try {
-            console.log('Awaiting Google API vision response...');
+            console.log('Awaiting Vertex AI vision response...');
             const response = await this.genAI.models.generateContent({
                 model: this.model_name,
                 contents: [
@@ -160,7 +171,7 @@ export class Gemini {
             return text.slice(0, text.indexOf(stop_seq));
 
         } catch (err) {
-            console.error('[Gemini] Vision error:', err);
+            console.error('[Vertex] Vision error:', err);
             let res = "Vision is only supported by certain models.";
             if (!err.message?.includes("Image input modality is not enabled for models/")) {
                 res = "An unexpected error occurred, please try again.";
@@ -180,8 +191,9 @@ export class Gemini {
             });
             return result.embeddings || [];
         } catch (e) {
-            console.error('[Gemini] Embedding error:', e);
+            console.error('[Vertex] Embedding error:', e);
             return [];
         }
     }
 }
+

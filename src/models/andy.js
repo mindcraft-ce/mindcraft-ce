@@ -10,7 +10,7 @@ export class Andy {
         
         // Andy API configuration
         let config = {
-            baseURL: url || 'https://mindcraft.riqvip.dev/api/andy/v1',
+            baseURL: url || 'https://mindcraft-ce.com/api/andy/v1',
             apiKey: getKey('ANDY_API_KEY') || 'no-key-needed' // Can work without key but with limits
         };
         
@@ -149,7 +149,7 @@ export class Andy {
          * This is a convenience method for debugging
          */
         try {
-            const response = await fetch('https://mindcraft.riqvip.dev/api/andy/pool_status');
+            const response = await fetch('https://mindcraft-ce.com/api/andy/pool_status');
             const status = await response.json();
             console.log('[Andy] Pool Status:', {
                 totalHosts: status.total_hosts,
@@ -168,7 +168,7 @@ export class Andy {
          * Get list of currently available models in the pool
          */
         try {
-            const response = await fetch('https://mindcraft.riqvip.dev/api/andy/models');
+            const response = await fetch('https://mindcraft-ce.com/api/andy/models');
             const models = await response.json();
             console.log('[Andy] Available models:', models.models.map(m => m.name));
             return models.models;

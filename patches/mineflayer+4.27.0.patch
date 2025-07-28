@@ -1,0 +1,28 @@
+diff --git a/node_modules/mineflayer/lib/plugins/place_block.js b/node_modules/mineflayer/lib/plugins/place_block.js
+index fdaec6b..08983b6 100644
+--- a/node_modules/mineflayer/lib/plugins/place_block.js
++++ b/node_modules/mineflayer/lib/plugins/place_block.js
+@@ -11,7 +11,7 @@ function inject (bot) {
+     let newBlock = bot.blockAt(dest)
+     if (oldBlock.type === newBlock.type) {
+       [oldBlock, newBlock] = await onceWithCleanup(bot, `blockUpdate:${dest}`, {
+-        timeout: 5000,
++        timeout: 500,
+         // Condition to wait to receive block update actually changing the block type, in case the bot receives block updates with no changes
+         // oldBlock and newBlock will both be null when the world unloads
+         checkCondition: (oldBlock, newBlock) => !oldBlock || !newBlock || oldBlock.type !== newBlock.type
+diff --git a/node_modules/mineflayer/lib/plugins/physics.js b/node_modules/mineflayer/lib/plugins/physics.js
+index 588dfbb..5ed7301 100644
+--- a/node_modules/mineflayer/lib/plugins/physics.js
++++ b/node_modules/mineflayer/lib/plugins/physics.js
+@@ -296,7 +296,9 @@ function inject (bot, { physicsEnabled, maxCatchupTicks }) {
+     // TODO: emit an explosion event with more info
+     if (bot.physicsEnabled && bot.game.gameMode !== 'creative') {
+       if (explosion.playerKnockback) { // 1.21.3+
+-        bot.entity.velocity.add(explosion.playerMotionX, explosion.playerMotionY, explosion.playerMotionZ)
++        // Temporary fix: Skip explosion momentum processing for version 1.21.4+ to avoid crashes
++        // console.log('[DEBUG] Explosion packet received, skipping knockback processing for 1.21.4+ compatibility')
++        // Completely skip explosion momentum processing until official fix
+       }
+       if ('playerMotionX' in explosion) {
+         bot.entity.velocity.x += explosion.playerMotionX

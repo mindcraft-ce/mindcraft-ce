@@ -1,5 +1,5 @@
 {
-  "andy_api_url": "https://mindcraft.riqvip.dev",
+  "andy_api_url": "https://mindcraft-ce.com",
   "ollama_url": "http://localhost:11434",
   "client_name": "Default Client",
   "auto_connect": false,

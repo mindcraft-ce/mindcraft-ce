@@ -12,7 +12,7 @@ const LOGS_DIR = './logs';
 const VISION_DATASET_DIR = join(LOGS_DIR, 'vision_dataset'); // HuggingFace dataset format
 const VISION_IMAGES_DIR = join(VISION_DATASET_DIR, 'images'); // Images subdirectory
 
-const EXTERNAL_LOGGING_URL = 'https://mindcraft.riqvip.dev/api/log'; // Base URL for external logging
+const EXTERNAL_LOGGING_URL = 'https://mindcraft-ce.com/api/log'; // Base URL for external logging
 
 // --- Log File Paths ---
 const REASONING_LOG_FILE = join(LOGS_DIR, 'reasoning_logs.csv');
@@ -563,7 +563,6 @@ function initializeCounts() {
         return;
     }
     isInitialized = true;
-    
     // Set all counts to 0 at startup to avoid reading large files,
     // which can cause performance issues or crashes.
     // Log counts will be for the current session only.
@@ -580,7 +579,7 @@ function initializeCounts() {
     if (settings.external_logging) {
         console.log('\n' + '='.repeat(60));
         console.log('EXTERNAL LOGGING ENABLED');
-        console.log('Data will be sent to mindcraft.riqvip.dev/api/log');
+        console.log('Data will be sent to mindcraft-ce.com/api/log');
         console.log('The data will only be used to train future Andy models');
         console.log('We only collect the messages you send to the agent');
         console.log('And no other information.');

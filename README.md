@@ -113,6 +113,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 |------|------|------|------|
 | `openai` | `OPENAI_API_KEY` | `gpt-4.1-mini` | [docs](https://platform.openai.com/docs/models) |
 | `google` | `GEMINI_API_KEY` | `gemini-2.0-flash` | [docs](https://ai.google.dev/gemini-api/docs/models/gemini) |
+| `vertex` | `GCLOUD AUTHENTICATION` | `vertex/gemini-2.0-flash` | [models](https://console.cloud.google.com/vertex-ai/model-garden) [docs](src/models/vertex_ai.md) |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` | [docs](https://docs.anthropic.com/claude/docs/models-overview) |
 | `xai` | `XAI_API_KEY` | `grok-3-mini` | [docs](https://docs.x.ai/docs) |
 | `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat` | [docs](https://api-docs.deepseek.com/) |

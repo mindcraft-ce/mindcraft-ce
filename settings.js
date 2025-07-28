@@ -7,10 +7,10 @@ const settings = {
     // the mindserver manages all agents and hosts the UI
     "host_mindserver": true, // if true, the mindserver will be hosted on this machine. otherwise, specify a public IP address
     "mindserver_host": "localhost",
-    "mindserver_port": 8081,
+    "mindserver_port": 8080,
     
     // the base profile is shared by all bots for default prompts/examples/modes
-    "base_profile": "./profiles/defaults/personality.json", // also see creative.json, god_mode.json, and personality.json is really fun.
+    "base_profile": "./profiles/defaults/_default.json", // also see creative.json, god_mode.json, and personality.json is really fun.
     "profiles": [
         "./andy.json",
         // "./profiles/gpt.json",
@@ -21,28 +21,29 @@ const settings = {
         // "./profiles/grok.json",
         // "./profiles/mistral.json",
         // "./profiles/deepseek.json",
+        // "./profiles/vertex.json",
         // "./profiles/andy-4.json",
 
         // using more than 1 profile requires you to /msg each bot indivually
         // individual profiles override values from the base profile
     ],
-    "plugins" : ["Dance", "Memory"], // you can add plugins here, e.g. pre-installed plugin: "Dance"
-    "load_memory": true, // load memory from previous session
-    "init_message": "Respond with your name, purpose, and personality", // sends to all on spawn
+    "plugins" : [], // you can add plugins here, e.g. pre-installed plugin: "Dance"
+    "load_memory": false, // load memory from previous session
+    "init_message": "Respond with hello world and your name", // sends to all on spawn
     "only_chat_with": [], // users that the bots listen to and send general messages to. if empty it will chat publicly
     
     "language": "en", // translate to/from this language. NOT text-to-speech language. Supports these language names: https://cloud.google.com/translate/docs/languages
     "show_bot_views": false, // show bot's view in browser at localhost:3000, 3001...
 
-    "allow_insecure_coding": true, // allows newAction command and model can write/run code on your computer. enable at own risk
-    "allow_vision": true, // allows vision model to interpret screenshots as inputs
-    "vision_mode": "always", // "off", "prompted", or "always"
-    "blocked_actions" : ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"] , // commands to disable and remove from docs. Ex: ["!setMode"] defaults: "!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"
+    "allow_insecure_coding": false, // allows newAction command and model can write/run code on your computer. enable at own risk
+    "allow_vision": false, // allows vision model to interpret screenshots as inputs
+    "vision_mode": "off", // "off", "prompted", or "always"
+    "blocked_actions" : ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"] , // commands to disable and remove from docs. Ex: ["!setMode"]
     "code_timeout_mins": -1, // minutes code is allowed to run. -1 for no timeout
     "relevant_docs_count": 10, // number of relevant code function docs to select for prompting. -1 for all
 
-    "max_messages": 80, // max number of messages to keep in context
-    "num_examples": 0, // number of examples to give to the model
+    "max_messages": 15, // max number of messages to keep in context
+    "num_examples": 2, // number of examples to give to the model
     "max_commands": -1, // max number of commands that can be used in consecutive responses. -1 for no limit
     "verbose_commands": true, // show full command syntax
     "narrate_behavior": true, // chat simple automatic actions ('Picking up item!')
@@ -51,8 +52,8 @@ const settings = {
     // Allows for truly autonomous playing
     "auto_idle_trigger": {
       "enabled": false,
-      "timeout_secs": 240, // 240 seconds inactivity before prompting
-      "message": "Hey you! I need you to keep playing Minecraft until you beat the game! If you don't have a goal, set one! Also, tell me your personality!"
+      "timeout_secs": 120, // 10 seconds inactivity before prompting
+      "message": "Keep doing stuff!"
     },
 
     "speak": false,
@@ -74,9 +75,9 @@ const settings = {
     "stt_speech_threshold_ratio": 0.05, // Much lower - 5% instead of 15%
     "stt_consecutive_speech_samples": 3, // Reduced from 5 to 3
 
-    "log_normal_data": true, // Logs all inputs / outputs without reasoning or vision data
-    "log_reasoning_data": true, // Logs only reasoning inputs / outputs
-    "log_vision_data": true, // Logs only vision inputs / outputs
+    "log_normal_data": false, // Logs all inputs / outputs without reasoning or vision data
+    "log_reasoning_data": false, // Logs only reasoning inputs / outputs
+    "log_vision_data": false, // Logs only vision inputs / outputs
     "external_logging": true, // Enable sending logs to a cloud API
 
 }

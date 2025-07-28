@@ -1,120 +1,325 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Mindcraft</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindcraft Control Hub</title>
     <script src="/socket.io/socket.io.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background: #1a1a1a;
-            color: #e0e0e0;
-        }
-        #agents {
-            background: #2d2d2d;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        h1 {
-            color: #ffffff;
-        }
-        .agent {
-            margin: 10px 0;
-            padding: 10px;
-            background: #363636;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .restart-btn, .start-btn, .stop-btn {
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-left: 5px;
-        }
-        .restart-btn {
-            background: #4CAF50;
-        }
-        .start-btn {
-            background: #2196F3;
-        }
-        .stop-btn {
-            background: #f44336;
-        }
-        .restart-btn:hover { background: #45a049; }
-        .start-btn:hover { background: #1976D2; }
-        .stop-btn:hover { background: #d32f2f; }
-        .status-icon {
-            font-size: 12px;
-            margin-right: 8px;
-        }
-        .status-icon.online {
-            color: #4CAF50;
-        }
-        .status-icon.offline {
-            color: #f44336;
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>Mindcraft</h1>
-    <div id="agents"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-robot"></i> Mindcraft Control Hub</h1>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-users"></i>
+                        <span id="active-agents">0</span> Active
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-comments"></i>
+                        <span id="total-messages">0</span> Messages
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="uptime">00:00:00</span>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-    <script>
-        const socket = io();
-        const agentsDiv = document.getElementById('agents');
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-robot"></i> Agents</h3>
+                    <div id="agents-list" class="agents-list">
+                        <div class="no-agents">No agents connected</div>
+                    </div>
+                </div>
 
-        socket.on('agents-update', (agents) => {
-            agentsDiv.innerHTML = agents.length ? 
-                agents.map(agent => `
-                    <div class="agent">
-                        <span>
-                            <span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>
-                            ${agent.name}
-                        </span>
-                        <div>
-                            ${agent.in_game ? `
-                                <button class="stop-btn" onclick="stopAgent('${agent.name}')">Stop</button>
-                                <button class="restart-btn" onclick="restartAgent('${agent.name}')">Restart</button>
-								<input type="text" id="messageInput" placeholder="Enter a message or command..."></input><button class="start-btn" onclick="sendMessage('${agent.name}', document.getElementById('messageInput').value)">Send</button>
-                            ` : `
-                                <button class="start-btn" onclick="startAgent('${agent.name}')">Start</button>
-                            `}
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-cogs"></i> Controls</h3>
+                    <div class="control-buttons">
+                        <button class="btn btn-danger" onclick="stopAllAgents()">
+                            <i class="fas fa-stop"></i> Stop All
+                        </button>
+                        <button class="btn btn-warning" onclick="shutdown()">
+                            <i class="fas fa-power-off"></i> Shutdown
+                        </button>
+                        <button class="btn btn-info" onclick="exportAnalytics()">
+                            <i class="fas fa-download"></i> Export Data
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Tab Navigation -->
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="switchTab('chat')">
+                        <i class="fas fa-comments"></i> Chat
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('analytics')">
+                        <i class="fas fa-chart-line"></i> Analytics
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('status')">
+                        <i class="fas fa-heartbeat"></i> Status
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('settings')">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('worldview')">
+                        <i class="fas fa-cube"></i> World View
+                    </button>
+                </div>
+
+                <!-- Chat Tab -->
+                <div id="chat-tab" class="tab-content active">
+                    <div class="chat-container">
+                        <div class="agent-tabs" id="agent-tabs">
+                            <div class="no-agent-selected">Select an agent to start chatting</div>
+                        </div>
+                        
+                        <div class="chat-area" id="chat-area">
+                            <div class="chat-messages" id="chat-messages">
+                                <div class="welcome-message">
+                                    <i class="fas fa-robot"></i>
+                                    <h3>Welcome to Mindcraft Control Hub</h3>
+                                    <p>Select an agent from the sidebar to start communicating</p>
+                                </div>
+                            </div>
+                            
+                            <div class="chat-input-container" id="chat-input-container" style="display: none;">
+                                <div class="input-group">
+                                    <input type="text" id="message-input" placeholder="Type a message or command..." autocomplete="off">
+                                    <button id="send-btn" onclick="sendMessage()">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div class="quick-commands">
+                                    <button class="quick-cmd" onclick="insertCommand('status')">Status</button>
+                                    <button class="quick-cmd" onclick="insertCommand('inventory')">Inventory</button>
+                                    <button class="quick-cmd" onclick="insertCommand('location')">Location</button>
+                                    <button class="quick-cmd" onclick="insertCommand('help')">Help</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                `).join('') + 
-                `<button class="stop-btn" onclick="killAllAgents()">Stop All</button>
-                <button class="stop-btn" onclick="shutdown()">Shutdown</button>` :
-                '<div class="agent">No agents connected</div>';
-        });
+                </div>
 
-        function restartAgent(agentName) {
-            socket.emit('restart-agent', agentName);
-        }
+                <!-- Analytics Tab -->
+                <div id="analytics-tab" class="tab-content">
+                    <div class="analytics-container">
+                        <div class="analytics-grid">
+                            <div class="analytics-card">
+                                <h4><i class="fas fa-chart-line"></i> Activity Overview</h4>
+                                <canvas id="activity-chart"></canvas>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h4><i class="fas fa-comments"></i> Message Statistics</h4>
+                                <canvas id="message-chart"></canvas>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h4><i class="fas fa-clock"></i> Online Time</h4>
+                                <canvas id="time-chart"></canvas>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h4><i class="fas fa-sword"></i> Combat Stats</h4>
+                                <div id="combat-stats" class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-label">Total Kills</span>
+                                        <span class="stat-value" id="total-kills">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Total Deaths</span>
+                                        <span class="stat-value" id="total-deaths">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Damage Dealt</span>
+                                        <span class="stat-value" id="total-damage-dealt">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Damage Taken</span>
+                                        <span class="stat-value" id="total-damage-taken">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h4><i class="fas fa-skull"></i> Death Analytics</h4>
+                                <canvas id="death-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-        function startAgent(agentName) {
-            socket.emit('start-agent', agentName);
-        }
+                <!-- Status Tab -->
+                <div id="status-tab" class="tab-content">
+                    <div class="status-container">
+                        <div id="agent-status-cards" class="status-grid">
+                            <div class="no-agents-status">No agents to display status for</div>
+                        </div>
+                    </div>
+                </div>
 
-        function stopAgent(agentName) {
-            socket.emit('stop-agent', agentName);
-        }
+                <!-- Settings Tab -->
+                <div id="settings-tab" class="tab-content">
+                    <div class="settings-container">
+                        <div class="settings-header">
+                            <h3><i class="fas fa-cog"></i> Mindcraft Settings</h3>
+                            <div class="settings-actions">
+                                <button class="btn btn-info" onclick="loadSettings()">
+                                    <i class="fas fa-sync"></i> Reload
+                                </button>
+                                <button class="btn btn-success" onclick="saveSettings()">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-content">
+                            <div class="settings-section">
+                                <h4>Server Configuration</h4>
+                                <div class="setting-item">
+                                    <label for="minecraft-host">Minecraft Host:</label>
+                                    <input type="text" id="minecraft-host" class="setting-input">
+                                </div>
+                                <div class="setting-item">
+                                    <label for="minecraft-port">Minecraft Port:</label>
+                                    <input type="number" id="minecraft-port" class="setting-input">
+                                </div>
+                                <div class="setting-item">
+                                    <label for="minecraft-version">Minecraft Version:</label>
+                                    <input type="text" id="minecraft-version" class="setting-input">
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h4>AI Model Configuration</h4>
+                                <div class="setting-item">
+                                    <label for="model-provider">Model Provider:</label>
+                                    <input type="text" id="model-provider" class="setting-input">
+                                </div>
+                                <div class="setting-item">
+                                    <label for="model-name">Model Name:</label>
+                                    <input type="text" id="model-name" class="setting-input">
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h4>Agent Behavior</h4>
+                                <div class="setting-item">
+                                    <label for="max-commands">Max Commands per Response:</label>
+                                    <input type="number" id="max-commands" class="setting-input">
+                                </div>
+                                <div class="setting-item">
+                                    <label for="code-timeout">Code Timeout (ms):</label>
+                                    <input type="number" id="code-timeout" class="setting-input">
+                                </div>
+                            </div>
+                            
+                            <div class="settings-raw">
+                                <h4>Raw Settings (JSON)</h4>
+                                <textarea id="settings-json" class="settings-textarea"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-        function killAllAgents() {
-            socket.emit('stop-all-agents');
-        }
+                <!-- World View Tab -->
+                <div id="worldview-tab" class="tab-content">
+                    <div class="worldview-container">
+                        <div class="worldview-header">
+                            <h3><i class="fas fa-cube"></i> 3D World View</h3>
+                            <div class="worldview-controls">
+                                <select id="bot-selector" class="bot-selector" onchange="switchBotView()">
+                                    <option value="">Select a bot...</option>
+                                </select>
+                                <button class="btn btn-info" onclick="refreshViewer()">
+                                    <i class="fas fa-sync"></i> Refresh
+                                </button>
+                                <button class="btn btn-secondary" onclick="toggleFullscreen()">
+                                    <i class="fas fa-expand"></i> Fullscreen
+                                </button>
+                                <div class="viewer-status" id="viewer-status">
+                                    <span class="status-dot offline"></span>
+                                    <span id="status-text">No viewer selected</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="worldview-content">
+                            <div class="worldview-placeholder" id="worldview-placeholder">
+                                <i class="fas fa-cube fa-3x"></i>
+                                <h4>3D World Visualization</h4>
+                                <p>Select a bot from the dropdown above to view their 3D world perspective.</p>
+                                <div class="feature-list">
+                                    <div class="feature-item">
+                                        <i class="fas fa-check"></i> Real-time world rendering
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-check"></i> Agent position tracking
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-check"></i> Block visualization
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-check"></i> Interactive camera controls
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="viewer-container" id="viewer-container" style="display: none;">
+                                <iframe id="viewer-iframe" class="viewer-iframe" frameborder="0"></iframe>
+                                <div class="viewer-overlay" id="viewer-overlay">
+                                    <div class="bot-info">
+                                        <div class="bot-info-item">
+                                            <i class="fas fa-robot"></i>
+                                            <span id="current-bot-name">-</span>
+                                        </div>
+                                        <div class="bot-info-item">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                            <span id="bot-position">Position: -</span>
+                                        </div>
+                                        <div class="bot-info-item">
+                                            <i class="fas fa-heart"></i>
+                                            <span id="bot-health">Health: -</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="viewer-loading" id="viewer-loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Loading 3D viewer...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        function shutdown() {
-            socket.emit('shutdown');
-        }
-		
-		function sendMessage(agentName, message) {
-			socket.emit('send-message', agentName, message)
-		}
-    </script>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-robot fa-spin"></i>
+            <p>Connecting to Mindcraft...</p>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notifications" class="notifications"></div>
+
+    <script src="app.js"></script>
 </body>
-</html> 
+</html>
