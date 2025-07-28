@@ -572,23 +572,9 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             }
             // Handle GoalChanged errors gracefully
             else if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                if (bot.interrupt_code) {
-                    log(bot, `Block collection interrupted by user.`);
-                    break;
-                } else {
-                    log(bot, `Block collection goal changed by autonomous mode, trying next block.`);
-                    continue;
-                }
-            }
-            // Handle GoalChanged errors gracefully
-            else if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                if (bot.interrupt_code) {
-                    log(bot, `Block collection interrupted by user.`);
-                    break;
-                } else {
-                    log(bot, `Block collection goal changed by autonomous mode, trying next block.`);
-                    continue;
-                }
+                const controlSignal = handleGoalChangedError(bot, 'Block collection', true);
+                if (controlSignal === 'break') break;
+                if (controlSignal === 'continue') continue;
             }
             else if (err.name === 'NoChests') {
                 log(bot, `Failed to collect ${blockType}: Inventory full, no place to deposit.`);
