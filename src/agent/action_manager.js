@@ -175,6 +175,16 @@ export class ActionManager {
                 return { success: true, message: output, interrupted, timedout: false };
             }
             
+            // Handle Digging aborted errors specifically - these are normal interruptions
+            if (err.message?.includes('Digging aborted')) {
+                console.log('Digging aborted error caught - treating as successful interruption');
+                let output = this.getBotOutputSummary();
+                let interrupted = true; // Digging aborted means we were interrupted
+                this.agent.clearBotLogs();
+                this.agent.bot.emit('idle');
+                return { success: true, message: output, interrupted, timedout: false };
+            }
+            
             // Log the full stack trace for other errors
             console.error(err.stack);
             await this.stop();

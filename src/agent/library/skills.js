@@ -436,12 +436,10 @@ export async function defendSelf(bot, range=9) {
                 movements.digCost = 100; // High cost for digging
                 if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
                 if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-                if (mc.ALL_OPENABLE_DOORS) {
-                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                        const doorId = mc.getBlockId(doorName);
-                        if (doorId) movements.blocksToOpen.add(doorId);
-                    });
-                }
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
                 bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -1233,17 +1231,27 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
      * @example
      * await skills.giveToPlayer(bot, "oak_log", "player1");
      **/
-    let player = bot.players[username].entity
+    let player = bot.players[username]?.entity;
     if (!player) {
         log(bot, `Could not find ${username}.`);
         return false;
     }
-    await goToPlayer(bot, username, 3);
-    // if we are 2 below the player
-    log(bot, bot.entity.position.y, player.position.y);
-    if (bot.entity.position.y < player.position.y - 1) {
-        await goToPlayer(bot, username, 1);
+
+    const distanceToPlayer = bot.entity.position.distanceTo(player.position);
+
+    // If already very close, skip pathfinding and proceed to giving item
+    if (distanceToPlayer < 2) {
+        log(bot, `Already close to ${username}, skipping pathfinding.`);
+    } else {
+        // Original pathfinding logic
+        await goToPlayer(bot, username, 3);
+        // if we are 2 below the player
+        log(bot, bot.entity.position.y, player.position.y);
+        if (bot.entity.position.y < player.position.y - 1) {
+            await goToPlayer(bot, username, 1);
+        }
     }
+
     // if we are too close, make some distance
     if (bot.entity.position.distanceTo(player.position) < 2) {
         let too_close = true;
@@ -1291,7 +1299,7 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
 }
 
 
-export async function goToPosition(bot, x, y, z, min_distance=2) {
+export async function goToPosition(bot, x, y, z, min_distance=2, pathfindTimeout=null) {
     /**
      * Navigate to the given position.
      * @param {MinecraftBot} bot, reference to the minecraft bot.
@@ -1352,7 +1360,7 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     let nonDestructivePath = null;
     let destructivePath = null;
     // Use the full default timeout for each path calculation attempt.
-    const pathTimeout = bot.pathfinder.thinkTimeout;
+    const pathTimeout = pathfindTimeout !== null ? pathfindTimeout : bot.pathfinder.thinkTimeout;
 
     log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
     try {
@@ -1451,7 +1459,7 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         clearInterval(progressInterval);
         if (headMovementInterval) clearInterval(headMovementInterval);
         // Optional: look at the destination point upon arrival or error
-        // try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
+        try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
     }
 }
 
@@ -1477,7 +1485,9 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         return false;
     }
     log(bot, `Found ${blockType} at ${block.position}. Navigating...`);
-    await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance);
+    // Use a longer timeout for deep/complex blocks
+    const PATHFIND_TIMEOUT = 20000; // 20 seconds
+    await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance, PATHFIND_TIMEOUT);
     return true;
     
 }
@@ -1601,7 +1611,7 @@ export async function goToPlayer(bot, username, targetDistance = 3) {
                 const botPos = bot.entity.position;
                 const blocksToCheck = [
                     bot.blockAt(botPos),
-                    bot.blockAt(botPos.offset(0, -1, 0)),
+                    bot.blockAt(botPos.offset(0, -1,  0)),
                     bot.blockAt(botPos.offset(0, 1, 0)),
                     bot.blockAt(botPos.offset(1, 0, 0)),
                     bot.blockAt(botPos.offset(-1, 0, 0)),
