@@ -729,24 +729,48 @@ export async function breakBlockAt(bot, x, y, z) {
 }
 
 
-export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dontCheat=false, maxRetries=12) {
+export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dontCheat=false) {
     /**
      * Place the given block type at the given position. It will build off from any adjacent blocks. Will fail if there is a block in the way or nothing to build off of.
-     * Adaptive retry: after 5 fails, vary timing, then increase frequency, then spam, then abort.
-     */
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @param {string} blockType, the type of block to place.
+     * @param {number} x, the x coordinate of the block to place.
+     * @param {number} y, the y coordinate of the block to place.
+     * @param {number} z, the z coordinate of the block to place.
+     * @param {string} placeOn, the preferred side of the block to place on. Can be 'top', 'bottom', 'north', 'south', 'east', 'west', or 'side'. Defaults to bottom. Will place on first available side if not possible.
+     * @param {boolean} dontCheat, overrides cheat mode to place the block normally. Defaults to false.
+     * @returns {Promise<boolean>} true if the block was placed, false otherwise.
+     * @example
+     * let p = world.getPosition(bot);
+     * await skills.placeBlock(bot, "oak_log", p.x + 2, p.y, p.x);
+     * await skills.placeBlock(bot, "torch", p.x + 1, p.y, p.x, 'side');
+     **/
+    // Interrupt followPlayer if active
+    if (bot.actions && bot.actions.currentActionLabel === 'action:followPlayer') {
+        bot.actions.cancelCurrentAction('Interrupted follow to place block');
+    }
+
     if (!mc.getBlockId(blockType) && blockType !== 'air') {
         log(bot, `Invalid block type: ${blockType}.`);
         return false;
     }
+
     const target_dest = new Vec3(Math.floor(x), Math.floor(y), Math.floor(z));
+
     if (blockType === 'air') {
         log(bot, `Placing air (removing block) at ${target_dest}.`);
         return await breakBlockAt(bot, x, y, z);
     }
-    let attempt = 0;
-    let delays = [200, 200, 200, 200, 200, 80, 350, 500, 100, 50, 30, 10]; // adaptive delays
-    while (attempt < maxRetries) {
-        attempt++;
+
+    if (bot.modes.isOn('cheat') && !dontCheat) {
+        if (bot.restrict_to_inventory) {
+            let block = bot.inventory.items().find(item => item.name === blockType);
+            if (!block) {
+                log(bot, `Cannot place ${blockType}, you are restricted to your current inventory.`);
+                return false;
+            }
+        }
+
         // invert the facing direction
         let face = placeOn === 'north' ? 'south' : placeOn === 'south' ? 'north' : placeOn === 'east' ? 'west' : 'east';
         if (blockType.includes('torch') && placeOn !== 'bottom') {
@@ -783,126 +807,150 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         return true;
     }
 
-    
     let item_name = blockType;
     if (item_name == "redstone_wire")
         item_name = "redstone";
     let block = bot.inventory.items().find(item => item.name === item_name);
     if (!block && bot.game.gameMode === 'creative' && !bot.restrict_to_inventory) {
         await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1)); // 36 is first hotbar slot
-        block = bot.inventory.items().find(item => item.name === item_name);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to allow inventory to update
+        block = bot.inventory.items().find(item => item.name === item_name); // Re-fetch the item
     }
     if (!block) {
         log(bot, `Don't have any ${blockType} to place.`);
         return false;
     }
 
-    const targetBlock = bot.blockAt(target_dest);
-    if (targetBlock.name === blockType) {
-        log(bot, `${blockType} already at ${targetBlock.position}.`);
-        return false;
-    }
-    const empty_blocks = ['air', 'water', 'lava', 'grass', 'short_grass', 'tall_grass', 'snow', 'dead_bush', 'fern'];
-    if (!empty_blocks.includes(targetBlock.name)) {
-        log(bot, `${blockType} in the way at ${targetBlock.position}.`);
-        const removed = await breakBlockAt(bot, x, y, z);
-        if (!removed) {
-            log(bot, `Cannot place ${blockType} at ${targetBlock.position}: block in the way.`);
+    const maxRetries = 12; // Max 12 attempts
+    let attempt = 0;
+    let delays = [200, 200, 200, 200, 200, 80, 350, 500, 100, 50, 30, 10]; // adaptive delays
+
+    while (attempt < maxRetries) {
+        attempt++;
+        const targetBlock = bot.blockAt(target_dest);
+        if (targetBlock.name === blockType) {
+            log(bot, `${blockType} already at ${targetBlock.position}.`);
+            return true; // Successfully placed
+        }
+        const empty_blocks = ['air', 'water', 'lava', 'grass', 'short_grass', 'tall_grass', 'snow', 'dead_bush', 'fern'];
+        if (!empty_blocks.includes(targetBlock.name)) {
+            log(bot, `${blockType} in the way at ${targetBlock.position}.`);
+            const removed = await breakBlockAt(bot, x, y, z);
+            if (!removed) {
+                log(bot, `Cannot place ${blockType} at ${targetBlock.position}: block in the way.`);
+                return false;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200)); // wait for block to break
+        }
+        // get the buildoffblock and facevec based on whichever adjacent block is not empty
+        let buildOffBlock = null;
+        let faceVec = null;
+        const dir_map = {
+            'top': Vec3(0, 1, 0),
+            'bottom': Vec3(0, -1, 0),
+            'north': Vec3(0, 0, -1),
+            'south': Vec3(0, 0, 1),
+            'east': Vec3(1, 0, 0),
+            'west': Vec3(-1, 0, 0),
+        }
+        let dirs = [];
+        if (placeOn === 'side') {
+            dirs.push(dir_map['north'], dir_map['south'], dir_map['east'], dir_map['west']);
+        }
+        else if (dir_map[placeOn] !== undefined) {
+            dirs.push(dir_map[placeOn]);
+        }
+        else {
+            dirs.push(dir_map['bottom']);
+            log(bot, `Unknown placeOn value "${placeOn}". Defaulting to bottom.`);
+        }
+        dirs.push(...Object.values(dir_map).filter(d => !dirs.includes(d)));
+
+        for (let d of dirs) {
+            const block = bot.blockAt(target_dest.plus(d));
+            if (!empty_blocks.includes(block.name)) {
+                buildOffBlock = block;
+                faceVec = new Vec3(-d.x, -d.y, -d.z); // invert
+                break;
+            }
+        }
+        if (!buildOffBlock) {
+            log(bot, `Cannot place ${blockType} at ${targetBlock.position}: nothing to place on.`);
             return false;
         }
-        await new Promise(resolve => setTimeout(resolve, 200)); // wait for block to break
-    }
-    // get the buildoffblock and facevec based on whichever adjacent block is not empty
-    let buildOffBlock = null;
-    let faceVec = null;
-    const dir_map = {
-        'top': Vec3(0, 1, 0),
-        'bottom': Vec3(0, -1, 0),
-        'north': Vec3(0, 0, -1),
-        'south': Vec3(0, 0, 1),
-        'east': Vec3(1, 0, 0),
-        'west': Vec3(-1, 0, 0),
-    }
-    let dirs = [];
-    if (placeOn === 'side') {
-        dirs.push(dir_map['north'], dir_map['south'], dir_map['east'], dir_map['west']);
-    }
-    else if (dir_map[placeOn] !== undefined) {
-        dirs.push(dir_map[placeOn]);
-    }
-    else {
-        dirs.push(dir_map['bottom']);
-        log(bot, `Unknown placeOn value "${placeOn}". Defaulting to bottom.`);
-    }
-    dirs.push(...Object.values(dir_map).filter(d => !dirs.includes(d)));
 
-    for (let d of dirs) {
-        const block = bot.blockAt(target_dest.plus(d));
-        if (!empty_blocks.includes(block.name)) {
-            buildOffBlock = block;
-            faceVec = new Vec3(-d.x, -d.y, -d.z); // invert
-            break;
+        const pos = bot.entity.position;
+        const pos_above = pos.plus(Vec3(0,1,0));
+        const dont_move_for = ['torch', 'redstone_torch', 'redstone_wire', 'lever', 'button', 'rail', 'detector_rail', 'powered_rail', 'activator_rail', 'tripwire_hook', 'tripwire', 'water_bucket'];
+        if (!dont_move_for.includes(blockType) && (pos.distanceTo(targetBlock.position) < 1 || pos_above.distanceTo(targetBlock.position) < 1)) {
+            // too close
+            let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
+            let inverted_goal = new pf.goals.GoalInvert(goal);
+            const movementsClose = new pf.Movements(bot);
+            movementsClose.canFloat = true; // Enable swimming
+            movementsClose.allowSprinting = true; // Allow sprinting
+            movementsClose.allowParkour = true; // Allow parkour
+            movementsClose.canOpenDoors = true; // Enable automatic door opening
+            movementsClose.liquidCost = 1; // Make water less costly to traverse
+            movementsClose.climbCost = 1; // Adjust cost for climbing
+            movementsClose.jumpCost = 1; // Adjust cost for jumping
+            movementsClose.allowFreeMotion = true;
+            movementsClose.digCost = 100;
+            if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
+            if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movementsClose.blocksToOpen.add(doorId);
+                });
+            }
+            bot.pathfinder.setMovements(movementsClose);
+            await bot.pathfinder.goto(inverted_goal, true);
+        }
+        if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
+            // too far
+            let pos = targetBlock.position;
+            const movementsFar = new pf.Movements(bot);
+            movementsFar.canFloat = true; // Enable swimming
+            movementsFar.allowSprinting = true; // Allow sprinting
+            movementsFar.allowParkour = true; // Allow parkour
+            movementsFar.canOpenDoors = true; // Enable automatic door opening
+            movementsFar.liquidCost = 1; // Make water less costly to traverse
+            movementsFar.climbCost = 1; // Adjust cost for climbing
+            movementsFar.jumpCost = 1; // Adjust cost for jumping
+            movementsFar.allowFreeMotion = true;
+            movementsFar.digCost = 100;
+            if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
+            if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movementsFar.blocksToOpen.add(doorId);
+                });
+            }
+            bot.pathfinder.setMovements(movementsFar);
+            await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+        }
+        
+        await bot.equip(block, 'hand');
+        await bot.lookAt(buildOffBlock.position);
+
+        // will throw error if an entity is in the way, and sometimes even if the block was placed
+        try {
+            bot.setControlState("sneak", true);
+            await bot.placeBlock(buildOffBlock, faceVec);
+            log(bot, `Placed ${blockType} at ${target_dest}.`);
+            await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 200)); // Use adaptive delay
+            bot.setControlState("sneak", false);
+            return true;
+        } catch (err) {
+            log(bot, `Failed to place ${blockType} at ${target_dest}.`);
+            await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 200)); // Use adaptive delay
+            // Continue to next attempt
         }
     }
-    if (!buildOffBlock) {
-        log(bot, `Cannot place ${blockType} at ${targetBlock.position}: nothing to place on.`);
-        return false;
-    }
-
-    const pos = bot.entity.position;
-    const pos_above = pos.plus(Vec3(0,1,0));
-    const dont_move_for = ['torch', 'redstone_torch', 'redstone_wire', 'lever', 'button', 'rail', 'detector_rail', 'powered_rail', 'activator_rail', 'tripwire_hook', 'tripwire', 'water_bucket'];
-    if (!dont_move_for.includes(blockType) && (pos.distanceTo(targetBlock.position) < 1 || pos_above.distanceTo(targetBlock.position) < 1)) {
-        // too close
-        let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
-        let inverted_goal = new pf.goals.GoalInvert(goal);
-        const movementsClose = new pf.Movements(bot);
-        movementsClose.canFloat = true; // Enable swimming
-        movementsClose.allowSprinting = true; // Allow sprinting
-        movementsClose.allowParkour = true; // Allow parkour
-        movementsClose.canOpenDoors = true; // Enable automatic door opening
-        movementsClose.liquidCost = 1; // Make water less costly to traverse
-        movementsClose.climbCost = 1; // Adjust cost for climbing
-        movementsClose.jumpCost = 1; // Adjust cost for jumping
-        movementsClose.allowFreeMotion = true;
-        movementsClose.digCost = 100;
-        if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
-        if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        bot.pathfinder.setMovements(movementsClose);
-        await bot.pathfinder.goto(inverted_goal, true);
-    }
-    if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
-        // too far
-        let pos = targetBlock.position;
-        const movementsFar = new pf.Movements(bot);
-        movementsFar.canFloat = true; // Enable swimming
-        movementsFar.allowSprinting = true; // Allow sprinting
-        movementsFar.allowParkour = true; // Allow parkour
-        movementsFar.canOpenDoors = true; // Enable automatic door opening
-        movementsFar.liquidCost = 1; // Make water less costly to traverse
-        movementsFar.climbCost = 1; // Adjust cost for climbing
-        movementsFar.jumpCost = 1; // Adjust cost for jumping
-        movementsFar.allowFreeMotion = true;
-        movementsFar.digCost = 100;
-        if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
-        if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        bot.pathfinder.setMovements(movementsFar);
-        await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
-    }
-    
-    await bot.equip(block, 'hand');
-    await bot.lookAt(buildOffBlock.position);
-
-    // will throw error if an entity is in the way, and sometimes even if the block was placed
-    try {
-        await bot.placeBlock(buildOffBlock, faceVec);
-        log(bot, `Placed ${blockType} at ${target_dest}.`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-        return true;
-    } catch (err) {
-        log(bot, `Failed to place ${blockType} at ${target_dest}.`);
-        return false;
-    }
+    log(bot, `Failed to place ${blockType} at ${target_dest} after ${maxRetries} attempts.`);
+    return false;
 }
 
 export async function equip(bot, itemName) {
@@ -1297,14 +1345,7 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     destructiveMovements.climbCost = 1;
     destructiveMovements.jumpCost = 1;
     destructiveMovements.allowFreeMotion = true;
-    destructiveMovements.digCost = 1; // Default (or slightly higher, e.g., 10, if some discouragement is still desired)
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to destructive as well
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) destructiveMovements.blocksToOpen.add(doorId);
-        });
-    }
-    // destructiveMovements.blocksToAvoid should not include glass for this strategy. Default is an empty Set.
+    destructiveMovements.digCost = 1;
 
     const goal = new pf.goals.GoalNear(x, y, z, min_distance);
     let chosenMovements = null;
@@ -1648,12 +1689,6 @@ export async function followPlayer(bot, username, distance=4) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
     bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
@@ -1744,12 +1779,6 @@ export async function moveAway(bot, distance) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {

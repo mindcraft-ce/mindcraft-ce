@@ -12,6 +12,11 @@ export function runAsAction (actionFn, resume = false, timeout = -1) {
             actionLabel = actionObj.name.substring(1); // Remove the ! prefix
         }
 
+        // Cancel followPlayer if this is a different action
+        if (actionLabel !== 'followPlayer' && agent.actions.currentActionLabel === 'action:followPlayer') {
+            agent.actions.cancelCurrentAction(`Cancelled follow to execute ${actionLabel}`);
+        }
+
         const actionFnWithAgent = async () => {
             await actionFn(agent, ...args);
         };
