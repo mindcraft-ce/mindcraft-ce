@@ -49,7 +49,7 @@ export class PluginInstance {
         const memory = {
             text: memoryText,
             timestamp: timestamp,
-            id: Date.now() // Simple unique ID
+            id: randomUUID() // Robust unique ID
         };
         
         this.customMemories.push(memory);

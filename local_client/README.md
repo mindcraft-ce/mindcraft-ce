@@ -77,7 +77,7 @@ This mode is for users who prefer a lightweight, terminal-only experience.
 1.  **Start the client**:
     You must provide a unique `--name` for your host.
     ```bash
-    python3 andy_host_client.py --name "my-powerful-pc" --andy-url https://mindcraft.riqvip.dev --url http://localhost:11434
+    python3 andy_host_client.py --name "my-powerful-pc" --andy-url https://mindcraft-ce.com --url http://localhost:11434
     ```
 
 2.  The client will automatically join the pool and begin sending health pings. To stop it, press `Ctrl+C`.
@@ -90,7 +90,7 @@ The web client can be configured in multiple ways (in order of priority):
 
 1.  **Environment Variables**:
     ```bash
-    export ANDY_API_URL="https://mindcraft.riqvip.dev"
+    export ANDY_API_URL="https://mindcraft-ce.com"
     export OLLAMA_URL="http://localhost:11434"
     export FLASK_PORT="5001" # Optional: change the web UI port
     python3 launch.py --mode web
@@ -117,8 +117,8 @@ python3 andy_host_client.py --help
     ```
 
 *   **No Models Found**:
-    Make sure you have pulled at least one model using the Ollama CLI (e.g., `ollama pull qwen:4b`). In the web UI, you can go to the **Models** page and click "Refresh Models".
+    Make sure you have pulled at least one model using the Ollama CLI (e.g., `ollama pull qwen3:4b`). In the web UI, you can go to the **Models** page and click "Refresh Models".
 
 *   **Connection Issues to Andy API**:
     *   Check your internet connection and any firewall settings.
-    *   Verify the Andy API server URL is correct. The default is `https://mindcraft.riqvip.dev`.
+    *   Verify the Andy API server URL is correct. The default is `https://mindcraft-ce.com`.

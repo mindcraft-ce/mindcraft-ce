@@ -32,22 +32,12 @@ async function safePathfind(bot, pathfindingAction, actionName = 'pathfinding') 
         
         // Handle GoalChanged errors specially - they're usually due to mode interruptions
         if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-            if (bot.interrupt_code) {
-                log(bot, `${actionName} interrupted by user.`);
-            } else {
-                log(bot, `${actionName} goal changed by autonomous mode.`);
-            }
-            return false;
+            return handleGoalChangedError(bot, actionName, err);
         }
         
         // Handle GoalChanged errors - these happen when autonomous modes interrupt actions
         if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-            if (bot.interrupt_code) {
-                log(bot, `${actionName} interrupted by user.`);
-            } else {
-                log(bot, `${actionName} goal changed by autonomous mode.`);
-            }
-            return false;
+            return handleGoalChangedError(bot, actionName, err);
         }
         
         // Handle other pathfinding errors
@@ -580,23 +570,9 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             }
             // Handle GoalChanged errors gracefully
             else if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                if (bot.interrupt_code) {
-                    log(bot, `Block collection interrupted by user.`);
-                    break;
-                } else {
-                    log(bot, `Block collection goal changed by autonomous mode, trying next block.`);
-                    continue;
-                }
-            }
-            // Handle GoalChanged errors gracefully
-            else if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                if (bot.interrupt_code) {
-                    log(bot, `Block collection interrupted by user.`);
-                    break;
-                } else {
-                    log(bot, `Block collection goal changed by autonomous mode, trying next block.`);
-                    continue;
-                }
+                const controlSignal = handleGoalChangedError(bot, 'Block collection', true);
+                if (controlSignal === 'break') break;
+                if (controlSignal === 'continue') continue;
             }
             else if (err.name === 'NoChests') {
                 log(bot, `Failed to collect ${blockType}: Inventory full, no place to deposit.`);
@@ -935,11 +911,13 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
 
         // will throw error if an entity is in the way, and sometimes even if the block was placed
         try {
+        bot.setControlState("sneak", true);
             bot.setControlState("sneak", true);
             await bot.placeBlock(buildOffBlock, faceVec);
             log(bot, `Placed ${blockType} at ${target_dest}.`);
             await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 200)); // Use adaptive delay
             bot.setControlState("sneak", false);
+        bot.setControlState("sneak", false);
             return true;
         } catch (err) {
             log(bot, `Failed to place ${blockType} at ${target_dest}.`);

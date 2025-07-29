@@ -121,6 +121,14 @@ export class Agent {
               
                 this._setupEventHandlers(save_data, init_message);
                 this.startEvents();
+                
+                // Send initial status update
+                this.sendStatusUpdate();
+                
+                // Set up periodic status updates every 5 seconds
+                this.statusUpdateInterval = setInterval(() => {
+                    this.sendStatusUpdate();
+                }, 5000);
               
                 if (!load_mem) {
                     if (task_path !== null) {
@@ -585,6 +593,11 @@ export class Agent {
         // newlines are interpreted as separate chats, which triggers spam filters. replace them with spaces
         message = message.replaceAll('\\n', ' ');
 
+        // Send response to web interface via Socket.IO
+        if (serverProxy.getSocket()) {
+            serverProxy.getSocket().emit('agent-response', this.name, message);
+        }
+
         if (settings.only_chat_with.length > 0) {
             for (let username of settings.only_chat_with) {
                 this.bot.whisper(username, message);
@@ -599,6 +612,26 @@ export class Agent {
         // Aggiorna il timestamp ogni volta che il bot scrive in chat
         this._lastChatTime = Date.now();
         this._idleTriggered = false;
+    }
+
+    // Send agent status to web interface
+    sendStatusUpdate() {
+        if (serverProxy.getSocket() && this.bot) {
+            const statusData = {
+                health: this.bot.health || 20,
+                hunger: this.bot.food || 20,
+                xp: this.bot.experience.points || 0,
+                level: this.bot.experience.level || 0,
+                location: {
+                    x: this.bot.entity?.position?.x || 0,
+                    y: this.bot.entity?.position?.y || 0,
+                    z: this.bot.entity?.position?.z || 0,
+                    dimension: this.bot.game?.dimension || 'overworld'
+                }
+            };
+            
+            serverProxy.getSocket().emit('agent-status-update', this.name, statusData);
+        }
     }
 
     startEvents() {
@@ -643,6 +676,19 @@ export class Agent {
         this.bot.on('death', () => {
             this.actions.cancelResume();
             this.actions.stop();
+            
+            // Send death event to analytics
+            const deathData = {
+                cause: 'unknown',
+                location: this.bot.entity ? {
+                    x: this.bot.entity.position.x,
+                    y: this.bot.entity.position.y,
+                    z: this.bot.entity.position.z,
+                    dimension: this.bot.game.dimension
+                } : null
+            };
+            
+            serverProxy.sendDeathEvent(this.name, deathData);
         });
         this.bot.on('kicked', (reason) => {
             console.warn('Bot kicked!', reason);
@@ -655,9 +701,37 @@ export class Agent {
                 this.memory_bank.rememberPlace('last_death_position', death_pos.x, death_pos.y, death_pos.z);
                 let death_pos_text = null;
                 if (death_pos) {
-                    death_pos_text = `x: ${death_pos.x.toFixed(2)}, y: ${death_pos.y.toFixed(2)}, z: ${death_pos.x.toFixed(2)}`;
+                    death_pos_text = `x: ${death_pos.x.toFixed(2)}, y: ${death_pos.y.toFixed(2)}, z: ${death_pos.z.toFixed(2)}`;
                 }
                 let dimention = this.bot.game.dimension;
+                
+                // Extract death cause from message
+                let deathCause = 'unknown';
+                if (message.includes('fell')) deathCause = 'fall_damage';
+                else if (message.includes('drowned')) deathCause = 'drowning';
+                else if (message.includes('burned')) deathCause = 'fire';
+                else if (message.includes('blown up')) deathCause = 'explosion';
+                else if (message.includes('shot')) deathCause = 'projectile';
+                else if (message.includes('slain')) deathCause = 'mob';
+                else if (message.includes('starved')) deathCause = 'starvation';
+                else if (message.includes('suffocated')) deathCause = 'suffocation';
+                else if (message.includes('lava')) deathCause = 'lava';
+                else if (message.includes('void')) deathCause = 'void';
+                
+                // Send detailed death event to analytics
+                const deathData = {
+                    cause: deathCause,
+                    message: message,
+                    location: death_pos ? {
+                        x: death_pos.x,
+                        y: death_pos.y,
+                        z: death_pos.z,
+                        dimension: dimention
+                    } : null
+                };
+                
+                serverProxy.sendDeathEvent(this.name, deathData);
+                
                 this.handleMessage('system', `You died at position ${death_pos_text || "unknown"} in the ${dimention} dimension with the final message: '${message}'. Your place of death is saved as 'last_death_position' if you want to return. Previous actions were stopped and you have respawned.`);
             }
         });
@@ -713,6 +787,11 @@ export class Agent {
     
 
     async cleanKill(msg='Killing agent process...', code=1) {
+        // Clear status update interval
+        if (this.statusUpdateInterval) {
+            clearInterval(this.statusUpdateInterval);
+        }
+        
         // Assuming cleanKill messages don't have images
         if (this.history) { // Make sure history exists before trying to add to it
              await this.history.add('system', msg, null);

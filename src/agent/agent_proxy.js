@@ -45,9 +45,15 @@ class AgentServerProxy {
 		
 		this.socket.on('send-message', (agentName, message) => {
 			try {
-				this.agent.respondFunc("NO USERNAME", message);
+				this.agent.respondFunc("web-client", message);
 			} catch (error) {
 				console.error('Error: ', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+			}
+		});
+
+		this.socket.on('request-status', () => {
+			if (this.agent && this.agent.sendStatusUpdate) {
+				this.agent.sendStatusUpdate();
 			}
 		});
     }
@@ -58,6 +64,12 @@ class AgentServerProxy {
 
     shutdown() {
         this.socket.emit('shutdown');
+    }
+
+    sendDeathEvent(agentName, deathData) {
+        if (this.socket && this.connected) {
+            this.socket.emit('agent-death', agentName, deathData);
+        }
     }
 
     getSocket() {

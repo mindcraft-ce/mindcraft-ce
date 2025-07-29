@@ -77,6 +77,33 @@
                             <span class="slider"></span>
                         </label>
                     </div>
+                    <div class="model-details">
+                        <div class="capability-section">
+                            <div class="capability-item">
+                                <input type="checkbox" id="embed-{{ loop.index }}" data-model="{{ model_name }}" data-setting="supports_embedding" {{ 'checked' if model.supports_embedding else '' }}>
+                                <label for="embed-{{ loop.index }}">Embedding</label>
+                            </div>
+                            <div class="capability-item">
+                                <input type="checkbox" id="vision-{{ loop.index }}" data-model="{{ model_name }}" data-setting="supports_vision" {{ 'checked' if model.supports_vision else '' }}>
+                                <label for="vision-{{ loop.index }}">Vision</label>
+                            </div>
+                            <div class="capability-item">
+                                <input type="checkbox" id="audio-{{ loop.index }}" data-model="{{ model_name }}" data-setting="supports_audio" {{ 'checked' if model.supports_audio else '' }}>
+                                <label for="audio-{{ loop.index }}">Audio</label>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <div class="setting-item">
+                                <label for="max-concurrent-{{ loop.index }}">Max Concurrent:</label>
+                                <input type="number" id="max-concurrent-{{ loop.index }}" data-model="{{ model_name }}" data-setting="max_concurrent" value="{{ model.max_concurrent }}" min="1">
+                            </div>
+                            <div class="setting-item">
+                                <label for="context-length-{{ loop.index }}">Context Length:</label>
+                                <input type="number" id="context-length-{{ loop.index }}" data-model="{{ model_name }}" data-setting="context_length" value="{{ model.context_length }}" min="1">
+                            </div>
+                        </div>
+                        <button class="btn btn-small" onclick="saveModelConfig('{{ model_name }}', this)">Save Settings</button>
+                    </div>
                 </div>
                 {% else %}
                 <div style="text-align: center; padding: 40px 0;">
@@ -136,6 +163,41 @@
         function updateCounts() {
             const enabledCards = document.querySelectorAll('.model-card.enabled');
             document.getElementById('enabledCount').textContent = enabledCards.length;
+        }
+
+        async function saveModelConfig(modelName, button) {
+            const card = button.closest('.model-card');
+            const settings = {};
+            card.querySelectorAll('[data-setting]').forEach(input => {
+                const settingName = input.dataset.setting;
+                if (input.type === 'checkbox') {
+                    settings[settingName] = input.checked;
+                } else if (input.type === 'number') {
+                    settings[settingName] = parseInt(input.value, 10);
+                }
+            });
+
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                const response = await fetch(`/api/models/${encodeURIComponent(modelName)}/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Model settings saved successfully!');
+                } else {
+                    alert('Failed to save model settings: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error saving model settings: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Save Settings';
+            }
         }
     </script>
 </body>

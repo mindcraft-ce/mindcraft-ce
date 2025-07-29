@@ -13,13 +13,16 @@ scratch.js
 bots/**/action-code/**
 bots/**/
 keys.json
+gen-lang-client***.json
 services/viaproxy/jars/**
 services/viaproxy/logs/**
 services/viaproxy/plugins/**
 services/viaproxy/ViaLoader/**
 services/viaproxy/saves.json
 services/viaproxy/viaproxy.yml
+services/mc
 tmp/
+src/server/analytics
 wandb/
 experiments/
 andy_*.json
@@ -34,6 +37,9 @@ tasks/construction_tasks/train/**
 server_data*
 **/.DS_Store
 ._*
+twitch-integration.js
+test-mindserver-connection.js
+setup-twitch-integration.js
 
 # (to @Sweaterdog) DO NOT ignore `settings.js` as it is a required file for the repo to function.
 # If `settings.js` is put in the `.gitignore` file, changes made to do things like add new features - e.g. adding a new key to the file
@@ -44,7 +50,7 @@ server_data*
 # git update-index --assume-unchanged settings.js
 
 # This will tell `git` to ignore any changes made to settings.js.
-
+    
 # Then, when you have finished, clean up settings.js and run this command:
 
 # git update-index --no-assume-unchanged settings.js
@@ -52,3 +58,7 @@ server_data*
 # This will tell `git` to start tracking changes to `settings.js` again.
 
 # (To @uukelele-scratch) Thanks for the tips! it probably wont happen again 👍
+settings.js.backup
+.kilocode/mcp.json
+pnpm-workspace.yaml
+pnpm-lock.yaml

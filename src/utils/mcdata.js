@@ -109,9 +109,10 @@ export function initBot(username) {
     });
     
     // Override the protocol parser's error handler to catch PartialReadError at the source
-    if (bot._client.deserializer) {
-        const originalParsePacketBuffer = bot._client.deserializer.parsePacketBuffer;
-        bot._client.deserializer.parsePacketBuffer = function(buffer) {
+    const deserializer = getDeserializer(bot);
+    if (deserializer) {
+        const originalParsePacketBuffer = deserializer.parsePacketBuffer;
+        deserializer.parsePacketBuffer = function(buffer) {
             try {
                 return originalParsePacketBuffer.call(this, buffer);
             } catch (err) {

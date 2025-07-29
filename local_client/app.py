@@ -127,12 +127,22 @@ class LocalClient:
                 for model_data in data.get('models', []):
                     model_name = model_data['name']
                     discovered_models.add(model_name)
+                    
+                    # Determine if the model supports embedding based on its name
+                    is_embedding_model = "embed" in model_name.lower()
+                    
                     if model_name not in self.models:
                         self.models[model_name] = ModelConfig(
-                            name=model_name, enabled=False,
+                            name=model_name, 
+                            enabled=False,
+                            supports_embedding=is_embedding_model, # Set based on name
                             context_length=model_data.get('details', {}).get('parameter_size', 4096),
                             quantization=model_data.get('details', {}).get('quantization_level', 'unknown')
                         )
+                    else:
+                        # Update existing model's embedding support if it was previously unknown
+                        if not self.models[model_name].supports_embedding and is_embedding_model:
+                            self.models[model_name].supports_embedding = True
                 
                 for model_name in current_models - discovered_models:
                     if model_name in self.models: del self.models[model_name]
@@ -152,6 +162,8 @@ class LocalClient:
                 embed_model = "nomic-embed-text:latest"
                 if embed_model in self.models:
                     self.models[embed_model].enabled = True
+                    # Ensure it's marked as embedding if it's the nomic model
+                    self.models[embed_model].supports_embedding = True 
                     logger.info(f"Auto-enabled embedding model: {embed_model}")
                 logger.info(f"Discovered {len(self.models)} models")
             else:
@@ -182,10 +194,25 @@ class LocalClient:
             logger.error("Cannot connect: No models are enabled.")
             return False
 
+        # Dynamically determine capabilities based on enabled models
+        client_capabilities = set()
+        for model in self.models.values():
+            if model.enabled:
+                # Assume all enabled models support text generation unless explicitly an embedding-only model
+                if not model.supports_embedding or model.supports_vision or model.supports_audio:
+                    client_capabilities.add('text')
+                if model.supports_embedding: client_capabilities.add('embedding')
+                if model.supports_vision: client_capabilities.add('vision')
+                if model.supports_audio: client_capabilities.add('audio')
+        
+        # If no specific capabilities are found but models are enabled, default to 'text'
+        if not client_capabilities and enabled_models:
+            client_capabilities.add('text')
+
         payload = {
             'info': {
                 'models': enabled_models, 'max_clients': sum(m['max_concurrent'] for m in enabled_models),
-                'endpoint': config['ollama_url'], 'capabilities': ['text', 'embedding'],
+                'endpoint': config['ollama_url'], 'capabilities': list(client_capabilities),
                 'vram_total_gb': config.get('max_vram_gb', 0), 'client_uuid': self.client_uuid,
                 'client_name': config.get('client_name', 'Unnamed Client')
             }

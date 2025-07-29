@@ -10,7 +10,7 @@ This script helps you:
 4. Send health pings to maintain pool membership
 
 Usage:
-    python andy_host_client.py --name "my-host" --andy-url https://mindcraft.riqvip.dev
+    python andy_host_client.py --name "my-host" --andy-url https://mindcraft-ce.com
 
 Requirements:
     pip install requests
@@ -252,7 +252,7 @@ def main():
     parser = argparse.ArgumentParser(description='Andy API Host Client')
     parser.add_argument('--url', default='http://localhost:11434', help='Ollama server URL')
     parser.add_argument('--name', required=True, help='Host name for identification')
-    parser.add_argument('--andy-url', default='https://mindcraft.riqvip.dev', help='Andy API base URL')
+    parser.add_argument('--andy-url', default='https://mindcraft-ce.com', help='Andy API base URL')
     parser.add_argument('--capabilities', nargs='*', default=[], help='Host capabilities (e.g., vision, code, math)')
     parser.add_argument('--allowed-models', nargs='*', default=None, help='Only advertise these models to the server')
     parser.add_argument('--ping-interval', type=int, default=15, help='Ping interval in seconds')

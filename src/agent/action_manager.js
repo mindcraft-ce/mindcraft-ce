@@ -155,24 +155,9 @@ export class ActionManager {
                 return { success: true, message: output, interrupted, timedout: false };
             }
             
-            // Handle GoalChanged errors specifically - these are also normal interruptions
+            // Handle GoalChanged errors specifically
             if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                console.log('GoalChanged error caught - treating as successful interruption');
-                let output = this.getBotOutputSummary();
-                let interrupted = true; // GoalChanged means we were interrupted
-                this.agent.clearBotLogs();
-                this.agent.bot.emit('idle');
-                return { success: true, message: output, interrupted, timedout: false };
-            }
-            
-            // Handle GoalChanged errors specifically - these happen when modes interrupt actions
-            if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
-                console.log('GoalChanged error caught - treating as interruption by autonomous mode');
-                let output = this.getBotOutputSummary();
-                let interrupted = true; // GoalChanged means we were interrupted by a mode
-                this.agent.clearBotLogs();
-                this.agent.bot.emit('idle');
-                return { success: true, message: output, interrupted, timedout: false };
+                return this._handleGoalChangedError();
             }
             
             // Handle Digging aborted errors specifically - these are normal interruptions
