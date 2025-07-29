@@ -1,6 +1,6 @@
 const settings = {
     "minecraft_version": "1.21.1", // supports up to 1.21.4
-    "host": "127.0.0.1", // or "localhost", "your.ip.address.here"
+    "host": "localhost", // or "localhost", "your.ip.address.here" 
     "port": 55916,
     "auth": "offline", // or "microsoft"
 
@@ -10,7 +10,7 @@ const settings = {
     "mindserver_port": 8081,
     
     // the base profile is shared by all bots for default prompts/examples/modes
-    "base_profile": "./profiles/defaults/personality.json", // also see creative.json, god_mode.json, and personality.json is really fun.
+    "base_profile": "./profiles/defaults/_default.json", // also see creative.json, god_mode.json, and personality.json is really fun.
     "profiles": [
         "./andy.json",
         // "./profiles/gpt.json",
@@ -41,7 +41,7 @@ const settings = {
     "code_timeout_mins": -1, // minutes code is allowed to run. -1 for no timeout
     "relevant_docs_count": 10, // number of relevant code function docs to select for prompting. -1 for all
 
-    "max_messages": 80, // max number of messages to keep in context
+    "max_messages": 65, // max number of messages to keep in context
     "num_examples": 0, // number of examples to give to the model
     "max_commands": -1, // max number of commands that can be used in consecutive responses. -1 for no limit
     "verbose_commands": true, // show full command syntax
@@ -51,8 +51,8 @@ const settings = {
     // Allows for truly autonomous playing
     "auto_idle_trigger": {
       "enabled": false,
-      "timeout_secs": 240, // 240 seconds inactivity before prompting
-      "message": "Hey you! I need you to keep playing Minecraft until you beat the game! If you don't have a goal, set one! Also, tell me your personality!"
+      "timeout_secs": 300, // 240 seconds inactivity before prompting
+      "message": "Hey you! I need you to keep playing Minecraft until you beat the game! If you don't have a goal, set one!"
     },
 
     "speak": false,
