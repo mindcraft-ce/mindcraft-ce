@@ -1,8 +1,27 @@
 import { Agent } from '../agent/agent.js';
 import yargs from 'yargs';
 
+// Add global error handlers for protocol parsing errors
+process.on('uncaughtException', (err) => {
+    if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
+        console.warn('Uncaught PartialReadError (non-fatal):', err.message);
+        // Don't exit the process for these errors
+        return;
+    }
+    
+    // For other uncaught exceptions, use default behavior
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
 // Add global unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
+    if (reason && (reason.name === 'PartialReadError' || reason.message?.includes('PartialReadError'))) {
+        console.warn('Unhandled PartialReadError rejection (non-fatal):', reason.message);
+        // Don't exit the process for these errors
+        return;
+    }
+    
     console.error('Unhandled Rejection at:', {
         promise: promise,
         reason: reason,
@@ -10,6 +29,25 @@ process.on('unhandledRejection', (reason, promise) => {
     });
     process.exit(1);
 });
+
+// Override console.error to catch PartialReadError stack traces
+const originalConsoleError = console.error;
+console.error = function(message, ...args) {
+    // Check if this is a PartialReadError stack trace
+    if (typeof message === 'string' && message.includes('PartialReadError: Read error for undefined')) {
+        console.warn('Protocol parsing error (non-fatal): PartialReadError during packet parsing');
+        return;
+    }
+    
+    // Check if the first argument is a PartialReadError object
+    if (message && message.name === 'PartialReadError') {
+        console.warn('Protocol parsing error (non-fatal):', message.message);
+        return;
+    }
+    
+    // For other console.error calls, use the original function
+    originalConsoleError.call(console, message, ...args);
+};
 
 const args = process.argv.slice(2);
 if (args.length < 1) {

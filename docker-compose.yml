@@ -18,4 +18,3 @@ services:
       - "25568:25568"
     profiles:
       - viaproxy
-

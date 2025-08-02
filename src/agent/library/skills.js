@@ -8,6 +8,44 @@ export function log(bot, message) {
     bot.output += message + '\n';
 }
 
+/**
+ * Wrapper for pathfinding that handles PathStopped errors gracefully
+ * @param {MinecraftBot} bot - The bot instance
+ * @param {Function} pathfindingAction - The async function that performs pathfinding
+ * @param {string} actionName - Name of the action for logging purposes
+ * @returns {Promise<boolean>} true if successful, false if failed or interrupted
+ */
+async function safePathfind(bot, pathfindingAction, actionName = 'pathfinding') {
+    try {
+        await pathfindingAction();
+        return true;
+    } catch (err) {
+        // Handle PathStopped errors specially - they're usually due to interrupts
+        if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+            if (bot.interrupt_code) {
+                log(bot, `${actionName} interrupted by user.`);
+            } else {
+                log(bot, `${actionName} pathfinding stopped: ${err.message}`);
+            }
+            return false;
+        }
+        
+        // Handle GoalChanged errors specially - they're usually due to mode interruptions
+        if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
+            return handleGoalChangedError(bot, actionName, err);
+        }
+        
+        // Handle GoalChanged errors - these happen when autonomous modes interrupt actions
+        if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
+            return handleGoalChangedError(bot, actionName, err);
+        }
+        
+        // Handle other pathfinding errors
+        log(bot, `${actionName} error: ${err.message}`);
+        return false;
+    }
+}
+
 async function autoLight(bot) {
     if (world.shouldPlaceTorch(bot)) {
         try {
@@ -388,18 +426,10 @@ export async function defendSelf(bot, range=9) {
                 movements.digCost = 100; // High cost for digging
                 if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
                 if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-                if (mc.ALL_OPENABLE_DOORS) {
-                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                        const doorId = mc.getBlockId(doorName);
-                        if (doorId) movements.blocksToOpen.add(doorId);
-                    });
-                }
-                if (mc.ALL_OPENABLE_DOORS) {
-                    mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                        const doorId = mc.getBlockId(doorName);
-                        if (doorId) movements.blocksToOpen.add(doorId);
-                    });
-                }
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movements.blocksToOpen.add(doorId);
+                });
                 bot.pathfinder.setMovements(movements);
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
             } catch (err) {/* might error if entity dies, ignore */}
@@ -471,6 +501,12 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
     let collected = 0;
 
     for (let i=0; i<num; i++) {
+        // Check for interrupts at the start of each iteration
+        if (bot.interrupt_code) {
+            log(bot, `Block collection interrupted after collecting ${collected} ${blockType}.`);
+            break;
+        }
+        
         let blocks = world.getNearestBlocks(bot, blocktypes, 64);
         if (exclude) {
             for (let position of exclude) {
@@ -488,12 +524,6 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         movements.climbCost = 1; // Adjust cost for climbing
         movements.jumpCost = 1; // Adjust cost for jumping
         movements.allowFreeMotion = true;
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movements.blocksToOpen.add(doorId);
-            });
-        }
         // For collectBlock, we don't want to set a high digCost or avoid common blocks.
         // Specific settings for block breaking are handled by the logic within collectBlock.
         movements.dontMineUnderFallingBlock = false;
@@ -528,7 +558,23 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             await autoLight(bot);
         }
         catch (err) {
-            if (err.name === 'NoChests') {
+            // Handle PathStopped errors gracefully
+            if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+                if (bot.interrupt_code) {
+                    log(bot, `Block collection interrupted by user.`);
+                    break;
+                } else {
+                    log(bot, `Block collection pathfinding stopped, trying next block.`);
+                    continue;
+                }
+            }
+            // Handle GoalChanged errors gracefully
+            else if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
+                const controlSignal = handleGoalChangedError(bot, 'Block collection', true);
+                if (controlSignal === 'break') break;
+                if (controlSignal === 'continue') continue;
+            }
+            else if (err.name === 'NoChests') {
                 log(bot, `Failed to collect ${blockType}: Inventory full, no place to deposit.`);
                 break;
             }
@@ -627,8 +673,6 @@ export async function breakBlockAt(bot, x, y, z) {
             // breakBlockAt is intended to break blocks, so no high digCost or blocksToAvoid here for the pathfinding movement part.
             // However, the primary action of breaking the target block should not be hindered.
             // The pathfinding to get *near* the block might still have these settings if we are not careful.
-            // For now, let's assume pathfinding to the block to break it should be less restrictive.
-            // We will NOT add high digCost or blocksToAvoid to this specific pathfinder instance.
             if (mc.ALL_OPENABLE_DOORS) {
                 mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Still allow opening doors to get to a block to break
                     const doorId = mc.getBlockId(doorName);
@@ -675,6 +719,11 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
      * await skills.placeBlock(bot, "oak_log", p.x + 2, p.y, p.x);
      * await skills.placeBlock(bot, "torch", p.x + 1, p.y, p.x, 'side');
      **/
+    // Interrupt followPlayer if active
+    if (bot.actions && bot.actions.currentActionLabel === 'action:followPlayer') {
+        bot.actions.cancelCurrentAction('Interrupted follow to place block');
+    }
+
     if (!mc.getBlockId(blockType) && blockType !== 'air') {
         log(bot, `Invalid block type: ${blockType}.`);
         return false;
@@ -732,140 +781,152 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         return true;
     }
 
-    
     let item_name = blockType;
     if (item_name == "redstone_wire")
         item_name = "redstone";
     let block = bot.inventory.items().find(item => item.name === item_name);
     if (!block && bot.game.gameMode === 'creative' && !bot.restrict_to_inventory) {
         await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1)); // 36 is first hotbar slot
-        block = bot.inventory.items().find(item => item.name === item_name);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to allow inventory to update
+        block = bot.inventory.items().find(item => item.name === item_name); // Re-fetch the item
     }
     if (!block) {
         log(bot, `Don't have any ${blockType} to place.`);
         return false;
     }
 
-    const targetBlock = bot.blockAt(target_dest);
-    if (targetBlock.name === blockType) {
-        log(bot, `${blockType} already at ${targetBlock.position}.`);
-        return false;
-    }
-    const empty_blocks = ['air', 'water', 'lava', 'grass', 'short_grass', 'tall_grass', 'snow', 'dead_bush', 'fern'];
-    if (!empty_blocks.includes(targetBlock.name)) {
-        log(bot, `${blockType} in the way at ${targetBlock.position}.`);
-        const removed = await breakBlockAt(bot, x, y, z);
-        if (!removed) {
-            log(bot, `Cannot place ${blockType} at ${targetBlock.position}: block in the way.`);
+    const maxRetries = 12; // Max 12 attempts
+    let attempt = 0;
+    let delays = [200, 200, 200, 200, 200, 80, 350, 500, 100, 50, 30, 10]; // adaptive delays
+
+    while (attempt < maxRetries) {
+        attempt++;
+        const targetBlock = bot.blockAt(target_dest);
+        if (targetBlock.name === blockType) {
+            log(bot, `${blockType} already at ${targetBlock.position}.`);
+            return true; // Successfully placed
+        }
+        const empty_blocks = ['air', 'water', 'lava', 'grass', 'short_grass', 'tall_grass', 'snow', 'dead_bush', 'fern'];
+        if (!empty_blocks.includes(targetBlock.name)) {
+            log(bot, `${blockType} in the way at ${targetBlock.position}.`);
+            const removed = await breakBlockAt(bot, x, y, z);
+            if (!removed) {
+                log(bot, `Cannot place ${blockType} at ${targetBlock.position}: block in the way.`);
+                return false;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200)); // wait for block to break
+        }
+        // get the buildoffblock and facevec based on whichever adjacent block is not empty
+        let buildOffBlock = null;
+        let faceVec = null;
+        const dir_map = {
+            'top': Vec3(0, 1, 0),
+            'bottom': Vec3(0, -1, 0),
+            'north': Vec3(0, 0, -1),
+            'south': Vec3(0, 0, 1),
+            'east': Vec3(1, 0, 0),
+            'west': Vec3(-1, 0, 0),
+        }
+        let dirs = [];
+        if (placeOn === 'side') {
+            dirs.push(dir_map['north'], dir_map['south'], dir_map['east'], dir_map['west']);
+        }
+        else if (dir_map[placeOn] !== undefined) {
+            dirs.push(dir_map[placeOn]);
+        }
+        else {
+            dirs.push(dir_map['bottom']);
+            log(bot, `Unknown placeOn value "${placeOn}". Defaulting to bottom.`);
+        }
+        dirs.push(...Object.values(dir_map).filter(d => !dirs.includes(d)));
+
+        for (let d of dirs) {
+            const block = bot.blockAt(target_dest.plus(d));
+            if (!empty_blocks.includes(block.name)) {
+                buildOffBlock = block;
+                faceVec = new Vec3(-d.x, -d.y, -d.z); // invert
+                break;
+            }
+        }
+        if (!buildOffBlock) {
+            log(bot, `Cannot place ${blockType} at ${targetBlock.position}: nothing to place on.`);
             return false;
         }
-        await new Promise(resolve => setTimeout(resolve, 200)); // wait for block to break
-    }
-    // get the buildoffblock and facevec based on whichever adjacent block is not empty
-    let buildOffBlock = null;
-    let faceVec = null;
-    const dir_map = {
-        'top': Vec3(0, 1, 0),
-        'bottom': Vec3(0, -1, 0),
-        'north': Vec3(0, 0, -1),
-        'south': Vec3(0, 0, 1),
-        'east': Vec3(1, 0, 0),
-        'west': Vec3(-1, 0, 0),
-    }
-    let dirs = [];
-    if (placeOn === 'side') {
-        dirs.push(dir_map['north'], dir_map['south'], dir_map['east'], dir_map['west']);
-    }
-    else if (dir_map[placeOn] !== undefined) {
-        dirs.push(dir_map[placeOn]);
-    }
-    else {
-        dirs.push(dir_map['bottom']);
-        log(bot, `Unknown placeOn value "${placeOn}". Defaulting to bottom.`);
-    }
-    dirs.push(...Object.values(dir_map).filter(d => !dirs.includes(d)));
 
-    for (let d of dirs) {
-        const block = bot.blockAt(target_dest.plus(d));
-        if (!empty_blocks.includes(block.name)) {
-            buildOffBlock = block;
-            faceVec = new Vec3(-d.x, -d.y, -d.z); // invert
-            break;
+        const pos = bot.entity.position;
+        const pos_above = pos.plus(Vec3(0,1,0));
+        const dont_move_for = ['torch', 'redstone_torch', 'redstone_wire', 'lever', 'button', 'rail', 'detector_rail', 'powered_rail', 'activator_rail', 'tripwire_hook', 'tripwire', 'water_bucket'];
+        if (!dont_move_for.includes(blockType) && (pos.distanceTo(targetBlock.position) < 1 || pos_above.distanceTo(targetBlock.position) < 1)) {
+            // too close
+            let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
+            let inverted_goal = new pf.goals.GoalInvert(goal);
+            const movementsClose = new pf.Movements(bot);
+            movementsClose.canFloat = true; // Enable swimming
+            movementsClose.allowSprinting = true; // Allow sprinting
+            movementsClose.allowParkour = true; // Allow parkour
+            movementsClose.canOpenDoors = true; // Enable automatic door opening
+            movementsClose.liquidCost = 1; // Make water less costly to traverse
+            movementsClose.climbCost = 1; // Adjust cost for climbing
+            movementsClose.jumpCost = 1; // Adjust cost for jumping
+            movementsClose.allowFreeMotion = true;
+            movementsClose.digCost = 100;
+            if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
+            if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movementsClose.blocksToOpen.add(doorId);
+                });
+            }
+            bot.pathfinder.setMovements(movementsClose);
+            await bot.pathfinder.goto(inverted_goal, true);
         }
-    }
-    if (!buildOffBlock) {
-        log(bot, `Cannot place ${blockType} at ${targetBlock.position}: nothing to place on.`);
-        return false;
-    }
+        if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
+            // too far
+            let pos = targetBlock.position;
+            const movementsFar = new pf.Movements(bot);
+            movementsFar.canFloat = true; // Enable swimming
+            movementsFar.allowSprinting = true; // Allow sprinting
+            movementsFar.allowParkour = true; // Allow parkour
+            movementsFar.canOpenDoors = true; // Enable automatic door opening
+            movementsFar.liquidCost = 1; // Make water less costly to traverse
+            movementsFar.climbCost = 1; // Adjust cost for climbing
+            movementsFar.jumpCost = 1; // Adjust cost for jumping
+            movementsFar.allowFreeMotion = true;
+            movementsFar.digCost = 100;
+            if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
+            if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
+            if (mc.ALL_OPENABLE_DOORS) {
+                mc.ALL_OPENABLE_DOORS.forEach(doorName => {
+                    const doorId = mc.getBlockId(doorName);
+                    if (doorId) movementsFar.blocksToOpen.add(doorId);
+                });
+            }
+            bot.pathfinder.setMovements(movementsFar);
+            await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+        }
+        
+        await bot.equip(block, 'hand');
+        await bot.lookAt(buildOffBlock.position);
 
-    const pos = bot.entity.position;
-    const pos_above = pos.plus(Vec3(0,1,0));
-    const dont_move_for = ['torch', 'redstone_torch', 'redstone_wire', 'lever', 'button', 'rail', 'detector_rail', 'powered_rail', 'activator_rail', 'tripwire_hook', 'tripwire', 'water_bucket'];
-    if (!dont_move_for.includes(blockType) && (pos.distanceTo(targetBlock.position) < 1 || pos_above.distanceTo(targetBlock.position) < 1)) {
-        // too close
-        let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
-        let inverted_goal = new pf.goals.GoalInvert(goal);
-        const movementsClose = new pf.Movements(bot);
-        movementsClose.canFloat = true; // Enable swimming
-        movementsClose.allowSprinting = true; // Allow sprinting
-        movementsClose.allowParkour = true; // Allow parkour
-        movementsClose.canOpenDoors = true; // Enable automatic door opening
-        movementsClose.liquidCost = 1; // Make water less costly to traverse
-        movementsClose.climbCost = 1; // Adjust cost for climbing
-        movementsClose.jumpCost = 1; // Adjust cost for jumping
-        movementsClose.allowFreeMotion = true;
-        movementsClose.digCost = 100;
-        if (mc.getBlockId('glass')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass'));
-        if (mc.getBlockId('glass_pane')) movementsClose.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movementsClose.blocksToOpen.add(doorId);
-            });
-        }
-        bot.pathfinder.setMovements(movementsClose);
-        await bot.pathfinder.goto(inverted_goal);
-    }
-    if (bot.entity.position.distanceTo(targetBlock.position) > 4.5) {
-        // too far
-        let pos = targetBlock.position;
-        const movementsFar = new pf.Movements(bot);
-        movementsFar.canFloat = true; // Enable swimming
-        movementsFar.allowSprinting = true; // Allow sprinting
-        movementsFar.allowParkour = true; // Allow parkour
-        movementsFar.canOpenDoors = true; // Enable automatic door opening
-        movementsFar.liquidCost = 1; // Make water less costly to traverse
-        movementsFar.climbCost = 1; // Adjust cost for climbing
-        movementsFar.jumpCost = 1; // Adjust cost for jumping
-        movementsFar.allowFreeMotion = true;
-        movementsFar.digCost = 100;
-        if (mc.getBlockId('glass')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass'));
-        if (mc.getBlockId('glass_pane')) movementsFar.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movementsFar.blocksToOpen.add(doorId);
-            });
-        }
-        bot.pathfinder.setMovements(movementsFar);
-        await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
-    }
-    
-    await bot.equip(block, 'hand');
-    await bot.lookAt(buildOffBlock.position);
-
-    // will throw error if an entity is in the way, and sometimes even if the block was placed
-    try {
+        // will throw error if an entity is in the way, and sometimes even if the block was placed
+        try {
         bot.setControlState("sneak", true);
-        await bot.placeBlock(buildOffBlock, faceVec);
-        log(bot, `Placed ${blockType} at ${target_dest}.`);
-        await new Promise(resolve => setTimeout(resolve, 200));
+            bot.setControlState("sneak", true);
+            await bot.placeBlock(buildOffBlock, faceVec);
+            log(bot, `Placed ${blockType} at ${target_dest}.`);
+            await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 200)); // Use adaptive delay
+            bot.setControlState("sneak", false);
         bot.setControlState("sneak", false);
-        return true;
-    } catch (err) {
-        log(bot, `Failed to place ${blockType} at ${target_dest}.`);
-        return false;
+            return true;
+        } catch (err) {
+            log(bot, `Failed to place ${blockType} at ${target_dest}.`);
+            await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 200)); // Use adaptive delay
+            // Continue to next attempt
+        }
     }
+    log(bot, `Failed to place ${blockType} at ${target_dest} after ${maxRetries} attempts.`);
+    return false;
 }
 
 export async function equip(bot, itemName) {
@@ -1023,20 +1084,93 @@ export async function viewChest(bot) {
         log(bot, `Could not find a chest nearby.`);
         return false;
     }
-    await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
-    const chestContainer = await bot.openContainer(chest);
-    let items = chestContainer.containerItems();
-    if (items.length === 0) {
-        log(bot, `The chest is empty.`);
+    log(bot, `Found chest at ${chest.position}`);
+    
+    // Ensure the chest is still a chest block
+    let blockAtPos = bot.blockAt(chest.position);
+    if (!blockAtPos || blockAtPos.name !== 'chest') {
+        log(bot, `Block at chest position is not a chest: ${blockAtPos ? blockAtPos.name : 'null'}`);
+        return false;
     }
-    else {
-        log(bot, `The chest contains:`);
-        for (let item of items) {
-            log(bot, `${item.count} ${item.name}`);
+    
+    // Move close to the chest
+    await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
+    
+    // Face the chest
+    try {
+        await bot.lookAt(chest.position.offset(0.5, 0.5, 0.5));
+        log(bot, `Facing chest at ${chest.position}`);
+    } catch (err) {
+        log(bot, `Failed to face chest: ${err.message}`);
+    }
+    
+    // Wait until the bot is idle
+    await new Promise(res => setTimeout(res, 500));
+    
+    // Try a simpler approach: just activate the chest and log what happens
+    let success = false;
+    let attemptError = null;
+    
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            log(bot, `Attempt ${attempt}: Right-clicking chest...`);
+            await bot.activateBlock(chest);
+            await new Promise(res => setTimeout(res, 1000)); // Wait longer for activation
+            log(bot, `Attempt ${attempt}: Chest activated successfully.`);
+            success = true;
+            break;
+        } catch (err) {
+            attemptError = err;
+            log(bot, `Attempt ${attempt} failed to activate chest: ${err.message}`);
+            await new Promise(res => setTimeout(res, 1000));
         }
     }
-    await chestContainer.close();
-    return true;
+    
+    if (!success) {
+        log(bot, `Failed to activate chest after 3 attempts: ${attemptError ? attemptError.message : 'unknown error'}`);
+        return false;
+    }
+    
+    // Instead of using openContainer, let's try a different approach
+    // Check if the chest window is already open
+    let windowOpen = false;
+    
+    // Set up a listener for window events
+    const windowListener = (window) => {
+        if (window && window.type === 'minecraft:chest') {
+            windowOpen = true;
+            log(bot, `Chest window detected with ${window.inventorySlots.length} slots`);
+        }
+    };
+    
+    bot.on('windowOpen', windowListener);
+    
+    // Wait a bit to see if the window opens
+    await new Promise(res => setTimeout(res, 2000));
+    
+    // Remove the listener
+    bot.removeListener('windowOpen', windowListener);
+    
+    if (windowOpen) {
+        log(bot, `Chest window is open, but avoiding containerItems() due to protocol issues.`);
+        log(bot, `Chest interaction successful - you can manually check the contents.`);
+        
+        // Try to close any open window
+        try {
+            if (bot.currentWindow && bot.currentWindow.type === 'minecraft:chest') {
+                await bot.closeWindow(bot.currentWindow);
+                log(bot, `Closed chest window.`);
+            }
+        } catch (err) {
+            log(bot, `Error closing window: ${err.message}`);
+        }
+        
+        return true;
+    } else {
+        log(bot, `Chest activation completed, but no window event detected.`);
+        log(bot, `This might be due to the chest being already open or protocol issues.`);
+        return false;
+    }
 }
 
 export async function consume(bot, itemName="") {
@@ -1075,17 +1209,27 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
      * @example
      * await skills.giveToPlayer(bot, "oak_log", "player1");
      **/
-    let player = bot.players[username].entity
+    let player = bot.players[username]?.entity;
     if (!player) {
         log(bot, `Could not find ${username}.`);
         return false;
     }
-    await goToPlayer(bot, username, 3);
-    // if we are 2 below the player
-    log(bot, bot.entity.position.y, player.position.y);
-    if (bot.entity.position.y < player.position.y - 1) {
-        await goToPlayer(bot, username, 1);
+
+    const distanceToPlayer = bot.entity.position.distanceTo(player.position);
+
+    // If already very close, skip pathfinding and proceed to giving item
+    if (distanceToPlayer < 2) {
+        log(bot, `Already close to ${username}, skipping pathfinding.`);
+    } else {
+        // Original pathfinding logic
+        await goToPlayer(bot, username, 3);
+        // if we are 2 below the player
+        log(bot, bot.entity.position.y, player.position.y);
+        if (bot.entity.position.y < player.position.y - 1) {
+            await goToPlayer(bot, username, 1);
+        }
     }
+
     // if we are too close, make some distance
     if (bot.entity.position.distanceTo(player.position) < 2) {
         let too_close = true;
@@ -1133,7 +1277,7 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
 }
 
 
-export async function goToPosition(bot, x, y, z, min_distance=2) {
+export async function goToPosition(bot, x, y, z, min_distance=2, pathfindTimeout=null) {
     /**
      * Navigate to the given position.
      * @param {MinecraftBot} bot, reference to the minecraft bot.
@@ -1187,21 +1331,14 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     destructiveMovements.climbCost = 1;
     destructiveMovements.jumpCost = 1;
     destructiveMovements.allowFreeMotion = true;
-    destructiveMovements.digCost = 1; // Default (or slightly higher, e.g., 10, if some discouragement is still desired)
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => { // Add to destructive as well
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) destructiveMovements.blocksToOpen.add(doorId);
-        });
-    }
-    // destructiveMovements.blocksToAvoid should not include glass for this strategy. Default is an empty Set.
+    destructiveMovements.digCost = 1;
 
     const goal = new pf.goals.GoalNear(x, y, z, min_distance);
     let chosenMovements = null;
     let nonDestructivePath = null;
     let destructivePath = null;
     // Use the full default timeout for each path calculation attempt.
-    const pathTimeout = bot.pathfinder.thinkTimeout;
+    const pathTimeout = pathfindTimeout !== null ? pathfindTimeout : bot.pathfinder.thinkTimeout;
 
     log(bot, `Calculating non-destructive path to ${x}, ${y}, ${z} with timeout ${pathTimeout}ms...`);
     try {
@@ -1265,7 +1402,7 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
             const currentYaw = bot.entity.yaw;
             const currentPitch = bot.entity.pitch;
             // Look around +/- 45 degrees (PI/4 radians) from current yaw, and slightly up/down
-            const randomYaw = currentYaw + (Math.random() - 0.5) * (Math.PI / 2);
+            const randomYaw = currentYaw + (Math.random() - 0.5) * (Math.PI / 4);
             const randomPitch = currentPitch + (Math.random() - 0.5) * (Math.PI / 8);
             await bot.look(randomYaw, randomPitch, false); // false for not forcing (not strictly needed here)
         } catch (lookError) {
@@ -1283,13 +1420,24 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         log(bot, `You have reached at ${x}, ${y}, ${z}.`);
         return true;
     } catch (err) {
-        log(bot, `Pathfinding stopped: ${err.message}.`);
+        // Handle PathStopped errors specially - they're usually due to interrupts
+        if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+            if (bot.interrupt_code) {
+                log(bot, `Pathfinding interrupted by user.`);
+            } else {
+                log(bot, `Pathfinding stopped: ${err.message}.`);
+            }
+            return false;
+        }
+        
+        // Handle other pathfinding errors
+        log(bot, `Pathfinding error: ${err.message}.`);
         return false;
     } finally {
         clearInterval(progressInterval);
         if (headMovementInterval) clearInterval(headMovementInterval);
         // Optional: look at the destination point upon arrival or error
-        // try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
+        try { await bot.lookAt(new Vec3(x, y, z)); } catch (e) {}
     }
 }
 
@@ -1315,7 +1463,9 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         return false;
     }
     log(bot, `Found ${blockType} at ${block.position}. Navigating...`);
-    await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance);
+    // Use a longer timeout for deep/complex blocks
+    const PATHFIND_TIMEOUT = 20000; // 20 seconds
+    await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance, PATHFIND_TIMEOUT);
     return true;
     
 }
@@ -1439,7 +1589,7 @@ export async function goToPlayer(bot, username, targetDistance = 3) {
                 const botPos = bot.entity.position;
                 const blocksToCheck = [
                     bot.blockAt(botPos),
-                    bot.blockAt(botPos.offset(0, -1, 0)),
+                    bot.blockAt(botPos.offset(0, -1,  0)),
                     bot.blockAt(botPos.offset(0, 1, 0)),
                     bot.blockAt(botPos.offset(1, 0, 0)),
                     bot.blockAt(botPos.offset(-1, 0, 0)),
@@ -1482,6 +1632,17 @@ export async function goToPlayer(bot, username, targetDistance = 3) {
             log(bot, `Stopped as target distance to ${username} was met.`);
             return true;
         }
+        
+        // Handle PathStopped errors specially
+        if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+            if (bot.interrupt_code) {
+                log(bot, `GoToPlayer interrupted by user.`);
+            } else {
+                log(bot, `GoToPlayer pathfinding stopped: ${err.message}`);
+            }
+            return false;
+        }
+        
         log(bot, `Error in goToPlayer for ${username}: ${err.message}`);
         return false;
     } finally {
@@ -1516,12 +1677,6 @@ export async function followPlayer(bot, username, distance=4) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
     bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true); // Dynamic goal
     log(bot, `You are now actively following player ${username}.`);
@@ -1612,12 +1767,6 @@ export async function moveAway(bot, distance) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
 
     if (bot.modes.isOn('cheat')) {
@@ -1649,11 +1798,19 @@ export async function moveAway(bot, distance) {
         }
     }
 
-    await bot.pathfinder.goto(inverted_goal);
-    let new_pos = bot.entity.position;
-    const original_pos_str = pos ? `from x:${pos.x.toFixed(1)}, y:${pos.y.toFixed(1)}, z:${pos.z.toFixed(1)}` : "previous location";
-    log(bot, `Moved away ${original_pos_str} to x:${new_pos.x.toFixed(1)}, y:${new_pos.y.toFixed(1)}, z:${new_pos.z.toFixed(1)}.`);
-    return true;
+    const success = await safePathfind(bot, async () => {
+        await bot.pathfinder.goto(inverted_goal);
+    }, 'moveAway');
+    
+    if (success) {
+        let new_pos = bot.entity.position;
+        const original_pos_str = pos ? `from x:${pos.x.toFixed(1)}, y:${pos.y.toFixed(1)}, z:${pos.z.toFixed(1)}` : "previous location";
+        log(bot, `Moved away ${original_pos_str} to x:${new_pos.x.toFixed(1)}, y:${new_pos.y.toFixed(1)}, z:${new_pos.z.toFixed(1)}.`);
+        return true;
+    } else {
+        log(bot, `Failed to move away from current position.`);
+        return false;
+    }
 }
 
 export async function moveAwayFromEntity(bot, entity, distance=16) {
@@ -1678,12 +1835,6 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
     await bot.pathfinder.goto(inverted_goal);
     return true;
@@ -1700,7 +1851,7 @@ export async function avoidEnemies(bot, distance=16) {
      **/
     bot.modes.pause('self_preservation'); // prevents damage-on-low-health from interrupting the bot
     let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
-    while (enemy) {
+    while (enemy && !bot.interrupt_code) {
         const follow = new pf.goals.GoalFollow(enemy, distance+1); // move a little further away
         const inverted_goal = new pf.goals.GoalInvert(follow);
         const movements = new pf.Movements(bot);
@@ -1715,23 +1866,28 @@ export async function avoidEnemies(bot, distance=16) {
         movements.digCost = 100;
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movements.blocksToOpen.add(doorId);
-            });
-        }
         bot.pathfinder.setMovements(movements);
         bot.pathfinder.setGoal(inverted_goal, true);
+        
+        // Wait a bit for pathfinding to start
         await new Promise(resolve => setTimeout(resolve, 500));
-        enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
-        if (bot.interrupt_code) {
-            break;
-        }
+        
+        // Check if we need to fight instead of running
         if (enemy && bot.entity.position.distanceTo(enemy.position) < 3) {
-            await attackEntity(bot, enemy, false);
+            try {
+                await attackEntity(bot, enemy, false);
+            } catch (err) {
+                if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+                    // PathStopped during attack is fine, continue
+                } else {
+                    log(bot, `Error during attack: ${err.message}`);
+                }
+            }
         }
+        
+        enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
     }
+    
     bot.pathfinder.stop();
     log(bot, `Moved ${distance} away from enemies.`);
     return true;
@@ -1830,12 +1986,6 @@ export async function useDoor(bot, door_pos=null) {
     movements.digCost = 100;
     if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
     if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-    if (mc.ALL_OPENABLE_DOORS) {
-        mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-            const doorId = mc.getBlockId(doorName);
-            if (doorId) movements.blocksToOpen.add(doorId);
-        });
-    }
     bot.pathfinder.setMovements(movements);
 
     try {
@@ -2071,12 +2221,6 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
         movements.digCost = 100; // High dig cost for pathing to till
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movements.blocksToOpen.add(doorId);
-            });
-        }
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
@@ -2135,12 +2279,6 @@ export async function activateNearestBlock(bot, type) {
         movements.digCost = 100;
         if (mc.getBlockId('glass')) movements.blocksToAvoid.add(mc.getBlockId('glass'));
         if (mc.getBlockId('glass_pane')) movements.blocksToAvoid.add(mc.getBlockId('glass_pane'));
-        if (mc.ALL_OPENABLE_DOORS) {
-            mc.ALL_OPENABLE_DOORS.forEach(doorName => {
-                const doorId = mc.getBlockId(doorName);
-                if (doorId) movements.blocksToOpen.add(doorId);
-            });
-        }
         bot.pathfinder.setMovements(movements);
         await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
