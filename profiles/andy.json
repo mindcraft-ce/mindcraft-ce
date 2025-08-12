@@ -2,7 +2,7 @@
   "name": "andy",
   "model": "andy-4",
   "api": "andy",
-  "url": "https://mindcraft-ce.com/api/andy/v1/chat/completions",
+  "url": "https://andy.mindcraft-ce.com/api/v1/chat/completions",
   "api_key": "",
   "endpoint": "",
   "chat": true,
