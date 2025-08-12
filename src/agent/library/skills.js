@@ -1127,9 +1127,45 @@ export async function goToPlayer(bot, username, distance=3) {
         return false;
     }
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    await bot.pathfinder.goto(new pf.goals.GoalFollow(player, distance), true);
+
+    const dontBreakBlocks = ['glass', 'glass_pane'];
+    const nonDestructiveMovements = new pf.Movements(bot);
+    nonDestructiveMovements.canOpenDoors = true;
+    nonDestructiveMovements.allowFreeMotion = true;
+    nonDestructiveMovements.digCost = 100;
+    nonDestructiveMovements.blocksCantBreak.add(dontBreakBlocks.map(block => mc.getBlockId(block)));
+
+    const destructiveMovements = new pf.Movements(bot);
+    destructiveMovements.canOpenDoors = true;
+    destructiveMovements.allowFreeMotion = true;
+
+    let movements = nonDestructiveMovements;
+    const goal = new pf.goals.GoalFollow(player, distance);
+
+    const timeout = 5000;
+    try {
+        console.log('finding non-destructive path...');
+        const nonDestructivePath = await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, timeout);
+        if (
+            nonDestructivePath &&
+            nonDestructivePath.path &&
+            nonDestructivePath.path.length > 0 &&
+            nonDestructivePath.status !== 'noPath'
+        ) {
+            console.log('found non-destructive path');
+            movements = nonDestructiveMovements;
+        }
+        else {
+            console.log('no non-destructive path found, using destructive path');
+            movements = destructiveMovements;
+        }
+    } catch (err) {
+        log(bot, `Could not find a path: ${err.message}.`);
+        return false;
+    }
+
+    bot.pathfinder.setMovements(movements);
+    await bot.pathfinder.goto(goal, true);
 
     log(bot, `You have reached ${username}.`);
 }
