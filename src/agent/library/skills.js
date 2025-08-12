@@ -2,7 +2,10 @@ import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
+import settings from "../../../settings.js";
 
+const blockPlaceDelay = settings.block_place_delay || 10
+const useDelay = blockPlaceDelay > 0
 
 export function log(bot, message) {
     bot.output += message + '\n';
@@ -533,6 +536,7 @@ export async function breakBlockAt(bot, x, y, z) {
     let block = bot.blockAt(Vec3(x, y, z));
     if (block.name !== 'air' && block.name !== 'water' && block.name !== 'lava') {
         if (bot.modes.isOn('cheat')) {
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             let msg = '/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z) + ' air';
             bot.chat(msg);
             log(bot, `Used /setblock to break block at ${x}, ${y}, ${z}.`);
@@ -629,11 +633,14 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         if (blockType.includes('stairs')) {
             blockType += `[facing=${face}]`;
         }
+        if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
         let msg = '/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z) + ' ' + blockType;
         bot.chat(msg);
         if (blockType.includes('door'))
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             bot.chat('/setblock ' + Math.floor(x) + ' ' + Math.floor(y+1) + ' ' + Math.floor(z) + ' ' + blockType + '[half=upper]');
         if (blockType.includes('bed'))
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             bot.chat('/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z-1) + ' ' + blockType + '[part=head]');
         log(bot, `Used /setblock to place ${blockType} at ${target_dest}.`);
         return true;
