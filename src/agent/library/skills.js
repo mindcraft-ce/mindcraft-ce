@@ -1084,13 +1084,15 @@ function startDoorInterval(bot) {
             // shuffle positions so we're not always opening the same door
             const positions = [
                 bot.entity.position.clone(),
-                bot.entity.position.offset(0, 0, 1), // north
+                bot.entity.position.offset(0, 0, 1),
                 bot.entity.position.offset(0, 0, -1), 
                 bot.entity.position.offset(1, 0, 0),
                 bot.entity.position.offset(-1, 0, 0),
             ]
             let elevated_positions = positions.map(position => position.offset(0, 1, 0));
             positions.push(...elevated_positions);
+            positions.push(bot.entity.position.offset(0, 2, 0)); // above head
+            positions.push(bot.entity.position.offset(0, -1, 0)); // below feet
             
             let currentIndex = positions.length;
             while (currentIndex != 0) {

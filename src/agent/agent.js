@@ -439,7 +439,11 @@ export class Agent {
             this.bot.clearControlStates();
             this.bot.pathfinder.stop(); // clear any lingering pathfinder
             this.bot.modes.unPauseAll();
-            this.actions.resumeAction();
+            setTimeout(() => {
+                if (this.isIdle()) {
+                    this.actions.resumeAction();
+                }
+            }, 1000);
         });
 
         // Init NPC controller
