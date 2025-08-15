@@ -118,6 +118,7 @@ export class Agent {
         ];
         
         const respondFunc = async (username, message) => {
+            if (message === "") return;
             if (username === this.name) return;
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
             try {

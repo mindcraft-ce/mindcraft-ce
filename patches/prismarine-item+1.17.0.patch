@@ -1,0 +1,13 @@
+diff --git a/node_modules/prismarine-item/index.js b/node_modules/prismarine-item/index.js
+index a1397a2..1d75cad 100644
+--- a/node_modules/prismarine-item/index.js
++++ b/node_modules/prismarine-item/index.js
+@@ -231,7 +231,7 @@ function loader (registryOrVersion) {
+       const typeOfEnchantLevelValue = registry.supportFeature('typeOfValueForEnchantLevel')
+       const useStoredEnchantments = registry.supportFeature('booksUseStoredEnchantments') && this.name === 'enchanted_book'
+ 
+-      if (typeOfEnchantLevelValue === 'short' && enchantNbtKey === 'ench') {
++      if (typeOfEnchantLevelValue === 'short' && (enchantNbtKey === 'ench' || enchantNbtKey === 'componentEnchantments')) {
+         let itemEnch = []
+ 
+         if (useStoredEnchantments && this?.nbt?.value?.StoredEnchantments) {

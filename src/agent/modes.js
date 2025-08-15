@@ -114,6 +114,11 @@ const modes_list = [
                 });
             }
             this.last_time = Date.now();
+        },
+        unpause: function () {
+            this.prev_location = null;
+            this.stuck_time = 0;
+            this.prev_dig_block = null;
         }
     },
     {
@@ -342,13 +347,18 @@ class ModeController {
     }
 
     unpause(mode_name) {
-        modes_map[mode_name].paused = false;
+        const mode = modes_map[mode_name];
+        //if  unpause func is defined and mode is currently paused
+        if (mode.unpause && mode.paused) {
+            mode.unpause();
+        }
+        mode.paused = false;
     }
 
     unPauseAll() {
         for (let mode of modes_list) {
             if (mode.paused) console.log(`Unpausing mode ${mode.name}`);
-            mode.paused = false;
+            this.unpause(mode.name);
         }
     }
 
