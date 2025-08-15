@@ -1071,17 +1071,7 @@ function startDoorInterval(bot) {
     let prev_check = Date.now();
     let stuck_time = 0;
 
-    // adjacent positions to check for doors
-    const positions = [
-        bot.entity.position.clone(),
-        bot.entity.position.offset(0, 0, 1),
-        bot.entity.position.offset(0, 0, -1), 
-        bot.entity.position.offset(1, 0, 0),
-        bot.entity.position.offset(-1, 0, 0),
-    ]
-    let elevated_positions = positions.map(position => position.offset(0, 1, 0));
-    positions.push(...elevated_positions);
-    
+
     const doorCheckInterval = setInterval(() => {
         const now = Date.now();
         if (bot.entity.position.distanceTo(prev_pos) >= 0.1) {
@@ -1092,6 +1082,16 @@ function startDoorInterval(bot) {
         
         if (stuck_time > 1200) {
             // shuffle positions so we're not always opening the same door
+            const positions = [
+                bot.entity.position.clone(),
+                bot.entity.position.offset(0, 0, 1), // north
+                bot.entity.position.offset(0, 0, -1), 
+                bot.entity.position.offset(1, 0, 0),
+                bot.entity.position.offset(-1, 0, 0),
+            ]
+            let elevated_positions = positions.map(position => position.offset(0, 1, 0));
+            positions.push(...elevated_positions);
+            
             let currentIndex = positions.length;
             while (currentIndex != 0) {
                 let randomIndex = Math.floor(Math.random() * currentIndex);
@@ -1099,7 +1099,7 @@ function startDoorInterval(bot) {
                 [positions[currentIndex], positions[randomIndex]] = [
                 positions[randomIndex], positions[currentIndex]];
             }
-
+            
             for (let position of positions) {
                 let block = bot.blockAt(position);
                 if (block && block.name &&
