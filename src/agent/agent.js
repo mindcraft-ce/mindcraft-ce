@@ -118,6 +118,7 @@ export class Agent {
         ];
         
         const respondFunc = async (username, message) => {
+            if (message === "") return;
             if (username === this.name) return;
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
             try {
@@ -438,7 +439,11 @@ export class Agent {
             this.bot.clearControlStates();
             this.bot.pathfinder.stop(); // clear any lingering pathfinder
             this.bot.modes.unPauseAll();
-            this.actions.resumeAction();
+            setTimeout(() => {
+                if (this.isIdle()) {
+                    this.actions.resumeAction();
+                }
+            }, 1000);
         });
 
         // Init NPC controller

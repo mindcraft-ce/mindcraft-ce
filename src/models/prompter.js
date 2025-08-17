@@ -37,6 +37,8 @@ export class Prompter {
         let base_fp = '';
         if (settings.base_profile.includes('survival')) {
             base_fp = './profiles/defaults/survival.json';
+        } else if (settings.base_profile.includes('assistant')) {
+            base_fp = './profiles/defaults/assistant.json';
         } else if (settings.base_profile.includes('creative')) {
             base_fp = './profiles/defaults/creative.json';
         } else if (settings.base_profile.includes('god_mode')) {
