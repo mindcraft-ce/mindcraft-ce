@@ -7,7 +7,7 @@ const settings = {
     // the mindserver manages all agents and hosts the UI
     "mindserver_port": 8080,
     
-    "base_profile": "survival", // survival, creative, or god_mode
+    "base_profile": "survival", // survival, creative, assistant, or god_mode
     "profiles": [
         "./andy.json",
         // "./profiles/gpt.json",

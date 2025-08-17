@@ -26,7 +26,7 @@
     },
     "base_profile": {
         "type": "string",
-        "description": "Allowed values: survival, creative, god_mode. Each has fine tuned settings for different game modes.",
+        "description": "Allowed values: survival, assistant, creative, god_mode. Each has fine tuned settings for different game modes.",
         "default": "survival"
     },
     "load_memory": {
