@@ -69,7 +69,7 @@ export class ActionManager {
                 else {
                     this.recent_action_counter = 0;
                 }
-                if (this.recent_action_counter > 2) {
+                if (this.recent_action_counter > 3) {
                     console.warn('Fast action loop detected, cancelling resume.');
                     this.cancelResume(); // likely cause of repetition
                 }
