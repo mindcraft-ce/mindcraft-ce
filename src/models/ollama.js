@@ -1,6 +1,7 @@
 import { strictFormat } from '../utils/text.js';
 
 export class Ollama {
+    static prefix = 'ollama';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;

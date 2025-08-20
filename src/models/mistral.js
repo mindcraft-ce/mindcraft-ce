@@ -3,6 +3,7 @@ import { getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class Mistral {
+    static prefix = 'mistral';
     #client;
 
     constructor(model_name, url, params) {

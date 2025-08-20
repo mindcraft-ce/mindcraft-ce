@@ -3,6 +3,7 @@ import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Claude {
+    static prefix = 'anthropic';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params || {};

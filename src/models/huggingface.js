@@ -3,6 +3,7 @@ import { getKey } from '../utils/keys.js';
 import { HfInference } from "@huggingface/inference";
 
 export class HuggingFace {
+  static prefix = 'huggingface';
   constructor(model_name, url, params) {
     // Remove 'huggingface/' prefix if present
     this.model_name = model_name.replace('huggingface/', '');

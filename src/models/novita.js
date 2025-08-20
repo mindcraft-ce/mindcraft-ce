@@ -4,6 +4,7 @@ import { strictFormat } from '../utils/text.js';
 
 // llama, mistral
 export class Novita {
+	static prefix = 'novita';
 	constructor(model_name, url, params) {
     this.model_name = model_name.replace('novita/', '');
     this.url = url || 'https://api.novita.ai/v3/openai';

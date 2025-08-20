@@ -1,73 +1,74 @@
-import { Gemini } from './gemini.js';
-import { GPT } from './gpt.js';
-import { Claude } from './claude.js';
-import { Mistral } from './mistral.js';
-import { ReplicateAPI } from './replicate.js';
-import { Ollama } from './ollama.js';
-import { Novita } from './novita.js';
-import { GroqCloudAPI } from './groq.js';
-import { HuggingFace } from './huggingface.js';
-import { Qwen } from "./qwen.js";
-import { Grok } from "./grok.js";
-import { DeepSeek } from './deepseek.js';
-import { Hyperbolic } from './hyperbolic.js';
-import { GLHF } from './glhf.js';
-import { OpenRouter } from './openrouter.js';
-import { VLLM } from './vllm.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 
-// Add new models here.
-// It maps api prefixes to model classes, eg 'openai/gpt-4o' -> GPT
-const apiMap = {
-    'openai': GPT,
-    'google': Gemini,
-    'anthropic': Claude,
-    'replicate': ReplicateAPI,
-    'ollama': Ollama,
-    'mistral': Mistral,
-    'groq': GroqCloudAPI,
-    'huggingface': HuggingFace,
-    'novita': Novita,
-    'qwen': Qwen,
-    'grok': Grok,
-    'deepseek': DeepSeek,
-    'hyperbolic': Hyperbolic,
-    'glhf': GLHF,
-    'openrouter': OpenRouter,
-    'vllm': VLLM,
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Dynamically discover model classes in this directory.
+// Each model class must export a static `prefix` string.
+const apiMap = await (async () => {
+    const map = {};
+    const files = (await fs.readdir(__dirname))
+        .filter(f => f.endsWith('.js') && f !== '_model_map.js' && f !== 'prompter.js');
+    for (const file of files) {
+        try {
+            const moduleUrl = pathToFileURL(path.join(__dirname, file)).href;
+            const mod = await import(moduleUrl);
+            for (const exported of Object.values(mod)) {
+                if (typeof exported === 'function' && Object.prototype.hasOwnProperty.call(exported, 'prefix')) {
+                    const prefix = exported.prefix;
+                    if (typeof prefix === 'string' && prefix.length > 0) {
+                        map[prefix] = exported;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load model module:', file, e?.message || e);
+        }
+    }
+    return map;
+})();
 
 export function selectAPI(profile) {
     if (typeof profile === 'string' || profile instanceof String) {
         profile = {model: profile};
     }
-    const api = Object.keys(apiMap).find(key => profile.model.startsWith(key));
-    if (api) {
-        profile.api = api;
-    }
-    else {
-        // backwards compatibility with local->ollama
-        if (profile.model.includes('local')) {
-            profile.api = 'ollama';
-            profile.model = profile.model.replace('local/', '');
+    // backwards compatibility with local->ollama
+    if (profile.api?.includes('local') || profile.model?.includes('local')) {
+        profile.api = 'ollama';
+        if (profile.model) {
+            profile.model = profile.model.replace('local', 'ollama');
         }
-        // check for some common models that do not require prefixes
-        else if (profile.model.includes('gpt') || profile.model.includes('o1')|| profile.model.includes('o3'))
-            profile.api = 'openai';
-        else if (profile.model.includes('claude'))
-            profile.api = 'anthropic';
-        else if (profile.model.includes('gemini'))
-            profile.api = "google";
-        else if (profile.model.includes('grok'))
-            profile.api = 'grok';
-        else if (profile.model.includes('mistral'))
-            profile.api = 'mistral';
-        else if (profile.model.includes('deepseek'))
-            profile.api = 'deepseek';
-        else if (profile.model.includes('qwen'))
-            profile.api = 'qwen';
     }
     if (!profile.api) {
-        throw new Error('Unknown model:', profile.model);
+        const api = Object.keys(apiMap).find(key => profile.model?.startsWith(key));
+        if (api) {
+            profile.api = api;
+        }
+        else {
+            // check for some common models that do not require prefixes
+            if (profile.model.includes('gpt') || profile.model.includes('o1')|| profile.model.includes('o3'))
+                profile.api = 'openai';
+            else if (profile.model.includes('claude'))
+                profile.api = 'anthropic';
+            else if (profile.model.includes('gemini'))
+                profile.api = "google";
+            else if (profile.model.includes('grok'))
+                profile.api = 'grok';
+            else if (profile.model.includes('mistral'))
+                profile.api = 'mistral';
+            else if (profile.model.includes('deepseek'))
+                profile.api = 'deepseek';
+            else if (profile.model.includes('qwen'))
+                profile.api = 'qwen';
+        }
+        if (!profile.api) {
+            throw new Error('Unknown model:', profile.model);
+        }
+    }
+    if (!apiMap[profile.api]) {
+        throw new Error('Unknown api:', profile.api);
     }
     let model_name = profile.model.replace(profile.api + '/', ''); // remove prefix
     profile.model = model_name === "" ? null : model_name; // if model is empty, set to null

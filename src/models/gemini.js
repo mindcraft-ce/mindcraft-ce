@@ -3,6 +3,7 @@ import { toSinglePrompt, strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Gemini {
+    static prefix = 'google';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
