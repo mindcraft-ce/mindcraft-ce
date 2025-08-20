@@ -142,15 +142,15 @@ export class Gemini {
     }
 
     async embed(text) {
-        let model;
+        let model = this.model_name || "text-embedding-004";
         if (this.url) {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" },
+                { model },
                 { baseUrl: this.url }
             );
         } else {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" }
+                { model }
             );
         }
 
