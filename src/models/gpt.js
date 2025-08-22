@@ -28,7 +28,7 @@ export class GPT {
             stop: stop_seq,
             ...(this.params || {})
         };
-        if (this.model_name.includes('o1')) {
+        if (this.model_name.includes('o1') || this.model_name.includes('o3') || this.model_name.includes('5')) {
             delete pack.stop;
         }
 

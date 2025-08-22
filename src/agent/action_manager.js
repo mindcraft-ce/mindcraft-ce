@@ -7,6 +7,8 @@ export class ActionManager {
         this.timedout = false;
         this.resume_func = null;
         this.resume_name = '';
+        this.last_action_time = 0;
+        this.recent_action_counter = 0;
     }
 
     async resumeAction(actionFn, timeout) {
@@ -59,6 +61,25 @@ export class ActionManager {
     async _executeAction(actionLabel, actionFn, timeout = 10) {
         let TIMEOUT;
         try {
+            if (this.last_action_time > 0) {
+                let time_diff = Date.now() - this.last_action_time;
+                if (time_diff < 20) {
+                    this.recent_action_counter++;
+                }
+                else {
+                    this.recent_action_counter = 0;
+                }
+                if (this.recent_action_counter > 2) {
+                    console.warn('Fast action loop detected, cancelling resume.');
+                    this.cancelResume(); // likely cause of repetition
+                }
+                if (this.recent_action_counter > 5) {
+                    console.error('Infinite action loop detected, shutting down.');
+                    this.agent.cleanKill('Infinite action loop detected, shutting down.');
+                    return { success: false, message: 'Infinite action loop detected, shutting down.', interrupted: false, timedout: false };
+                }
+            }
+            this.last_action_time = Date.now();
             console.log('executing code...\n');
 
             // await current action to finish (executing=false), with 10 seconds timeout
