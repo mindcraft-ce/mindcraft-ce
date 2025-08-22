@@ -37,18 +37,29 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
     });
 
   } else {
+
+    function getModelUrl(prov) {
+      if (prov === 'pollinations') {
+        return 'https://text.pollinations.ai/openai'
+      } else if (prov === 'openai') {
+        return 'https://api.openai.com/v1/audio/speech'
+      } else {
+        // fallback
+        return 'https://api.openai.com/v1/audio/speech'
+      }
+    }
+
     // remote audio provider
     let prov, mdl, voice, url;
     if (typeof model === "string") {
       [prov, mdl, voice] = model.split('/');
-      url = "https://text.pollinations.ai/openai";
+      url = getModelUrl(prov);
     } else {
       prov = model.api;
       mdl = model.model;
       voice = model.voice;
-      url = model.url || "https://text.pollinations.ai/openai";
+      url = model.url || getModelUrl(prov);
     }
-    if (prov !== 'pollinations') throw new Error(`Unknown provider: ${prov}`);
 
     try {
       let audioData = await sendAudioRequest(txt, mdl, voice, url);

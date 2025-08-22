@@ -89,5 +89,30 @@ export class GPT {
 
 }
 
+export async function sendAudioRequest(text, model, voice, url) {
+    const payload = {
+        model: model,
+        voice: voice,
+        input: text
+    }
 
+    let audioData = null;
+
+    let config = {};
+
+    if (url)
+        config.baseURL = url;
+
+    if (hasKey('OPENAI_ORG_ID'))
+        config.organization = getKey('OPENAI_ORG_ID');
+
+    config.apiKey = getKey('OPENAI_API_KEY');
+
+    openai = new OpenAIApi(config);
+
+    const mp3 = await openai.audio.speech.create(payload);
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    const base64 = buffer.toString("base64");
+    return base64;
+}
 
