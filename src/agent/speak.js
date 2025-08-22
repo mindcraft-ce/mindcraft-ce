@@ -53,8 +53,8 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
     try {
       let audioData = await sendAudioRequest(txt, mdl, voice, url);
       if (!audioData) {
-        audioData = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU5LjI3LjEwMAAAAAAAAAAAAAAA/+NAwAAAAAAAAAAAAEluZm8AAAAPAAAAAAAAANAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAExhdmM1OS4zNwAAAAAAAAAAAAAAAAAAAAAAAAAAAADQAAAeowAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-        // ^ 0 second silent audio clip
+        throw new Error("TTS model did not return audio data");
+        // will be handled below
       }
 
       if (isWin) {
@@ -80,7 +80,7 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
       }
 
     } catch (e) {
-      console.error('Audio error', e);
+      console.error('[TTS] Audio error', e);
       processQueue();
     }
   }
