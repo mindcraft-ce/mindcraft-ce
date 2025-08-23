@@ -6,6 +6,7 @@ import { getKey } from '../utils/keys.js';
 
 // Umbrella class for everything under the sun... That GroqCloud provides, that is.
 export class GroqCloudAPI {
+    static prefix = 'groq';
 
     constructor(model_name, url, params) {
 
@@ -63,7 +64,6 @@ export class GroqCloudAPI {
             if (err.message.includes("content must be a string")) {
                 res = "Vision is only supported by certain models.";
             } else {
-                console.log(this.model_name);
                 res = "My brain disconnected, try again.";
             }
             console.log(err);
