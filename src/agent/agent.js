@@ -1,5 +1,6 @@
 import { History } from './history.js';
 import { Coder } from './coder.js';
+import { VisionInterpreter } from './vision/vision_interpreter.js';
 import { Prompter } from '../models/prompter.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
@@ -10,106 +11,100 @@ import { MemoryBank } from './memory_bank.js';
 import { SelfPrompter } from './self_prompter.js';
 import convoManager from './conversation.js';
 import { handleTranslation, handleEnglishTranslation } from '../utils/translator.js';
-import { addViewer } from './viewer.js';
-import settings from '../../settings.js';
-import { serverProxy } from './agent_proxy.js';
-import { Task } from './tasks.js';
+import { addBrowserViewer } from './vision/browser_viewer.js';
+import { serverProxy } from './mindserver_proxy.js';
+import settings from './settings.js';
+import { Task } from './tasks/tasks.js';
+import { say } from './speak.js';
 
 export class Agent {
-    async start(profile_fp, load_mem=false, init_message=null, count_id=0, task_path=null, task_id=null) {
+    async start(load_mem=false, init_message=null, count_id=0) {
         this.last_sender = null;
         this.count_id = count_id;
-        try {
-            if (!profile_fp) {
-                throw new Error('No profile filepath provided');
-            }
-            
-            console.log('Starting agent initialization with profile:', profile_fp);
-            
-            // Initialize components with more detailed error handling
-            console.log('Initializing action manager...');
-            this.actions = new ActionManager(this);
-            console.log('Initializing prompter...');
-            this.prompter = new Prompter(this, profile_fp);
-            this.name = this.prompter.getName();
-            console.log('Initializing history...');
-            this.history = new History(this);
-            console.log('Initializing coder...');
-            this.coder = new Coder(this);
-            console.log('Initializing npc controller...');
-            this.npc = new NPCContoller(this);
-            console.log('Initializing memory bank...');
-            this.memory_bank = new MemoryBank();
-            console.log('Initializing self prompter...');
-            this.self_prompter = new SelfPrompter(this);
-            convoManager.initAgent(this);            
-            console.log('Initializing examples...');
-            await this.prompter.initExamples();
-            console.log('Initializing task...');
-            this.task = new Task(this, task_path, task_id);
-            const blocked_actions = this.task.blocked_actions || [];
-            blacklistCommands(blocked_actions);
+        
+        // Initialize components with more detailed error handling
+        this.actions = new ActionManager(this);
+        this.prompter = new Prompter(this, settings.profile);
+        this.name = this.prompter.getName();
+        console.log(`Initializing agent ${this.name}...`);
+        this.history = new History(this);
+        this.coder = new Coder(this);
+        this.npc = new NPCContoller(this);
+        this.memory_bank = new MemoryBank();
+        this.self_prompter = new SelfPrompter(this);
+        convoManager.initAgent(this);
+        await this.prompter.initExamples();
 
-            serverProxy.connect(this);
-
-            console.log(this.name, 'logging into minecraft...');
-            this.bot = initBot(this.name);
-
-            initModes(this);
-
-            let save_data = null;
-            if (load_mem) {
-                save_data = this.history.load();
-            }
-
-            this.bot.on('login', () => {
-                console.log(this.name, 'logged in!');
-
-                serverProxy.login();
-                
-                // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
-                if (this.prompter.profile.skin)
-                    this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
-                else
-                    this.bot.chat(`/skin clear`);
-            });
-
-            const spawnTimeout = setTimeout(() => {
-                process.exit(0);
-            }, 30000);
-            this.bot.once('spawn', async () => {
-                try {
-                    clearTimeout(spawnTimeout);
-                    addViewer(this.bot, count_id);
-
-                    // wait for a bit so stats are not undefined
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-                    
-                    console.log(`${this.name} spawned.`);
-                    this.clearBotLogs();
-
-                    this._setupEventHandlers(save_data, init_message);
-                    this.startEvents();
-
-                    this.task.initBotTask();
-
-                    if (!load_mem) {
-                        this.task.initBotTask();
-                    }
-
-                } catch (error) {
-                    console.error('Error in spawn event:', error);
-                    process.exit(0);
-                }
-            });
-        } catch (error) {
-            // Ensure we're not losing error details
-            console.error('Agent start failed with error')
-            console.error(error.message);
-            console.error(error.stack);
-
-            throw error; // Re-throw with preserved details
+        // load mem first before doing task
+        let save_data = null;
+        if (load_mem) {
+            save_data = this.history.load();
         }
+        let taskStart = null;
+        if (save_data) {
+            taskStart = save_data.taskStart;
+        } else {
+            taskStart = Date.now();
+        }
+        this.task = new Task(this, settings.task, taskStart);
+        this.blocked_actions = settings.blocked_actions.concat(this.task.blocked_actions || []);
+        blacklistCommands(this.blocked_actions);
+
+        console.log(this.name, 'logging into minecraft...');
+        this.bot = initBot(this.name);
+
+        initModes(this);
+
+        this.bot.on('login', () => {
+            console.log(this.name, 'logged in!');
+            serverProxy.login();
+            
+            // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
+            if (this.prompter.profile.skin)
+                this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
+            else
+                this.bot.chat(`/skin clear`);
+        });
+
+        const spawnTimeout = setTimeout(() => {
+            process.exit(0);
+        }, 30000);
+        this.bot.once('spawn', async () => {
+            try {
+                clearTimeout(spawnTimeout);
+                addBrowserViewer(this.bot, count_id);
+                console.log('Initializing vision intepreter...');
+                this.vision_interpreter = new VisionInterpreter(this, settings.allow_vision);
+
+                // wait for a bit so stats are not undefined
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                
+                console.log(`${this.name} spawned.`);
+                this.clearBotLogs();
+              
+                this._setupEventHandlers(save_data, init_message);
+                this.startEvents();
+              
+                if (!load_mem) {
+                    if (settings.task) {
+                        this.task.initBotTask();
+                        this.task.setAgentGoal();
+                    }
+                } else {
+                    // set the goal without initializing the rest of the task
+                    if (settings.task) {
+                        this.task.setAgentGoal();
+                    }
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 10000));
+                this.checkAllPlayersPresent();
+
+            } catch (error) {
+                console.error('Error in spawn event:', error);
+                process.exit(0);
+            }
+        });
     }
 
     async _setupEventHandlers(save_data, init_message) {
@@ -123,6 +118,7 @@ export class Agent {
         ];
         
         const respondFunc = async (username, message) => {
+            if (message === "") return;
             if (username === this.name) return;
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
             try {
@@ -143,12 +139,16 @@ export class Agent {
                 console.error('Error handling message:', error);
             }
         }
-		
-		this.respondFunc = respondFunc
+
+		this.respondFunc = respondFunc;
 
         this.bot.on('whisper', respondFunc);
-        if (settings.profiles.length === 1)
-            this.bot.on('chat', respondFunc);
+        
+        this.bot.on('chat', (username, message) => {
+            if (serverProxy.getNumOtherAgents() > 0) return;
+            // only respond to open chat messages when there are no other agents
+            respondFunc(username, message);
+        });
 
         // Set up auto-eat
         this.bot.autoEat.options = {
@@ -181,8 +181,21 @@ export class Agent {
         }
     }
 
+    checkAllPlayersPresent() {
+        if (!this.task || !this.task.agent_names) {
+          return;
+        }
+
+        const missingPlayers = this.task.agent_names.filter(name => !this.bot.players[name]);
+        if (missingPlayers.length > 0) {
+            console.log(`Missing players/bots: ${missingPlayers.join(', ')}`);
+            this.cleanKill('Not all required players/bots are present in the world. Exiting.', 4);
+        }
+    }
+
     requestInterrupt() {
         this.bot.interrupt_code = true;
+        this.bot.stopDigging();
         this.bot.collectBlock.cancelTask();
         this.bot.pathfinder.stop();
         this.bot.pvp.stop();
@@ -202,6 +215,7 @@ export class Agent {
     }
 
     async handleMessage(source, message, max_responses=null) {
+        await this.checkTaskDone();
         if (!source || !message) {
             console.warn('Received empty message from', source);
             return false;
@@ -247,13 +261,13 @@ export class Agent {
 
         const checkInterrupt = () => this.self_prompter.shouldInterrupt(self_prompt) || this.shut_up || convoManager.responseScheduledFor(source);
         
-        let behavior_log = this.bot.modes.flushBehaviorLog();
-        if (behavior_log.trim().length > 0) {
+        let behavior_log = this.bot.modes.flushBehaviorLog().trim();
+        if (behavior_log.length > 0) {
             const MAX_LOG = 500;
             if (behavior_log.length > MAX_LOG) {
                 behavior_log = '...' + behavior_log.substring(behavior_log.length - MAX_LOG);
             }
-            behavior_log = 'Recent behaviors log: \n' + behavior_log.substring(behavior_log.indexOf('\n'));
+            behavior_log = 'Recent behaviors log: \n' + behavior_log;
             await this.history.add('system', behavior_log);
         }
 
@@ -269,8 +283,8 @@ export class Agent {
             let res = await this.prompter.promptConvo(history);
 
             console.log(`${this.name} full response to ${source}: ""${res}""`);
-            
-            if (res.trim().length === 0) { 
+
+            if (res.trim().length === 0) {
                 console.warn('no response')
                 break; // empty response ends loop
             }
@@ -362,6 +376,9 @@ export class Agent {
             }
         }
         else {
+	    if (settings.speak) {
+            say(to_translate);
+	    }
             this.bot.chat(message);
         }
     }
@@ -422,7 +439,11 @@ export class Agent {
             this.bot.clearControlStates();
             this.bot.pathfinder.stop(); // clear any lingering pathfinder
             this.bot.modes.unPauseAll();
-            this.actions.resumeAction();
+            setTimeout(() => {
+                if (this.isIdle()) {
+                    this.actions.resumeAction();
+                }
+            }, 1000);
         });
 
         // Init NPC controller
@@ -449,26 +470,31 @@ export class Agent {
     async update(delta) {
         await this.bot.modes.update();
         this.self_prompter.update(delta);
-        if (this.task.data) {
-            let res = this.task.isDone();
-            if (res) {
-                await this.history.add('system', `${res.message} ended with code : ${res.code}`);
-                await this.history.save();
-                console.log('Task finished:', res.message);
-                this.killAll();
-            }
-        }
+        await this.checkTaskDone();
     }
 
     isIdle() {
-        return !this.actions.executing && !this.coder.generating;
+        return !this.actions.executing;
     }
     
+
     cleanKill(msg='Killing agent process...', code=1) {
         this.history.add('system', msg);
         this.bot.chat(code > 1 ? 'Restarting.': 'Exiting.');
         this.history.save();
         process.exit(code);
+    }
+    async checkTaskDone() {
+        if (this.task.data) {
+            let res = this.task.isDone();
+            if (res) {
+                await this.history.add('system', `Task ended with score : ${res.score}`);
+                await this.history.save();
+                // await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 second for save to complete
+                console.log('Task finished:', res.message);
+                this.killAll();
+            }
+        }
     }
 
     killAll() {

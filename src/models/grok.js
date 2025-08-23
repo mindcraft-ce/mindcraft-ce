@@ -3,6 +3,7 @@ import { getKey } from '../utils/keys.js';
 
 // xAI doesn't supply a SDK for their models, but fully supports OpenAI and Anthropic SDKs
 export class Grok {
+    static prefix = 'xai';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.url = url;
@@ -19,13 +20,12 @@ export class Grok {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, stop_seq='***') {
+    async sendRequest(turns, systemMessage) {
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
         const pack = {
-            model: this.model_name || "grok-beta",
+            model: this.model_name || "grok-3-mini-latest",
             messages,
-            stop: [stop_seq],
             ...(this.params || {})
         };
 
@@ -42,7 +42,10 @@ export class Grok {
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
                 console.log('Context length exceeded, trying again with shorter context.');
-                return await this.sendRequest(turns.slice(1), systemMessage, stop_seq);
+                return await this.sendRequest(turns.slice(1), systemMessage);
+            } else if (err.message.includes('The model expects a single `text` element per message.')) {
+                console.log(err);
+                res = 'Vision is only supported by certain models.';
             } else {
                 console.log(err);
                 res = 'My brain disconnected, try again.';
@@ -50,6 +53,24 @@ export class Grok {
         }
         // sometimes outputs special token <|separator|>, just replace it
         return res.replace(/<\|separator\|>/g, '*no response*');
+    }
+
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+        const imageMessages = [...messages];
+        imageMessages.push({
+            role: "user",
+            content: [
+                { type: "text", text: systemMessage },
+                {
+                    type: "image_url",
+                    image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
+                    }
+                }
+            ]
+        });
+        
+        return this.sendRequest(imageMessages, systemMessage);
     }
     
     async embed(text) {

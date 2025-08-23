@@ -1,7 +1,7 @@
 import * as skills from './library/skills.js';
 import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
-import settings from '../../settings.js'
+import settings from './settings.js'
 import convoManager from './conversation.js';
 
 async function say(agent, message) {
@@ -83,6 +83,7 @@ const modes_list = [
         stuck_time: 0,
         last_time: Date.now(),
         max_stuck_time: 20,
+        prev_dig_block: null,
         update: async function (agent) {
             if (agent.isIdle()) { 
                 this.prev_location = null;
@@ -90,12 +91,17 @@ const modes_list = [
                 return; // don't get stuck when idle
             }
             const bot = agent.bot;
-            if (this.prev_location && this.prev_location.distanceTo(bot.entity.position) < this.distance) {
+            const cur_dig_block = bot.targetDigBlock;
+            if (cur_dig_block && !this.prev_dig_block) {
+                this.prev_dig_block = cur_dig_block;
+            }
+            if (this.prev_location && this.prev_location.distanceTo(bot.entity.position) < this.distance && cur_dig_block == this.prev_dig_block) {
                 this.stuck_time += (Date.now() - this.last_time) / 1000;
             }
             else {
                 this.prev_location = bot.entity.position.clone();
                 this.stuck_time = 0;
+                this.prev_dig_block = null;
             }
             if (this.stuck_time > this.max_stuck_time) {
                 say(agent, 'I\'m stuck!');
@@ -108,6 +114,11 @@ const modes_list = [
                 });
             }
             this.last_time = Date.now();
+        },
+        unpause: function () {
+            this.prev_location = null;
+            this.stuck_time = 0;
+            this.prev_dig_block = null;
         }
     },
     {
@@ -145,7 +156,7 @@ const modes_list = [
     {
         name: 'hunting',
         description: 'Hunt nearby animals when idle.',
-        interrupts: [],
+        interrupts: ['action:followPlayer'],
         on: true,
         active: false,
         update: async function (agent) {
@@ -336,13 +347,18 @@ class ModeController {
     }
 
     unpause(mode_name) {
-        modes_map[mode_name].paused = false;
+        const mode = modes_map[mode_name];
+        //if  unpause func is defined and mode is currently paused
+        if (mode.unpause && mode.paused) {
+            mode.unpause();
+        }
+        mode.paused = false;
     }
 
     unPauseAll() {
         for (let mode of modes_list) {
             if (mode.paused) console.log(`Unpausing mode ${mode.name}`);
-            mode.paused = false;
+            this.unpause(mode.name);
         }
     }
 

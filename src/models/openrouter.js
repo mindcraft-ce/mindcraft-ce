@@ -3,6 +3,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class OpenRouter {
+    static prefix = 'openrouter';
     constructor(model_name, url) {
         this.model_name = model_name;
 
@@ -50,6 +51,24 @@ export class OpenRouter {
             res = 'My brain disconnected, try again.';
         }
         return res;
+    }
+
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+        const imageMessages = [...messages];
+        imageMessages.push({
+            role: "user",
+            content: [
+                { type: "text", text: systemMessage },
+                {
+                    type: "image_url",
+                    image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
+                    }
+                }
+            ]
+        });
+        
+        return this.sendRequest(imageMessages, systemMessage);
     }
 
     async embed(text) {

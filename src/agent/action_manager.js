@@ -7,6 +7,8 @@ export class ActionManager {
         this.timedout = false;
         this.resume_func = null;
         this.resume_name = '';
+        this.last_action_time = 0;
+        this.recent_action_counter = 0;
     }
 
     async resumeAction(actionFn, timeout) {
@@ -59,6 +61,25 @@ export class ActionManager {
     async _executeAction(actionLabel, actionFn, timeout = 10) {
         let TIMEOUT;
         try {
+            if (this.last_action_time > 0) {
+                let time_diff = Date.now() - this.last_action_time;
+                if (time_diff < 20) {
+                    this.recent_action_counter++;
+                }
+                else {
+                    this.recent_action_counter = 0;
+                }
+                if (this.recent_action_counter > 3) {
+                    console.warn('Fast action loop detected, cancelling resume.');
+                    this.cancelResume(); // likely cause of repetition
+                }
+                if (this.recent_action_counter > 5) {
+                    console.error('Infinite action loop detected, shutting down.');
+                    this.agent.cleanKill('Infinite action loop detected, shutting down.');
+                    return { success: false, message: 'Infinite action loop detected, shutting down.', interrupted: false, timedout: false };
+                }
+            }
+            this.last_action_time = Date.now();
             console.log('executing code...\n');
 
             // await current action to finish (executing=false), with 10 seconds timeout
@@ -90,13 +111,13 @@ export class ActionManager {
             clearTimeout(TIMEOUT);
 
             // get bot activity summary
-            let output = this._getBotOutputSummary();
+            let output = this.getBotOutputSummary();
             let interrupted = this.agent.bot.interrupt_code;
             let timedout = this.timedout;
             this.agent.clearBotLogs();
 
             // if not interrupted and not generating, emit idle event
-            if (!interrupted && !this.agent.coder.generating) {
+            if (!interrupted) {
                 this.agent.bot.emit('idle');
             }
 
@@ -114,32 +135,33 @@ export class ActionManager {
             await this.stop();
             err = err.toString();
 
-            let message = this._getBotOutputSummary() +
+            let message = this.getBotOutputSummary() +
                 '!!Code threw exception!!\n' +
                 'Error: ' + err + '\n' +
                 'Stack trace:\n' + err.stack+'\n';
 
             let interrupted = this.agent.bot.interrupt_code;
             this.agent.clearBotLogs();
-            if (!interrupted && !this.agent.coder.generating) {
+            if (!interrupted) {
                 this.agent.bot.emit('idle');
             }
             return { success: false, message, interrupted, timedout: false };
         }
     }
 
-    _getBotOutputSummary() {
+    getBotOutputSummary() {
         const { bot } = this.agent;
         if (bot.interrupt_code && !this.timedout) return '';
         let output = bot.output;
         const MAX_OUT = 500;
         if (output.length > MAX_OUT) {
-            output = `Code output is very long (${output.length} chars) and has been shortened.\n
+            output = `Action output is very long (${output.length} chars) and has been shortened.\n
           First outputs:\n${output.substring(0, MAX_OUT / 2)}\n...skipping many lines.\nFinal outputs:\n ${output.substring(output.length - MAX_OUT / 2)}`;
         }
         else {
-            output = 'Code output:\n' + output.toString();
+            output = 'Action output:\n' + output.toString();
         }
+        bot.output = '';
         return output;
     }
 

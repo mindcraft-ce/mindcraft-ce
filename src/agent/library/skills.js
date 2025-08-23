@@ -2,7 +2,10 @@ import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
+import settings from "../../../settings.js";
 
+const blockPlaceDelay = settings.block_place_delay == null ? 0 : settings.block_place_delay;
+const useDelay = blockPlaceDelay > 0;
 
 export function log(bot, message) {
     bot.output += message + '\n';
@@ -111,16 +114,28 @@ export async function craftRecipe(bot, itemName, num=1) {
     return true;
 }
 
-export async function wait(seconds) {
+export async function wait(bot, milliseconds) {
     /**
-     * Waits for the given number of seconds.
-     * @param {number} seconds, the number of seconds to wait.
+     * Waits for the given number of milliseconds.
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @param {number} milliseconds, the number of milliseconds to wait.
      * @returns {Promise<boolean>} true if the wait was successful, false otherwise.
      * @example
-     * await skills.wait(10);
+     * await skills.wait(bot, 1000);
      **/
-    // setTimeout is disabled to prevent unawaited code, so this is a safe alternative
-    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    // setTimeout is disabled to prevent unawaited code, so this is a safe alternative that enables interrupts
+    let timeLeft = milliseconds;
+    let startTime = Date.now();
+    
+    while (timeLeft > 0) {
+        if (bot.interrupt_code) return false;
+        
+        let waitTime = Math.min(2000, timeLeft);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        let elapsed = Date.now() - startTime;
+        timeLeft = milliseconds - elapsed;
+    }
     return true;
 }
 
@@ -213,28 +228,33 @@ export async function smeltItem(bot, itemName, num=1) {
     await furnace.putInput(mc.getItemId(itemName), null, num);
     // wait for the items to smelt
     let total = 0;
-    let collected_last = true;
     let smelted_item = null;
     await new Promise(resolve => setTimeout(resolve, 200));
+    let last_collected = Date.now();
     while (total < num) {
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        console.log('checking...');
-        let collected = false;
+        await new Promise(resolve => setTimeout(resolve, 1000));
         if (furnace.outputItem()) {
             smelted_item = await furnace.takeOutput();
             if (smelted_item) {
                 total += smelted_item.count;
-                collected = true;
+                last_collected = Date.now();
             }
         }
-        if (!collected && !collected_last) {
-            break; // if nothing was collected this time or last time
+        if (Date.now() - last_collected > 11000) {
+            break; // if nothing has been collected in 11 seconds, stop
         }
-        collected_last = collected;
         if (bot.interrupt_code) {
             break;
         }
     }
+    // take all remaining in input/fuel slots
+    if (furnace.inputItem()) {
+        await furnace.takeInput();
+    }
+    if (furnace.fuelItem()) {
+        await furnace.takeFuel();
+    }
+
     await bot.closeWindow(furnace);
 
     if (placedFurnace) {
@@ -448,7 +468,14 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             return false;
         }
         try {
-            await bot.collectBlock.collect(block);
+            if (mc.mustCollectManually(blockType)) {
+                await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
+                await bot.dig(block);
+                await pickupNearbyItems(bot);
+            }
+            else {
+                await bot.collectBlock.collect(block);
+            }
             collected++;
             await autoLight(bot);
         }
@@ -484,7 +511,7 @@ export async function pickupNearbyItems(bot) {
     let pickedUp = 0;
     while (nearestItem) {
         bot.pathfinder.setMovements(new pf.Movements(bot));
-        await bot.pathfinder.goto(new pf.goals.GoalFollow(nearestItem, 0.8), true);
+        await goToGoal(bot, new pf.goals.GoalFollow(nearestItem, 0.8));
         await new Promise(resolve => setTimeout(resolve, 200));
         let prev = nearestItem;
         nearestItem = getNearestItem(bot);
@@ -514,6 +541,7 @@ export async function breakBlockAt(bot, x, y, z) {
     let block = bot.blockAt(Vec3(x, y, z));
     if (block.name !== 'air' && block.name !== 'water' && block.name !== 'lava') {
         if (bot.modes.isOn('cheat')) {
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             let msg = '/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z) + ' air';
             bot.chat(msg);
             log(bot, `Used /setblock to break block at ${x}, ${y}, ${z}.`);
@@ -526,7 +554,7 @@ export async function breakBlockAt(bot, x, y, z) {
             movements.canPlaceOn = false;
             movements.allow1by1towers = false;
             bot.pathfinder.setMovements(movements);
-            await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+            await goToGoal(bot, new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
         }
         if (bot.game.gameMode !== 'creative') {
             await bot.tool.equipForBlock(block);
@@ -563,12 +591,18 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
      * await skills.placeBlock(bot, "oak_log", p.x + 2, p.y, p.x);
      * await skills.placeBlock(bot, "torch", p.x + 1, p.y, p.x, 'side');
      **/
-    if (!mc.getBlockId(blockType)) {
+    if (!mc.getBlockId(blockType) && blockType !== 'air') {
         log(bot, `Invalid block type: ${blockType}.`);
         return false;
     }
 
     const target_dest = new Vec3(Math.floor(x), Math.floor(y), Math.floor(z));
+
+    if (blockType === 'air') {
+        log(bot, `Placing air (removing block) at ${target_dest}.`);
+        return await breakBlockAt(bot, x, y, z);
+    }
+
     if (bot.modes.isOn('cheat') && !dontCheat) {
         if (bot.restrict_to_inventory) {
             let block = bot.inventory.items().find(item => item.name === blockType);
@@ -604,11 +638,14 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         if (blockType.includes('stairs')) {
             blockType += `[facing=${face}]`;
         }
+        if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
         let msg = '/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z) + ' ' + blockType;
         bot.chat(msg);
         if (blockType.includes('door'))
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             bot.chat('/setblock ' + Math.floor(x) + ' ' + Math.floor(y+1) + ' ' + Math.floor(z) + ' ' + blockType + '[half=upper]');
         if (blockType.includes('bed'))
+            if (useDelay) { await new Promise(resolve => setTimeout(resolve, blockPlaceDelay)); }
             bot.chat('/setblock ' + Math.floor(x) + ' ' + Math.floor(y) + ' ' + Math.floor(z-1) + ' ' + blockType + '[part=head]');
         log(bot, `Used /setblock to place ${blockType} at ${target_dest}.`);
         return true;
@@ -695,7 +732,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         let pos = targetBlock.position;
         let movements = new pf.Movements(bot);
         bot.pathfinder.setMovements(movements);
-        await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+        await goToGoal(bot, new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     
     await bot.equip(block, 'hand');
@@ -811,7 +848,7 @@ export async function putInChest(bot, itemName, num=-1) {
 
 export async function takeFromChest(bot, itemName, num=-1) {
     /**
-     * Take the given item from the nearest chest.
+     * Take the given item from the nearest chest, potentially from multiple slots.
      * @param {MinecraftBot} bot, reference to the minecraft bot.
      * @param {string} itemName, the item or block name to take from the chest.
      * @param {number} num, the number of items to take from the chest. Defaults to -1, which takes all items.
@@ -826,17 +863,33 @@ export async function takeFromChest(bot, itemName, num=-1) {
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
     const chestContainer = await bot.openContainer(chest);
-    let item = chestContainer.containerItems().find(item => item.name === itemName);
-    if (!item) {
+    
+    // Find all matching items in the chest
+    let matchingItems = chestContainer.containerItems().filter(item => item.name === itemName);
+    if (matchingItems.length === 0) {
         log(bot, `Could not find any ${itemName} in the chest.`);
         await chestContainer.close();
         return false;
     }
-    let to_take = num === -1 ? item.count : Math.min(num, item.count);
-    await chestContainer.withdraw(item.type, null, to_take);
+    
+    let totalAvailable = matchingItems.reduce((sum, item) => sum + item.count, 0);
+    let remaining = num === -1 ? totalAvailable : Math.min(num, totalAvailable);
+    let totalTaken = 0;
+    
+    // Take items from each slot until we've taken enough or run out
+    for (const item of matchingItems) {
+        if (remaining <= 0) break;
+        
+        let toTakeFromSlot = Math.min(remaining, item.count);
+        await chestContainer.withdraw(item.type, null, toTakeFromSlot);
+        
+        totalTaken += toTakeFromSlot;
+        remaining -= toTakeFromSlot;
+    }
+    
     await chestContainer.close();
-    log(bot, `Successfully took ${to_take} ${itemName} from the chest.`);
-    return true;
+    log(bot, `Successfully took ${totalTaken} ${itemName} from the chest.`);
+    return totalTaken > 0;
 }
 
 export async function viewChest(bot) {
@@ -904,6 +957,10 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
      * @example
      * await skills.giveToPlayer(bot, "oak_log", "player1");
      **/
+    if (bot.username === username) {
+        log(bot, `You cannot give items to yourself.`);
+        return false;
+    }
     let player = bot.players[username].entity
     if (!player) {
         log(bot, `Could not find ${username}.`);
@@ -917,8 +974,25 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     }
     // if we are too close, make some distance
     if (bot.entity.position.distanceTo(player.position) < 2) {
+        let too_close = true;
+        let start_moving_away = Date.now();
         await moveAwayFromEntity(bot, player, 2);
+        while (too_close && !bot.interrupt_code) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            too_close = bot.entity.position.distanceTo(player.position) < 5;
+            if (too_close) {
+                await moveAwayFromEntity(bot, player, 5);
+            }
+            if (Date.now() - start_moving_away > 3000) {
+                break;
+            }
+        }
+        if (too_close) {
+            log(bot, `Failed to give ${itemType} to ${username}, too close.`);
+            return false;
+        }
     }
+
     await bot.lookAt(player.position);
     if (await discard(bot, itemType, num)) {
         let given = false;
@@ -944,6 +1018,115 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     return false;
 }
 
+export async function goToGoal(bot, goal) {
+    /**
+     * Navigate to the given goal. Use doors and attempt minimally destructive movements.
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @param {pf.goals.Goal} goal, the goal to navigate to.
+     **/
+
+    const nonDestructiveMovements = new pf.Movements(bot);
+    const dontBreakBlocks = ['glass', 'glass_pane'];
+    for (let block of dontBreakBlocks) {
+        nonDestructiveMovements.blocksCantBreak.add(mc.getBlockId(block));
+    }
+    nonDestructiveMovements.digCost = 10;
+
+    const destructiveMovements = new pf.Movements(bot);
+
+    let final_movements = destructiveMovements;
+
+    const pathfind_timeout = 1000;
+    if (await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathfind_timeout).status === 'success') {
+        final_movements = nonDestructiveMovements;
+        log(bot, `Found non-destructive path.`);
+    }
+    else if (await bot.pathfinder.getPathTo(destructiveMovements, goal, pathfind_timeout).status === 'success') {
+        log(bot, `Found destructive path.`);
+    }
+    else {
+        log(bot, `Path not found, but attempting to navigate anyway using destructive movements.`);
+    }
+
+    const doorCheckInterval = startDoorInterval(bot);
+
+    bot.pathfinder.setMovements(final_movements);
+    try {
+        await bot.pathfinder.goto(goal);
+        clearInterval(doorCheckInterval);
+        return true;
+    } catch (err) {
+        clearInterval(doorCheckInterval);
+        // we need to catch so we can clean up the door check interval, then rethrow the error
+        throw err;
+    }
+}
+
+let _doorInterval = null;
+function startDoorInterval(bot) {
+    /**
+     * Start helper interval that opens nearby doors if the bot is stuck.
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @returns {number} the interval id.
+     **/
+    if (_doorInterval) {
+        clearInterval(_doorInterval);
+    }
+    let prev_pos = bot.entity.position.clone();
+    let prev_check = Date.now();
+    let stuck_time = 0;
+
+
+    const doorCheckInterval = setInterval(() => {
+        const now = Date.now();
+        if (bot.entity.position.distanceTo(prev_pos) >= 0.1) {
+            stuck_time = 0;
+        } else {
+            stuck_time += now - prev_check;
+        }
+        
+        if (stuck_time > 1200) {
+            // shuffle positions so we're not always opening the same door
+            const positions = [
+                bot.entity.position.clone(),
+                bot.entity.position.offset(0, 0, 1),
+                bot.entity.position.offset(0, 0, -1), 
+                bot.entity.position.offset(1, 0, 0),
+                bot.entity.position.offset(-1, 0, 0),
+            ]
+            let elevated_positions = positions.map(position => position.offset(0, 1, 0));
+            positions.push(...elevated_positions);
+            positions.push(bot.entity.position.offset(0, 2, 0)); // above head
+            positions.push(bot.entity.position.offset(0, -1, 0)); // below feet
+            
+            let currentIndex = positions.length;
+            while (currentIndex != 0) {
+                let randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [positions[currentIndex], positions[randomIndex]] = [
+                positions[randomIndex], positions[currentIndex]];
+            }
+            
+            for (let position of positions) {
+                let block = bot.blockAt(position);
+                if (block && block.name &&
+                    !block.name.includes('iron') &&
+                    (block.name.includes('door') ||
+                     block.name.includes('fence_gate') ||
+                     block.name.includes('trapdoor'))) 
+                {
+                    bot.activateBlock(block);
+                    break;
+                }
+            }
+            stuck_time = 0;
+        }
+        prev_pos = bot.entity.position.clone();
+        prev_check = now;
+    }, 200);
+    _doorInterval = doorCheckInterval;
+    return doorCheckInterval;
+}
 
 export async function goToPosition(bot, x, y, z, min_distance=2) {
     /**
@@ -967,10 +1150,38 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
         log(bot, `Teleported to ${x}, ${y}, ${z}.`);
         return true;
     }
-    bot.pathfinder.setMovements(new pf.Movements(bot));
-    await bot.pathfinder.goto(new pf.goals.GoalNear(x, y, z, min_distance));
-    log(bot, `You have reached at ${x}, ${y}, ${z}.`);
-    return true;
+    
+    const checkDigProgress = () => {
+        if (bot.targetDigBlock) {
+            const targetBlock = bot.targetDigBlock;
+            const itemId = bot.heldItem ? bot.heldItem.type : null;
+            if (!targetBlock.canHarvest(itemId)) {
+                log(bot, `Pathfinding stopped: Cannot break ${targetBlock.name} with current tools.`);
+                bot.pathfinder.stop();
+                bot.stopDigging();
+            }
+        }
+    };
+    
+    const progressInterval = setInterval(checkDigProgress, 1000);
+    
+    try {
+        await goToGoal(bot, new pf.goals.GoalNear(x, y, z, min_distance));
+        clearInterval(progressInterval);
+        const distance = bot.entity.position.distanceTo(new Vec3(x, y, z));
+        if (distance <= min_distance+1) {
+            log(bot, `You have reached at ${x}, ${y}, ${z}.`);
+            return true;
+        }
+        else {
+            log(bot, `Unable to reach ${x}, ${y}, ${z}, you are ${Math.round(distance)} blocks away.`);
+            return false;
+        }
+    } catch (err) {
+        log(bot, `Pathfinding stopped: ${err.message}.`);
+        clearInterval(progressInterval);
+        return false;
+    }
 }
 
 export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64) {
@@ -994,7 +1205,7 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         log(bot, `Could not find any ${blockType} in ${range} blocks.`);
         return false;
     }
-    log(bot, `Found ${blockType} at ${block.position}.`);
+    log(bot, `Found ${blockType} at ${block.position}. Navigating...`);
     await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance);
     return true;
     
@@ -1030,7 +1241,10 @@ export async function goToPlayer(bot, username, distance=3) {
      * @example
      * await skills.goToPlayer(bot, "player");
      **/
-
+    if (bot.username === username) {
+        log(bot, `You are already at ${username}.`);
+        return true;
+    }
     if (bot.modes.isOn('cheat')) {
         bot.chat('/tp @s ' + username);
         log(bot, `Teleported to ${username}.`);
@@ -1045,9 +1259,10 @@ export async function goToPlayer(bot, username, distance=3) {
         return false;
     }
 
-    const move = new pf.Movements(bot);
-    bot.pathfinder.setMovements(move);
-    await bot.pathfinder.goto(new pf.goals.GoalFollow(player, distance), true);
+    distance = Math.max(distance, 0.5);
+    const goal = new pf.goals.GoalFollow(player, distance);
+
+    await goToGoal(bot, goal, true);
 
     log(bot, `You have reached ${username}.`);
 }
@@ -1067,24 +1282,54 @@ export async function followPlayer(bot, username, distance=4) {
         return false;
 
     const move = new pf.Movements(bot);
+    move.digCost = 10;
     bot.pathfinder.setMovements(move);
+    let doorCheckInterval = startDoorInterval(bot);
+
     bot.pathfinder.setGoal(new pf.goals.GoalFollow(player, distance), true);
     log(bot, `You are now actively following player ${username}.`);
+
 
     while (!bot.interrupt_code) {
         await new Promise(resolve => setTimeout(resolve, 500));
         // in cheat mode, if the distance is too far, teleport to the player
-        if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(player.position) > 100 && player.isOnGround) {
+        const distance_from_player = bot.entity.position.distanceTo(player.position);
+
+        const teleport_distance = 100;
+        const ignore_modes_distance = 30; 
+        const nearby_distance = distance + 2;
+
+        if (distance_from_player > teleport_distance && bot.modes.isOn('cheat')) {
+            // teleport with cheat mode
             await goToPlayer(bot, username);
         }
-        if (bot.modes.isOn('unstuck')) {
-            const is_nearby = bot.entity.position.distanceTo(player.position) <= distance + 1;
-            if (is_nearby)
-                bot.modes.pause('unstuck');
-            else
-                bot.modes.unpause('unstuck');
+        else if (distance_from_player > ignore_modes_distance) {
+            // these modes slow down the bot, and we want to catch up
+            bot.modes.pause('item_collecting');
+            bot.modes.pause('hunting');
+            bot.modes.pause('torch_placing');
+        }
+        else if (distance_from_player <= ignore_modes_distance) {
+            bot.modes.unpause('item_collecting');
+            bot.modes.unpause('hunting');
+            bot.modes.unpause('torch_placing');
+        }
+
+        if (distance_from_player <= nearby_distance) {
+            clearInterval(doorCheckInterval);
+            doorCheckInterval = null;
+            bot.modes.pause('unstuck');
+            bot.modes.pause('elbow_room');
+        }
+        else {
+            if (!doorCheckInterval) {
+                doorCheckInterval = startDoorInterval(bot);
+            }
+            bot.modes.unpause('unstuck');
+            bot.modes.unpause('elbow_room');
         }
     }
+    clearInterval(doorCheckInterval);
     return true;
 }
 
@@ -1107,7 +1352,6 @@ export async function moveAway(bot, distance) {
         const move = new pf.Movements(bot);
         const path = await bot.pathfinder.getPathTo(move, inverted_goal, 10000);
         let last_move = path.path[path.path.length-1];
-        console.log(last_move);
         if (last_move) {
             let x = Math.floor(last_move.x);
             let y = Math.floor(last_move.y);
@@ -1117,7 +1361,7 @@ export async function moveAway(bot, distance) {
         }
     }
 
-    await bot.pathfinder.goto(inverted_goal);
+    await goToGoal(bot, inverted_goal);
     let new_pos = bot.entity.position;
     log(bot, `Moved away from nearest entity to ${new_pos}.`);
     return true;
@@ -1311,7 +1555,7 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
         bot.pathfinder.setMovements(new pf.Movements(bot));
-        await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+        await goToGoal(bot, new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     if (block.name !== 'farmland') {
         let hoe = bot.inventory.items().find(item => item.name.includes('hoe'));
@@ -1357,9 +1601,66 @@ export async function activateNearestBlock(bot, type) {
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
         let pos = block.position;
         bot.pathfinder.setMovements(new pf.Movements(bot));
-        await bot.pathfinder.goto(new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
+        await goToGoal(bot, new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
     }
     await bot.activateBlock(block);
     log(bot, `Activated ${type} at x:${block.position.x.toFixed(1)}, y:${block.position.y.toFixed(1)}, z:${block.position.z.toFixed(1)}.`);
+    return true;
+}
+
+export async function digDown(bot, distance = 10) {
+    /**
+     * Digs down a specified distance. Will stop if it reaches lava, water, or a fall of >=4 blocks below the bot.
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @param {int} distance, distance to dig down.
+     * @returns {Promise<boolean>} true if successfully dug all the way down.
+     * @example
+     * await skills.digDown(bot, 10);
+     **/
+
+    let start_block_pos = bot.blockAt(bot.entity.position).position;
+    for (let i = 1; i <= distance; i++) {
+        const targetBlock = bot.blockAt(start_block_pos.offset(0, -i, 0));
+        let belowBlock = bot.blockAt(start_block_pos.offset(0, -i-1, 0));
+
+        if (!targetBlock || !belowBlock) {
+            log(bot, `Dug down ${i-1} blocks, but reached the end of the world.`);
+            return true;
+        }
+
+        // Check for lava, water
+        if (targetBlock.name === 'lava' || targetBlock.name === 'water' || 
+            belowBlock.name === 'lava' || belowBlock.name === 'water') {
+            log(bot, `Dug down ${i-1} blocks, but reached ${belowBlock ? belowBlock.name : '(lava/water)'}`)
+            return false;
+        }
+
+        const MAX_FALL_BLOCKS = 2;
+        let num_fall_blocks = 0;
+        for (let j = 0; j <= MAX_FALL_BLOCKS; j++) {
+            if (!belowBlock || (belowBlock.name !== 'air' && belowBlock.name !== 'cave_air')) {
+                break;
+            }
+            num_fall_blocks++;
+            belowBlock = bot.blockAt(belowBlock.position.offset(0, -1, 0));
+        }
+        if (num_fall_blocks > MAX_FALL_BLOCKS) {
+            log(bot, `Dug down ${i-1} blocks, but reached a drop below the next block.`);
+            return false;
+        }
+
+        if (targetBlock.name === 'air' || targetBlock.name === 'cave_air') {
+            log(bot, 'Skipping air block');
+            console.log(targetBlock.position);
+            continue;
+        }
+
+        let dug = await breakBlockAt(bot, targetBlock.position.x, targetBlock.position.y, targetBlock.position.z);
+        if (!dug) {
+            log(bot, 'Failed to dig block at position:' + targetBlock.position);
+            return false;
+        }
+    }
+    log(bot, `Dug down ${distance} blocks.`);
     return true;
 }

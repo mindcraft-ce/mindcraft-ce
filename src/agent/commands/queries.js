@@ -2,6 +2,8 @@ import * as world from '../library/world.js';
 import * as mc from '../../utils/mcdata.js';
 import { getCommandDocs } from './index.js';
 import convoManager from '../conversation.js';
+import { checkLevelBlueprint, checkBlueprint } from '../tasks/construction_tasks.js';
+import { load } from 'cheerio';
 
 const pad = (str) => {
     return '\n' + str + '\n';
@@ -177,6 +179,46 @@ export const queryList = [
         perform: async function (agent) {
             return "Saved place names: " + agent.memory_bank.getKeys();
         }
+    }, 
+    {
+        name: '!checkBlueprintLevel',
+        description: 'Check if the level is complete and what blocks still need to be placed for the blueprint',
+        params: {
+            'levelNum': { type: 'int', description: 'The level number to check.', domain: [0, Number.MAX_SAFE_INTEGER] }
+        },
+        perform: function (agent, levelNum) {
+            let res = checkLevelBlueprint(agent, levelNum);
+            console.log(res);
+            return pad(res);
+        }
+    }, 
+    {
+        name: '!checkBlueprint',
+        description: 'Check what blocks still need to be placed for the blueprint',
+        perform: function (agent) {
+            let res = checkBlueprint(agent);
+            return pad(res);
+        }
+    }, 
+    {
+        name: '!getBlueprint',
+        description: 'Get the blueprint for the building',
+        perform: function (agent) {
+            let res = agent.task.blueprint.explain();
+            return pad(res);
+        }
+    }, 
+    {
+        name: '!getBlueprintLevel',
+        description: 'Get the blueprint for the building',
+        params: {
+            'levelNum': { type: 'int', description: 'The level number to check.', domain: [0, Number.MAX_SAFE_INTEGER] }
+        },
+        perform: function (agent, levelNum) {
+            let res = agent.task.blueprint.explainLevel(levelNum);
+            console.log(res);
+            return pad(res);
+        }
     },
     {
         name: '!getCraftingPlan',
@@ -208,17 +250,52 @@ export const queryList = [
             }
 
             // Generate crafting plan
-            let craftingPlan = mc.getDetailedCraftingPlan(target_item, quantity, curr_inventory);
-            craftingPlan = prefixMessage + craftingPlan;
-            console.log(craftingPlan);
-            return pad(craftingPlan);
+            try {
+                let craftingPlan = mc.getDetailedCraftingPlan(target_item, quantity, curr_inventory);
+                craftingPlan = prefixMessage + craftingPlan;
+                return pad(craftingPlan);
+            } catch (error) {
+                console.error("Error generating crafting plan:", error);
+                return `An error occurred while generating the crafting plan: ${error.message}`;
+            }
+            
+            
         },
+    },
+    {
+        name: '!searchWiki',
+        description: 'Search the Minecraft Wiki for the given query.',
+        params: {
+            'query': { type: 'string', description: 'The query to search for.' }
+        },
+        perform: async function (agent, query) {
+            const url = `https://minecraft.wiki/w/${query}`
+            try {
+                const response = await fetch(url);
+                if (response.status === 404) {
+                  return `${query} was not found on the Minecraft Wiki. Try adjusting your search term.`;
+                }
+                const html = await response.text();
+                const $ = load(html);
+            
+                const parserOutput = $("div.mw-parser-output");
+                
+                parserOutput.find("table.navbox").remove();
+
+                const divContent = parserOutput.text();
+            
+                return divContent.trim();
+              } catch (error) {
+                console.error("Error fetching or parsing HTML:", error);
+                return `The following error occurred: ${error}`
+              }
+        }
     },
     {
         name: '!help',
         description: 'Lists all available commands and their descriptions.',
         perform: async function (agent) {
-            return getCommandDocs();
+            return getCommandDocs(agent);
         }
     },
 ];

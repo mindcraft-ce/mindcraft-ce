@@ -1,5 +1,5 @@
 import minecraftData from 'minecraft-data';
-import settings from '../../settings.js';
+import settings from '../agent/settings.js';
 import { createBot } from 'mineflayer';
 import prismarine_items from 'prismarine-item';
 import { pathfinder } from 'mineflayer-pathfinder';
@@ -8,10 +8,9 @@ import { plugin as collectblock } from 'mineflayer-collectblock';
 import { plugin as autoEat } from 'mineflayer-auto-eat';
 import plugin from 'mineflayer-armor-manager';
 const armorManager = plugin;
-
-const mc_version = settings.minecraft_version;
-const mcdata = minecraftData(mc_version);
-const Item = prismarine_items(mc_version);
+let mc_version = null;
+let mcdata = null;
+let Item = null;
 
 /**
  * @typedef {string} ItemName
@@ -54,6 +53,9 @@ export const WOOL_COLORS = [
 
 
 export function initBot(username) {
+    mc_version = settings.minecraft_version;
+    mcdata = minecraftData(mc_version);
+    Item = prismarine_items(mc_version);
     let bot = createBot({
         username: username,
 
@@ -84,6 +86,16 @@ export function isHuntable(mob) {
 export function isHostile(mob) {
     if (!mob || !mob.name) return false;
     return  (mob.type === 'mob' || mob.type === 'hostile') && mob.name !== 'iron_golem' && mob.name !== 'snow_golem';
+}
+
+// blocks that don't work with collectBlock, need to be manually collected
+export function mustCollectManually(blockName) {
+    // all crops (that aren't normal blocks), torches, buttons, levers, redstone,
+    const full_names = ['wheat', 'carrots', 'potatoes', 'beetroots', 'nether_wart', 'cocoa', 'sugar_cane', 'kelp', 'short_grass', 'fern', 'tall_grass', 'bamboo',
+        'poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'oxeye_daisy', 'cornflower', 'lilac', 'wither_rose', 'lily_of_the_valley', 'wither_rose',
+        'lever', 'redstone_wire', 'lantern']
+    const partial_names = ['sapling', 'torch', 'button', 'carpet', 'pressure_plate', 'mushroom', 'tulip', 'bush', 'vines', 'fern']
+    return full_names.includes(blockName.toLowerCase()) || partial_names.some(partial => blockName.toLowerCase().includes(partial));
 }
 
 export function getItemId(itemName) {
@@ -195,6 +207,13 @@ export function getItemCraftingRecipes(itemName) {
             {craftedCount : r.result.count}
         ]);
     }
+    // sort recipes by if their ingredients include common items
+    const commonItems = ['oak_planks', 'oak_log', 'coal', 'cobblestone'];
+    recipes.sort((a, b) => {
+        let commonCountA = Object.keys(a[0]).filter(key => commonItems.includes(key)).reduce((acc, key) => acc + a[0][key], 0);
+        let commonCountB = Object.keys(b[0]).filter(key => commonItems.includes(key)).reduce((acc, key) => acc + b[0][key], 0);
+        return commonCountB - commonCountA;
+    });
 
     return recipes;
 }
@@ -338,6 +357,7 @@ export function initializeLoopingItems() {
 
     loopingItems = new Set(['coal',
         'wheat',
+        'bone_meal',
         'diamond',
         'emerald',
         'raw_iron',
@@ -393,7 +413,7 @@ export function getDetailedCraftingPlan(targetItem, count = 1, current_inventory
     const inventory = { ...current_inventory };
     const leftovers = {};
     const plan = craftItem(targetItem, count, inventory, leftovers);
-    return formatPlan(plan);
+    return formatPlan(targetItem, plan);
 }
 
 function isBaseItem(item) {
@@ -459,7 +479,7 @@ function craftItem(item, count, inventory, leftovers, crafted = { required: {}, 
     return crafted;
 }
 
-function formatPlan({ required, steps, leftovers }) {
+function formatPlan(targetItem, { required, steps, leftovers }) {
     const lines = [];
 
     if (Object.keys(required).length > 0) {
@@ -474,6 +494,10 @@ function formatPlan({ required, steps, leftovers }) {
 
     lines.push('');
     lines.push(...steps);
+
+    if (Object.keys(required).some(item => item.includes('oak')) && !targetItem.includes('oak')) {
+        lines.push('Note: Any varient of wood can be used for this recipe.');
+    }
 
     if (Object.keys(leftovers).length > 0) {
         lines.push('\nYou will have leftover:');
