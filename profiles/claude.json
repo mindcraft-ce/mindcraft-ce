@@ -1,7 +1,7 @@
 {
     "name": "claude",
 
-    "model": "claude-3-5-sonnet-latest",
+    "model": "claude-4-sonnet-latest",
     
     "embedding": "openai"
 }
