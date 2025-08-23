@@ -70,6 +70,8 @@ You can configure the agent's name, model, and prompts in their profile like `an
 If you use Ollama, to install the models used by default (generation and embedding), execute the following terminal command:
 `ollama pull llama3.1 && ollama pull nomic-embed-text`
 
+To use Azure, you can reuse the `OPENAI_API_KEY` environment variable. You can get the key from the Azure portal. See [azure.json](profiles/azure.json) for an example.
+
 ### Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:
 ```javascript
