@@ -63,7 +63,7 @@ export class Pollinations {
     }
 }
 
-export async function sendAudioRequest(text, model, voice, url) {
+const sendAudioRequest = async (text, model, voice, url) => {
     const payload = {
         model: model,
         modalities: ["text", "audio"],
@@ -107,4 +107,9 @@ export async function sendAudioRequest(text, model, voice, url) {
         console.error("TTS fetch failed:", err);
         return null;
     }
+}
+
+export const TTSConfig = {
+    sendAudioRequest: sendAudioRequest,
+    baseUrl: 'https://text.pollinations.ai/openai',
 }

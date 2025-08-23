@@ -1,5 +1,6 @@
 import { exec, spawn } from 'child_process';
-import { sendAudioRequest } from '../models/pollinations.js';
+import { TTSConfig as pollinationsTTSConfig } from '../models/pollinations.js';
+import { TTSConfig as gptTTSConfig } from '../models/gpt.js';
 
 let speakingQueue = [];
 let isSpeaking = false;
@@ -19,7 +20,7 @@ async function processQueue() {
 
   const isWin = process.platform === 'win32';
   const isMac = process.platform === 'darwin';
-  const model = speak_model || 'pollinations/openai-audio/echo';
+  const model = speak_model || 'openai/tts-1/echo';
 
   if (model === 'system') {
     // system TTS
@@ -40,12 +41,12 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
 
     function getModelUrl(prov) {
       if (prov === 'pollinations') {
-        return 'https://text.pollinations.ai/openai'
+        return pollinationsTTSConfig.baseUrl;
       } else if (prov === 'openai') {
-        return 'https://api.openai.com/v1/audio/speech'
+        return gptTTSConfig.baseUrl;
       } else {
         // fallback
-        return 'https://api.openai.com/v1/audio/speech'
+        return 'https://api.openai.com/v1'
       }
     }
 
@@ -62,7 +63,15 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
     }
 
     try {
-      let audioData = await sendAudioRequest(txt, mdl, voice, url);
+      let audioData;
+      if (prov === "pollinations") {
+        audioData = await pollinationsTTSConfig.sendAudioRequest(txt, mdl, voice, url);
+      } else if (prov === "openai") {
+        audioData = await gptTTSConfig.sendAudioRequest(txt, mdl, voice, url);
+      } else {
+        throw new Error(`TTS Provider ${prov} is not supported.`);
+      }
+      
       if (!audioData) {
         throw new Error("TTS model did not return audio data");
         // will be handled below
