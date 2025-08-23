@@ -228,7 +228,7 @@ export class Prompter {
                     console.error('Error: Generated response is not a string', generation);
                     throw new Error('Generated response is not a string');
                 }
-                console.log("Generated response:", generation); 
+                console.log("Generated response:", generation);
                 await this._saveLog(prompt, messages, generation, 'conversation');
 
             } catch (error) {
@@ -245,7 +245,7 @@ export class Prompter {
             if (current_msg_time !== this.most_recent_msg_time) {
                 console.warn(`${this.agent.name} received new message while generating, discarding old response.`);
                 return '';
-            } 
+            }
 
             if (generation?.includes('</think>')) {
                 const [_, afterThink] = generation.split('</think>')
@@ -282,7 +282,7 @@ export class Prompter {
         await this._saveLog(prompt, to_summarize, resp, 'memSaving');
         if (resp?.includes('</think>')) {
             const [_, afterThink] = resp.split('</think>')
-            resp = afterThink
+            resp = afterThink;
         }
         return resp;
     }
