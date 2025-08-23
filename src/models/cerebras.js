@@ -3,9 +3,9 @@ import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Cerebras {
+    static prefix = 'cerebras';
     constructor(model_name, url, params) {
-        // Strip the prefix
-        this.model_name = model_name.replace('cerebras/', '');
+        this.model_name = model_name;
         this.url = url;
         this.params = params;
 
@@ -19,7 +19,7 @@ export class Cerebras {
         messages.unshift({ role: 'system', content: systemMessage });
 
         const pack = {
-            model: this.model_name || 'llama-4-scout-17b-16e-instruct',
+            model: this.model_name || 'gpt-oss-120b',
             messages,
             stream: false,
             ...(this.params || {}),
@@ -37,6 +37,24 @@ export class Cerebras {
         return res;
     }
 
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+        const imageMessages = [...messages];
+        imageMessages.push({
+            role: "user",
+            content: [
+                { type: "text", text: systemMessage },
+                {
+                    type: "image_url",
+                    image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
+                    }
+                }
+            ]
+        });
+        
+        return this.sendRequest(imageMessages, systemMessage);
+    }
+    
     async embed(text) {
         throw new Error('Embeddings are not supported by Cerebras.');
     }
