@@ -3,6 +3,7 @@ import { toSinglePrompt, strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Gemini {
+    static prefix = 'google';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
@@ -142,15 +143,15 @@ export class Gemini {
     }
 
     async embed(text) {
-        let model;
+        let model = this.model_name || "text-embedding-004";
         if (this.url) {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" },
+                { model },
                 { baseUrl: this.url }
             );
         } else {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" }
+                { model }
             );
         }
 

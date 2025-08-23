@@ -4,6 +4,7 @@ import { getKey } from '../utils/keys.js';
 
 // llama, mistral
 export class ReplicateAPI {
+	static prefix = 'replicate';
 	constructor(model_name, url, params) {
 		this.model_name = model_name;
 		this.url = url;

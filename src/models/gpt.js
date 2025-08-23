@@ -3,6 +3,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class GPT {
+    static prefix = 'openai';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
@@ -22,20 +23,21 @@ export class GPT {
     async sendRequest(turns, systemMessage, stop_seq='***') {
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
         messages = strictFormat(messages);
+        let model = this.model_name || "gpt-4o-mini";
         const pack = {
-            model: this.model_name || "gpt-3.5-turbo",
+            model: model,
             messages,
             stop: stop_seq,
             ...(this.params || {})
         };
-        if (this.model_name.includes('o1')) {
+        if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
             delete pack.stop;
         }
 
         let res = null;
 
         try {
-            console.log('Awaiting openai api response from model', this.model_name)
+            console.log('Awaiting openai api response from model', model)
             // console.log('Messages:', messages);
             let completion = await this.openai.chat.completions.create(pack);
             if (completion.choices[0].finish_reason == 'length')
@@ -88,6 +90,3 @@ export class GPT {
     }
 
 }
-
-
-

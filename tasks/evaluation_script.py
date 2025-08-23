@@ -13,7 +13,6 @@ import json
 import glob
 import socket
 
-from tqdm import tqdm
 import boto3
 
 BLOCKED_ACTIONS_COOKING = [
@@ -119,7 +118,7 @@ def aggregate_results(local_folders):
     elif "construction" in task_type:
         task_type = "construction"
 
-    for folder_path in tqdm(local_folders):
+    for folder_path in local_folders:
         folder_name = os.path.basename(folder_path)
 
         try: 
@@ -180,7 +179,8 @@ def check_folder_results(folder_path):
             
         # Print summary
         print("\n=== Evaluation Results ===")
-        print(f"Total tasks evaluated: {results['total']}")
+        print("\nEvaluating Tasks!")
+        print(f"Results so far: {results['total']}")
 
         if "construction" not in folder_path:
             print(f"Successful tasks: {results['successful']}")
@@ -518,7 +518,7 @@ def make_ops(agent_names, session_name):
     if agents_op:
         print("Agents are operators! You are good to go :D")
     else: 
-        print("Agents are not operators! Something went wrong :(")
+        print("Agents are not operators! We will need to try making them operators again!")
         make_ops(agent_names, session_name)
 
 def check_agent_ops(agent_names, ops_file="ops.json"):
@@ -743,6 +743,7 @@ def main():
     parser.add_argument('--no-pruning', action='store_true', help='Disable pruning of the actions')
     parser.add_argument('--block_conversation', action='store_true', help='Block conversation actions')
     parser.add_argument('--check', metavar='FOLDER_PATH', help='Check and evaluate results in the specified folder without running experiments')
+    parser.add_argument('--usernames', default="", help='Comma-separated list of usernames for the agents')
 
     args = parser.parse_args()
     print(args)
@@ -763,6 +764,24 @@ def main():
         clean_up_server_files(args.num_parallel)
     if args.add_keys:
         update_keys_json()
+
+    # change task file to include usernames
+    with open(args.task_path, 'r') as f:
+        content = f.read()
+        task = json.loads(content) 
+    # check if human count for first task is non zero
+    if "human_count" in task[list(task.keys())[0]]:
+        # check if human count is non zero
+        human_count = task[list(task.keys())[0]]["human_count"]
+        username_lst = args.usernames.replace(" ", "").split(",")
+        if len(username_lst) != human_count:
+            raise ValueError(f"Number of usernames provided ({len(username_lst)}) does not match human count ({human_count})")
+        if human_count > 0:
+            for task_id in task.keys():
+                task[task_id]["usernames"] = username_lst
+        # dump to task_path 
+        with open(args.task_path, 'w') as f:
+            json.dump(task, f, indent=4)
     
     launch_parallel_experiments(args.task_path, 
                                 num_exp=args.num_exp, 

@@ -13,12 +13,16 @@ Do not connect this bot to public servers with coding enabled. This project allo
 - [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to v1.21.1, recommend v1.20.4)
 - [Node.js Installed](https://nodejs.org/) (at least v14)
 - One of these: [OpenAI API Key](https://openai.com/blog/openai-api) | [Gemini API Key](https://aistudio.google.com/app/apikey) | [Anthropic API Key](https://docs.anthropic.com/claude/docs/getting-access-to-claude) | [Replicate API Key](https://replicate.com/) | [Hugging Face API Key](https://huggingface.co/) | [Groq API Key](https://console.groq.com/keys) | [Ollama Installed](https://ollama.com/download). | [Mistral API Key](https://docs.mistral.ai/getting-started/models/models_overview/) | [Qwen API Key [Intl.]](https://www.alibabacloud.com/help/en/model-studio/developer-reference/get-api-key)/[[cn]](https://help.aliyun.com/zh/model-studio/getting-started/first-api-call-to-qwen?) | [Novita AI API Key](https://novita.ai/settings?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link#key-management) | [Cerebras API Key](https://cloud.cerebras.ai)
+- [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to v1.21.1, recommend v1.21.1)
+- [Node.js Installed](https://nodejs.org/) (at least v18)
+- One of these: [OpenAI API Key](https://openai.com/blog/openai-api) | [Gemini API Key](https://aistudio.google.com/app/apikey) | [Anthropic API Key](https://docs.anthropic.com/claude/docs/getting-access-to-claude) | [Replicate API Key](https://replicate.com/) | [Hugging Face API Key](https://huggingface.co/) | [Groq API Key](https://console.groq.com/keys) | [Ollama Installed](https://ollama.com/download). | [Mistral API Key](https://docs.mistral.ai/getting-started/models/models_overview/) | [Qwen API Key [Intl.]](https://www.alibabacloud.com/help/en/model-studio/developer-reference/get-api-key)/[[cn]](https://help.aliyun.com/zh/model-studio/getting-started/first-api-call-to-qwen?) | [Novita AI API Key](https://novita.ai/settings?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link#key-management) | [Cerebras API Key](https://cloud.cerebras.ai)
+
 
 ## Install and Run
 
 1. Make sure you have the requirements above.
 
-2. Clone or download this repository (big green button)
+2. Clone or download this repository (big green button) 'git clone https://github.com/kolbytn/mindcraft.git'
 
 3. Rename `keys.example.json` to `keys.json` and fill in your API keys (you only need one). The desired model is set in `andy.json` or other profiles. For other models refer to the table below.
 
@@ -28,7 +32,7 @@ Do not connect this bot to public servers with coding enabled. This project allo
 
 6. Run `node main.js` from the installed directory
 
-If you encounter issues, check the [FAQ](https://github.com/kolbytn/mindcraft/blob/main/FAQ.md) or find support on [discord](https://discord.gg/mp73p35dzC). We are currently not very responsive to github issues.
+If you encounter issues, check the [FAQ](https://github.com/kolbytn/mindcraft/blob/main/FAQ.md) or find support on [discord](https://discord.gg/mp73p35dzC). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](minecollab.md#installation)
 
 ## Tasks
 
@@ -167,10 +171,13 @@ Some of the node modules that we depend on have bugs in them. To add a patch, ch
 ## Citation:
 
 ```
-@misc{mindcraft2023,
-    Author = {Kolby Nottingham and Max Robinson},
-    Title = {MINDcraft: LLM Agents for cooperation, competition, and creativity in Minecraft},
-    Year = {2023},
-    url={https://github.com/kolbytn/mindcraft}
+@article{mindcraft2025,
+  title = {Collaborating Action by Action: A Multi-agent LLM Framework for Embodied Reasoning},
+  author = {White*, Isadora and Nottingham*, Kolby and Maniar, Ayush and Robinson, Max and Lillemark, Hansen and Maheshwari, Mehul and Qin, Lianhui and Ammanabrolu, Prithviraj},
+  journal = {arXiv preprint arXiv:2504.17950},
+  year = {2025},
+  url = {https://arxiv.org/abs/2504.17950},
 }
 ```
+
+

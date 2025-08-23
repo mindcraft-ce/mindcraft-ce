@@ -1,7 +1,7 @@
 import * as skills from './library/skills.js';
 import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
-import settings from '../../settings.js'
+import settings from './settings.js'
 import convoManager from './conversation.js';
 
 async function say(agent, message) {
@@ -114,6 +114,11 @@ const modes_list = [
                 });
             }
             this.last_time = Date.now();
+        },
+        unpause: function () {
+            this.prev_location = null;
+            this.stuck_time = 0;
+            this.prev_dig_block = null;
         }
     },
     {
@@ -151,7 +156,7 @@ const modes_list = [
     {
         name: 'hunting',
         description: 'Hunt nearby animals when idle.',
-        interrupts: [],
+        interrupts: ['action:followPlayer'],
         on: true,
         active: false,
         update: async function (agent) {
@@ -342,13 +347,18 @@ class ModeController {
     }
 
     unpause(mode_name) {
-        modes_map[mode_name].paused = false;
+        const mode = modes_map[mode_name];
+        //if  unpause func is defined and mode is currently paused
+        if (mode.unpause && mode.paused) {
+            mode.unpause();
+        }
+        mode.paused = false;
     }
 
     unPauseAll() {
         for (let mode of modes_list) {
             if (mode.paused) console.log(`Unpausing mode ${mode.name}`);
-            mode.paused = false;
+            this.unpause(mode.name);
         }
     }
 

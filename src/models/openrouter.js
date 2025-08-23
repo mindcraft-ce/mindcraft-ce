@@ -3,6 +3,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class OpenRouter {
+    static prefix = 'openrouter';
     constructor(model_name, url) {
         this.model_name = model_name;
 
