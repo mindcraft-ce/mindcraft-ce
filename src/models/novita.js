@@ -26,7 +26,7 @@ export class Novita {
       messages = strictFormat(messages);
       
       const pack = {
-          model: this.model_name || "meta-llama/llama-3.1-70b-instruct",
+          model: this.model_name || "meta-llama/llama-4-scout-17b-16e-instruct",
           messages,
           stop: [stop_seq],
           ...(this.params || {})

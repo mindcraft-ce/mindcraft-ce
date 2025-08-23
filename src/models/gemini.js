@@ -37,7 +37,7 @@ export class Gemini {
     async sendRequest(turns, systemMessage) {
         let model;
         const modelConfig = {
-            model: this.model_name || "gemini-1.5-flash",
+            model: this.model_name || "gemini-2.5-flash",
             // systemInstruction does not work bc google is trash
         };
         if (this.url) {
