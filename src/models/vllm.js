@@ -6,6 +6,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class VLLM {
+    static prefix = 'vllm';
     constructor(model_name, url) {
         this.model_name = model_name;
 
@@ -23,13 +24,14 @@ export class VLLM {
 
     async sendRequest(turns, systemMessage, stop_seq = '***') {
         let messages = [{ 'role': 'system', 'content': systemMessage }].concat(turns);
+        let model = this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B";  
         
-        if (this.model_name.includes('deepseek') || this.model_name.includes('qwen')) {
+        if (model.includes('deepseek') || model.includes('qwen')) {
             messages = strictFormat(messages);
         } 
 
         const pack = {
-            model: this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+            model: model,
             messages,
             stop: stop_seq,
         };
@@ -38,6 +40,7 @@ export class VLLM {
         try {
             console.log('Awaiting openai api response...')
             // console.log('Messages:', messages);
+            // todo set max_tokens, temperature, top_p, etc. in pack
             let completion = await this.vllm.chat.completions.create(pack);
             if (completion.choices[0].finish_reason == 'length')
                 throw new Error('Context length exceeded');

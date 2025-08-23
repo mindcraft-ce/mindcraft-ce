@@ -2,6 +2,7 @@ import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
 
 export class GLHF {
+    static prefix = 'glhf';
     constructor(model_name, url) {
         this.model_name = model_name;
         const apiKey = getKey('GHLF_API_KEY');

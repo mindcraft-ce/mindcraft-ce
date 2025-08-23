@@ -3,6 +3,7 @@ import { toSinglePrompt, strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Gemini {
+    static prefix = 'google';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
@@ -36,7 +37,7 @@ export class Gemini {
     async sendRequest(turns, systemMessage) {
         let model;
         const modelConfig = {
-            model: this.model_name || "gemini-1.5-flash",
+            model: this.model_name || "gemini-2.5-flash",
             // systemInstruction does not work bc google is trash
         };
         if (this.url) {
@@ -142,15 +143,15 @@ export class Gemini {
     }
 
     async embed(text) {
-        let model;
+        let model = this.model_name || "text-embedding-004";
         if (this.url) {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" },
+                { model },
                 { baseUrl: this.url }
             );
         } else {
             model = this.genAI.getGenerativeModel(
-                { model: "text-embedding-004" }
+                { model }
             );
         }
 

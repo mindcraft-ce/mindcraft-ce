@@ -14,5 +14,6 @@
     "HYPERBOLIC_API_KEY": "",
     "NOVITA_API_KEY": "",
     "OPENROUTER_API_KEY": "",
+    "CEREBRAS_API_KEY": "",
     "MERCURY_API_KEY":""
 }

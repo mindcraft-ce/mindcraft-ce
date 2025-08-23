@@ -3,6 +3,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class Qwen {
+    static prefix = 'qwen';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;

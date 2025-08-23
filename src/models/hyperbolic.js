@@ -1,6 +1,7 @@
 import { getKey } from '../utils/keys.js';
 
 export class Hyperbolic {
+    static prefix = 'hyperbolic';
     constructor(modelName, apiUrl) {
         this.modelName = modelName || "deepseek-ai/DeepSeek-V3";
         this.apiUrl = apiUrl || "https://api.hyperbolic.xyz/v1/chat/completions";
