@@ -6,7 +6,7 @@ import { strictFormat } from '../utils/text.js';
 export class Novita {
 	static prefix = 'novita';
 	constructor(model_name, url, params) {
-    this.model_name = model_name.replace('novita/', '');
+    this.model_name = model_name;
     this.url = url || 'https://api.novita.ai/v3/openai';
     this.params = params;
 
