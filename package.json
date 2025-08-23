@@ -11,6 +11,7 @@
         "google-translate-api-x": "^10.7.1",
         "groq-sdk": "^0.15.0",
         "install": "^0.13.0",
+        "lamejs": "^1.2.1",
         "minecraft-data": "^3.78.0",
         "mineflayer": "^4.29.0",
         "mineflayer-armor-manager": "^2.0.1",
@@ -21,7 +22,6 @@
         "node-canvas-webgl": "PrismarineJS/node-canvas-webgl",
         "npm": "^11.5.2",
         "openai": "^4.4.0",
-        "patch-package": "^8.0.0",
         "prismarine-item": "^1.15.0",
         "prismarine-viewer": "^1.32.0",
         "replicate": "^0.29.4",
@@ -40,6 +40,7 @@
         "@eslint/js": "^9.13.0",
         "eslint": "^9.13.0",
         "eslint-plugin-no-floating-promise": "^2.0.0",
-        "globals": "^15.11.0"
+        "globals": "^15.11.0",
+        "patch-package": "^8.0.0"
     }
 }

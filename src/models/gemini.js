@@ -1,6 +1,9 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, VideoCompressionQuality } from '@google/genai';
 import { toSinglePrompt, strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
+
+import { lamejs } from 'lamejs/lame.all.js';
+
 
 export class Gemini {
     constructor(model, url, params) {
@@ -115,4 +118,56 @@ export class Gemini {
 
         return result.embeddings;
     }
+}
+
+const sendAudioRequest = async (text, model, voice, url) => {
+    const ai = new GoogleGenAI({apiKey: getKey('GEMINI_API_KEY')});
+
+    const response = await ai.models.generateContent({
+        model: model,
+        contents: [{ parts: [{text: text}] }],
+        config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: voice },
+                },
+            },
+        },
+    })
+
+    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    // data is base64-encoded pcm
+
+    // convert pcm to mp3
+    const SAMPLE_RATE = 24000;
+    const CHANNELS = 1;
+    const pcmBuffer = Buffer.from(data, 'base64');
+    const pcmInt16Array = new Int16Array(
+        pcmBuffer.buffer, 
+        pcmBuffer.byteOffset, 
+        pcmBuffer.length / 2
+    );
+    const mp3encoder = new lamejs.Mp3Encoder(CHANNELS, SAMPLE_RATE, 128);
+    const sampleBlockSize = 1152; // Standard for MPEG audio
+    const mp3Data = [];
+    for (let i = 0; i < pcmInt16Array.length; i += sampleBlockSize) {
+        const sampleChunk = pcmInt16Array.subarray(i, i + sampleBlockSize);
+        const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+        if (mp3buf.length > 0) {
+            mp3Data.push(Buffer.from(mp3buf));
+        }
+    }
+    const mp3buf = mp3encoder.flush();
+    if (mp3buf.length > 0) {
+        mp3Data.push(Buffer.from(mp3buf));
+    }
+    const finalBuffer = Buffer.concat(mp3Data);
+    // finished converting
+
+    return finalBuffer.toString('base64');
+}
+
+export const TTSConfig = {
+    sendAudioRequest: sendAudioRequest,
 }

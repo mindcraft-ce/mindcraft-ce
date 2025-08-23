@@ -1,6 +1,7 @@
 import { exec, spawn } from 'child_process';
 import { TTSConfig as pollinationsTTSConfig } from '../models/pollinations.js';
 import { TTSConfig as gptTTSConfig } from '../models/gpt.js';
+import { TTSConfig as geminiTTSConfig } from '../models/gemini.js';
 
 let speakingQueue = [];
 let isSpeaking = false;
@@ -44,6 +45,8 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
         return pollinationsTTSConfig.baseUrl;
       } else if (prov === 'openai') {
         return gptTTSConfig.baseUrl;
+      } else if (prov === 'google') {
+        return geminiTTSConfig.baseUrl;
       } else {
         // fallback
         return 'https://api.openai.com/v1'
@@ -68,6 +71,8 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
         audioData = await pollinationsTTSConfig.sendAudioRequest(txt, mdl, voice, url);
       } else if (prov === "openai") {
         audioData = await gptTTSConfig.sendAudioRequest(txt, mdl, voice, url);
+      } else if (prov === "google") {
+        audioData = await geminiTTSConfig.sendAudioRequest(txt, mdl, voice, url);
       } else {
         throw new Error(`TTS Provider ${prov} is not supported.`);
       }
