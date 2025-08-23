@@ -65,7 +65,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `hyperbolic` | `HYPERBOLIC_API_KEY` | `hyperbolic/deepseek-ai/DeepSeek-V3` | [docs](https://docs.hyperbolic.xyz/docs/getting-started) |
 | `vllm` | n/a | `vllm/llama3` | n/a |
 | `cerebras` | `CEREBRAS_API_KEY` | `cerebras/llama-3.3-70b` | [docs](https://inference-docs.cerebras.ai/introduction) |
-| `mercury(EA)` | `MERCURY_API_KEY` | `mercury-coder-small` | [docs](https://www.inceptionlabs.ai/) |
+| `mercury` | `MERCURY_API_KEY` | `mercury-coder-small` | [docs](https://www.inceptionlabs.ai/) |
 
 If you use Ollama, to install the models used by default (generation and embedding), execute the following terminal command:
 `ollama pull llama3.1 && ollama pull nomic-embed-text`

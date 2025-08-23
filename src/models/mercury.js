@@ -3,12 +3,15 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class Mercury {
+    static prefix = 'mercury';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
         let config = {};
         if (url)
             config.baseURL = url;
+        else
+            config.baseURL = "https://api.inceptionlabs.ai/v1";
 
         config.apiKey = getKey('MERCURY_API_KEY');
 
