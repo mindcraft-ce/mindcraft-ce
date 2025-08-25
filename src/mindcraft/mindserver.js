@@ -170,6 +170,10 @@ export function createMindServer(host_public = false, port = 8080) {
 				console.error('Error: ', error);
 			}
 		});
+
+        socket.on('bot-output', (agentName, message) => {
+            io.emit('bot-output', agentName, message);
+        });
     });
 
     let host = host_public ? '0.0.0.0' : 'localhost';

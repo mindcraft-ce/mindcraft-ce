@@ -2,7 +2,7 @@ import { io } from 'socket.io-client';
 import convoManager from './conversation.js';
 import { setSettings } from './settings.js';
 
-// agents connection to mindserver
+// agent's individual connection to the mindserver
 // always connect to localhost
 
 class MindServerProxy {
@@ -110,6 +110,12 @@ class MindServerProxy {
 // Create and export a singleton instance
 export const serverProxy = new MindServerProxy();
 
+// for chatting with other bots
 export function sendBotChatToServer(agentName, json) {
     serverProxy.getSocket().emit('chat-message', agentName, json);
+}
+
+// for sending general output to server for display
+export function sendOutputToServer(agentName, message) {
+    serverProxy.getSocket().emit('bot-output', agentName, message);
 }
