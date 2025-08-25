@@ -1,11 +1,11 @@
 import { createMindServer, registerAgent } from './mindserver.js';
 import { AgentProcess } from '../process/agent_process.js';
+import { getServer } from './mcserver.js';
 
 let mindserver;
 let connected = false;
 let agent_processes = {};
 let agent_count = 0;
-let host = 'localhost';
 let port = 8080;
 
 export async function init(host_public=false, port=8080) {
@@ -28,6 +28,12 @@ export async function createAgent(settings) {
     registerAgent(settings);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
+
+    const server = await getServer(settings.host, settings.port, settings.minecraft_version);
+    settings.host = server.host;
+    settings.port = server.port;
+    settings.minecraft_version = server.version;
+
     const agentProcess = new AgentProcess(agent_name, port);
     agentProcess.start(load_memory, init_message, agent_count);
     agent_count++;
