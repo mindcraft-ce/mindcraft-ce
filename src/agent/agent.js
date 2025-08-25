@@ -318,9 +318,8 @@ export class Agent {
                 else {
                     // no command at all
                     let pre_message = res.substring(0, res.indexOf(command_name)).trim();
-                    res = pre_message;
-                    if (res.trim().length > 0)
-                        this.routeResponse(source, res);
+                    if (pre_message.trim().length > 0)
+                        this.routeResponse(source, pre_message);
                 }
 
                 let execute_res = await executeCommand(this, res);
