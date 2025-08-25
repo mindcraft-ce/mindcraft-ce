@@ -1,5 +1,5 @@
 const settings = {
-    "minecraft_version": "1.21.1", // supports up to 1.21.1
+    "minecraft_version": "auto", // or specific version like "1.21.1"
     "host": "127.0.0.1", // or "localhost", "your.ip.address.here"
     "port": 55916,
     "auth": "offline", // or "microsoft"
@@ -7,7 +7,7 @@ const settings = {
     // the mindserver manages all agents and hosts the UI
     "mindserver_port": 8080,
     
-    "base_profile": "survival", // survival, assistant, creative, or god_mode
+    "base_profile": "assistant", // survival, assistant, creative, or god_mode
     "profiles": [
         "./andy.json",
         // "./profiles/gpt.json",
