@@ -12,7 +12,7 @@ import { SelfPrompter } from './self_prompter.js';
 import convoManager from './conversation.js';
 import { handleTranslation, handleEnglishTranslation } from '../utils/translator.js';
 import { addBrowserViewer } from './vision/browser_viewer.js';
-import { serverProxy } from './mindserver_proxy.js';
+import { serverProxy, sendOutputToServer } from './mindserver_proxy.js';
 import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { say } from './speak.js';
@@ -304,15 +304,23 @@ export class Agent {
                 if (checkInterrupt()) break;
                 this.self_prompter.handleUserPromptedCmd(self_prompt, isAction(command_name));
 
-                if (settings.verbose_commands) {
+                if (settings.show_command_syntax === "full") {
                     this.routeResponse(source, res);
                 }
-                else { // only output command name
+                else if (settings.show_command_syntax === "shortened") {
+                    // show only "used !commandname"
                     let pre_message = res.substring(0, res.indexOf(command_name)).trim();
                     let chat_message = `*used ${command_name.substring(1)}*`;
                     if (pre_message.length > 0)
                         chat_message = `${pre_message}  ${chat_message}`;
                     this.routeResponse(source, chat_message);
+                }
+                else {
+                    // no command at all
+                    let pre_message = res.substring(0, res.indexOf(command_name)).trim();
+                    res = pre_message;
+                    if (res.trim().length > 0)
+                        this.routeResponse(source, res);
                 }
 
                 let execute_res = await executeCommand(this, res);
@@ -379,7 +387,8 @@ export class Agent {
 	    if (settings.speak) {
             say(to_translate);
 	    }
-            this.bot.chat(message);
+            if (settings.chat_ingame) {this.bot.chat(message);}
+            sendOutputToServer(this.name, message);
         }
     }
 
