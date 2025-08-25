@@ -25,8 +25,8 @@
             background: #363636;
             border-radius: 4px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            align-items: flex-start;
         }
         .restart-btn, .start-btn, .stop-btn {
             color: white;
@@ -102,6 +102,13 @@
             border: none;
             margin-left: 10px;
         }
+        .last-message {
+            font-style: italic;
+            color: #aaa;
+            margin-top: 5px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         .start-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -135,6 +142,7 @@
         let settingsSpec = {};
         let profileData = null;
         const agentSettings = {};
+        const agentLastMessage = {};
 
         fetch('/settings_spec.json')
             .then(r => r.json())
@@ -229,6 +237,14 @@
             });
         });
 
+        socket.on('bot-output', (agentName, message) => {
+            agentLastMessage[agentName] = message;
+            const messageDiv = document.getElementById(`lastMessage-${agentName}`);
+            if (messageDiv) {
+                messageDiv.textContent = message;
+            }
+        });
+
         function fetchAgentSettings(name) {
             return new Promise((resolve) => {
                 if (agentSettings[name]) { resolve(agentSettings[name]); return; }
@@ -250,9 +266,10 @@
                     const cfg = agentSettings[agent.name] || {};
                     const showViewer = cfg.render_bot_view === true;
                     const viewerHTML = showViewer ? `<div class="agent-view-container"><iframe class="agent-viewer" src="http://localhost:${3000 + idx}"></iframe></div>` : '';
+                    const lastMessage = agentLastMessage[agent.name] || '';
                     return `
                     <div class="agent">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
                             <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}</span>
                             <div style="display:flex;align-items:center;">
                                 ${agent.in_game ? `
@@ -265,6 +282,7 @@
                                 `}
                             </div>
                         </div>
+                        <div id="lastMessage-${agent.name}" class="last-message">${lastMessage}</div>
                         ${viewerHTML}
                     </div>`;
                 }).join('') +
