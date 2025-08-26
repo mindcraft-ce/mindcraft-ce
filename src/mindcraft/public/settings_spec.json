@@ -6,8 +6,8 @@
     },
     "minecraft_version": {
         "type": "string",
-        "description": "The version of Minecraft to use",
-        "default": "1.21.1"
+        "description": "The version of Minecraft to use. Set to 'auto' to automatically detect the version.",
+        "default": "auto"
     },
     "host": {
         "type": "string",
@@ -16,18 +16,20 @@
     },
     "port": {
         "type": "number",
-        "description": "The minecraft server port to connect to",
+        "description": "The minecraft server port to connect to. -1 for auto-detect.",
         "default": 55916
     },
     "auth": {
         "type": "string",
         "description": "The authentication method to use",
-        "default": "offline"
+        "default": "offline",
+        "options": ["offline", "microsoft"]
     },
     "base_profile": {
         "type": "string",
         "description": "Allowed values: survival, assistant, creative, god_mode. Each has fine tuned settings for different game modes.",
-        "default": "survival"
+        "default": "survival",
+        "options": ["survival", "assistant", "creative", "god_mode"]
     },
     "load_memory": {
         "type": "boolean",
@@ -97,7 +99,8 @@
     "show_command_syntax": {
         "type": "string",
         "description": "Whether to show \"full\" command syntax, \"shortened\" command syntax, or \"none\"",
-        "default": "full"
+        "default": "full",
+        "options": ["full", "shortened", "none"]
     },
     "chat_bot_messages": {
         "type": "boolean",

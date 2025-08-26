@@ -15,6 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let io;
 let server;
 const agent_connections = {};
+const agent_listeners = [];
 
 const settings_spec = JSON.parse(readFileSync(path.join(__dirname, 'public/settings_spec.json'), 'utf8'));
 
@@ -23,8 +24,8 @@ class AgentConnection {
         this.socket = null;
         this.settings = settings;
         this.in_game = false;
+        this.full_state = null;
     }
-    
 }
 
 export function registerAgent(settings) {
@@ -114,6 +115,9 @@ export function createMindServer(host_public = false, port = 8080) {
                 agent_connections[curAgentName].in_game = false;
                 agentsUpdate();
             }
+            if (agent_listeners.includes(socket)) {
+                removeListener(socket);
+            }
         });
 
         socket.on('chat-message', (agentName, json) => {
@@ -174,6 +178,10 @@ export function createMindServer(host_public = false, port = 8080) {
         socket.on('bot-output', (agentName, message) => {
             io.emit('bot-output', agentName, message);
         });
+
+        socket.on('listen-to-agents', () => {
+            addListener(socket);
+        });
     });
 
     let host = host_public ? '0.0.0.0' : 'localhost';
@@ -195,6 +203,42 @@ function agentsUpdate(socket) {
     socket.emit('agents-update', agents);
 }
 
+
+let listenerInterval = null;
+function addListener(listener_socket) {
+    agent_listeners.push(listener_socket);
+    if (agent_listeners.length === 1) {
+        listenerInterval = setInterval(async () => {
+            const states = {};
+            for (let agentName in agent_connections) {
+                let agent = agent_connections[agentName];
+                if (agent.in_game) {
+                    try {
+                        const state = await new Promise((resolve) => {
+                            agent.socket.emit('get-full-state', (s) => resolve(s));
+                        });
+                        states[agentName] = state;
+                    } catch (e) {
+                        states[agentName] = { error: String(e) };
+                    }
+                }
+            }
+            for (let listener of agent_listeners) {
+                listener.emit('state-update', states);
+            }
+        }, 1000);
+    }
+}
+
+function removeListener(listener_socket) {
+    agent_listeners.splice(agent_listeners.indexOf(listener_socket), 1);
+    if (agent_listeners.length === 0) {
+        clearInterval(listenerInterval);
+        listenerInterval = null;
+    }
+}
+
 // Optional: export these if you need access to them from other files
 export const getIO = () => io;
 export const getServer = () => server;
+export const numStateListeners = () => agent_listeners.length;

@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import convoManager from './conversation.js';
 import { setSettings } from './settings.js';
+import { getFullState } from './library/full_state.js';
 
 // agent's individual connection to the mindserver
 // always connect to localhost
@@ -62,6 +63,16 @@ class MindServerProxy {
                 this.agent.respondFunc("NO USERNAME", message);
             } catch (error) {
                 console.error('Error: ', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            }
+        });
+
+        this.socket.on('get-full-state', (callback) => {
+            try {
+                const state = getFullState(this.agent);
+                callback(state);
+            } catch (error) {
+                console.error('Error getting full state:', error);
+                callback(null);
             }
         });
 

@@ -6,6 +6,7 @@ const settings = {
 
     // the mindserver manages all agents and hosts the UI
     "mindserver_port": 8080,
+    "auto_open_browser": true,
     
     "base_profile": "assistant", // survival, assistant, creative, or god_mode
     "profiles": [

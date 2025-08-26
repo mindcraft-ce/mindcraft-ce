@@ -118,22 +118,115 @@
             display: flex;
             justify-content: flex-start;
         }
+        .status-badge {
+            font-size: 0.75em;
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #3a3a3a;
+            color: #cccccc;
+            text-transform: lowercase;
+        }
+        .status-badge.online { color: #4CAF50; }
+        .status-badge.offline { color: #f44336; }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .title-spacer { flex: 1; }
+        /* Modal styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 80vw;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        .modal-close-btn {
+            background: #f44336;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .modal-body {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 12px 16px;
+        }
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-top: 1px solid #3a3a3a;
+        }
+        .footer-left { color: #cccccc; font-style: italic; }
     </style>
 </head>
 <body>
-    <h1>Mindcraft</h1>
+    <div class="title-row">
+        <div class="title-left">
+            <h1 style="margin: 0;">Mindcraft</h1>
+            <span id="msStatus" class="status-badge offline">mindserver offline</span>
+        </div>
+        <div class="title-spacer"></div>
+    </div>
     <div id="agents"></div>
 
-    <div id="createAgentSection" style="margin-top:20px;background:#2d2d2d;padding:20px;border-radius:8px;">
-        <h2>Create Agent</h2>
-        <div id="settingsForm"></div>
-        <div id="profileStatus" style="margin-top:6px;font-style:italic;color:#cccccc;">Profile: Not uploaded</div>
-        <div style="margin-top:10px;">
-            <button id="uploadProfileBtn" class="start-btn">Upload Profile</button>
-            <input type="file" id="profileFileInput" accept=".json,application/json" style="display:none">
-            <button id="submitCreateAgentBtn" class="start-btn" disabled>Create Agent</button>
+    <div style="margin-top:10px;">
+        <button id="openCreateAgentBtn" class="start-btn">New Agent</button>
+    </div>
+
+    <!-- Modal -->
+    <div id="createAgentModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin:0;">Create Agent</h2>
+                <button id="closeCreateAgentBtn" class="modal-close-btn">Close</button>
+            </div>
+            <div class="modal-body">
+                <div id="createAgentSection">
+                    <div id="profileStatus" style="margin:6px 0;">Profile: Not uploaded</div>
+                    <div id="settingsForm"></div>
+                    <div id="createError" style="color:#f44336;margin-top:10px;"></div>
+                    <input type="file" id="profileFileInput" accept=".json,application/json" style="display:none">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left" id="footerStatus">Configure settings, then upload a profile and create the agent.</div>
+                <div class="footer-actions">
+                    <button id="uploadProfileBtn" class="start-btn">Upload Profile</button>
+                    <button id="submitCreateAgentBtn" class="start-btn" disabled>Create Agent</button>
+                </div>
+            </div>
         </div>
-        <div id="createError" style="color:#f44336;margin-top:10px;"></div>
     </div>
 
     <script>
@@ -144,43 +237,81 @@
         const agentSettings = {};
         const agentLastMessage = {};
 
+        const statusEl = document.getElementById('msStatus');
+        function updateStatus(connected) {
+            if (!statusEl) return;
+            if (connected) {
+                statusEl.textContent = 'MindServer online';
+                statusEl.classList.remove('offline');
+                statusEl.classList.add('online');
+            } else {
+                statusEl.textContent = 'MindServer offline';
+                statusEl.classList.remove('online');
+                statusEl.classList.add('offline');
+            }
+        }
+        function subscribeToState() {
+            socket.emit('listen-to-agents');
+        }
+        // Initial status
+        updateStatus(false);
+        socket.on('connect', () => {
+            updateStatus(true);
+            subscribeToState();
+        });
+        socket.on('disconnect', () => {
+            updateStatus(false);
+        });
+        socket.on('connect_error', () => {
+            updateStatus(false);
+        });
+
         fetch('/settings_spec.json')
             .then(r => r.json())
             .then(spec => {
                 settingsSpec = spec;
-                const form = document.getElementById('settingsForm');
-                Object.keys(spec).forEach(key => {
-                    if (key === 'profile') return; // profile handled via upload
-                    const cfg = spec[key];
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'setting-wrapper';
-                    const label = document.createElement('label');
-                    label.textContent = key;
-                    label.title = cfg.description || '';
-                    let input;
-                    switch (cfg.type) {
-                        case 'boolean':
-                            input = document.createElement('input');
-                            input.type = 'checkbox';
-                            input.checked = cfg.default === true;
-                            break;
-                        case 'number':
-                            input = document.createElement('input');
-                            input.type = 'number';
-                            input.value = cfg.default;
-                            break;
-                        default:
-                            input = document.createElement('input');
-                            input.type = 'text';
-                            input.value = typeof cfg.default === 'object' ? JSON.stringify(cfg.default) : cfg.default;
-                    }
-                    input.title = cfg.description || '';
-                    input.id = `setting-${key}`;
-                    wrapper.appendChild(label);
-                    wrapper.appendChild(input);
-                    form.appendChild(wrapper);
-                });
+                buildSettingsForm();
             });
+
+        function buildSettingsForm() {
+            const form = document.getElementById('settingsForm');
+            form.innerHTML = '';
+            // ensure grid for multi-column layout
+            form.style.display = 'grid';
+            form.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+            form.style.gap = '8px';
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile') return; // profile handled via upload
+                const cfg = settingsSpec[key];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'setting-wrapper';
+                const label = document.createElement('label');
+                label.textContent = key;
+                label.title = cfg.description || '';
+                let input;
+                switch (cfg.type) {
+                    case 'boolean':
+                        input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.checked = cfg.default === true;
+                        break;
+                    case 'number':
+                        input = document.createElement('input');
+                        input.type = 'number';
+                        input.value = cfg.default;
+                        break;
+                    default:
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = typeof cfg.default === 'object' ? JSON.stringify(cfg.default) : cfg.default;
+                }
+                input.title = cfg.description || '';
+                input.id = `setting-${key}`;
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                form.appendChild(wrapper);
+            });
+        }
 
         document.getElementById('uploadProfileBtn').addEventListener('click', () => {
             document.getElementById('profileFileInput').click();
@@ -233,9 +364,21 @@
                     document.getElementById('submitCreateAgentBtn').disabled = true;
                     document.getElementById('profileStatus').textContent = 'Profile: Not uploaded';
                     document.getElementById('createError').textContent = '';
+                    hideCreateAgentModal();
                 }
             });
         });
+
+        // Modal open/close logic
+        const modalBackdrop = document.getElementById('createAgentModal');
+        document.getElementById('openCreateAgentBtn').addEventListener('click', () => {
+            buildSettingsForm();
+            modalBackdrop.style.display = 'flex';
+        });
+        function hideCreateAgentModal() {
+            modalBackdrop.style.display = 'none';
+        }
+        document.getElementById('closeCreateAgentBtn').addEventListener('click', hideCreateAgentModal);
 
         socket.on('bot-output', (agentName, message) => {
             agentLastMessage[agentName] = message;
@@ -243,6 +386,18 @@
             if (messageDiv) {
                 messageDiv.textContent = message;
             }
+        });
+
+        // Subscribe to aggregated state updates (re-sent on each connect)
+        socket.on('state-update', (states) => {
+            Object.keys(states || {}).forEach(name => {
+                const st = states[name];
+                const el = document.getElementById(`health-${name}`);
+                if (el && st && !st.error) {
+                    const health = st?.gameplay?.health;
+                    if (typeof health === 'number') el.textContent = `Health: ${health}`;
+                }
+            });
         });
 
         function fetchAgentSettings(name) {
@@ -282,6 +437,7 @@
                                 `}
                             </div>
                         </div>
+                        <div id="health-${agent.name}" class="last-message">Health: -</div>
                         <div id="lastMessage-${agent.name}" class="last-message">${lastMessage}</div>
                         ${viewerHTML}
                     </div>`;
