@@ -48,6 +48,17 @@
         .restart-btn:hover { background: #45a049; }
         .start-btn:hover { background: #1976D2; }
         .stop-btn:hover { background: #d32f2f; }
+        .gear-btn {
+            background: #505050;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            margin-left: 6px;
+            font-size: 0.9em;
+        }
+        .gear-btn:hover { background: #5a5a5a; }
         .status-icon {
             font-size: 12px;
             margin-right: 8px;
@@ -117,6 +128,21 @@
             margin-top: 6px;
             display: flex;
             justify-content: flex-start;
+        }
+        .agent-stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin: 6px 0;
+            font-size: 0.9em;
+            color: #cccccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .agent-stats-row .stat {
+            background: #3a3a3a;
+            padding: 6px 8px;
+            border-radius: 4px;
         }
         .status-badge {
             font-size: 0.75em;
@@ -224,6 +250,29 @@
                 <div class="footer-actions">
                     <button id="uploadProfileBtn" class="start-btn">Upload Profile</button>
                     <button id="submitCreateAgentBtn" class="start-btn" disabled>Create Agent</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Settings Modal -->
+    <div id="agentSettingsModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="agentSettingsTitle" style="margin:0;">Agent Settings</h2>
+                <button id="closeAgentSettingsBtn" class="modal-close-btn">Close</button>
+            </div>
+            <div class="modal-body">
+                <div id="agentSettingsSection">
+                    <div id="agentSettingsForm"></div>
+                    <div id="agentSettingsError" style="color:#f44336;margin-top:10px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left" id="agentSettingsFooter">Modify settings then apply to restart the agent.</div>
+                <div class="footer-actions">
+                    <button id="discardAgentSettingsBtn" class="stop-btn" style="background:#777;">Discard Changes</button>
+                    <button id="applyAgentSettingsBtn" class="start-btn" disabled>Apply & Restart</button>
                 </div>
             </div>
         </div>
@@ -392,10 +441,27 @@
         socket.on('state-update', (states) => {
             Object.keys(states || {}).forEach(name => {
                 const st = states[name];
-                const el = document.getElementById(`health-${name}`);
-                if (el && st && !st.error) {
-                    const health = st?.gameplay?.health;
-                    if (typeof health === 'number') el.textContent = `Health: ${health}`;
+                const healthEl = document.getElementById(`health-${name}`);
+                if (st && !st.error) {
+                    const gp = st.gameplay || {};
+                    if (healthEl && typeof gp.health === 'number') {
+                        const hMax = typeof gp.healthMax === 'number' ? gp.healthMax : 20;
+                        healthEl.textContent = `health: ${gp.health}/${hMax}`;
+                    }
+                    const posEl = document.getElementById(`pos-${name}`);
+                    const hunEl = document.getElementById(`hunger-${name}`);
+                    const bioEl = document.getElementById(`biome-${name}`);
+                    const modeEl = document.getElementById(`mode-${name}`);
+                    if (posEl && gp.position) {
+                        const p = gp.position;
+                        posEl.textContent = `pos: x ${p.x}, y ${p.y}, z ${p.z}`;
+                    }
+                    if (hunEl && typeof gp.hunger === 'number') {
+                        const fMax = typeof gp.hungerMax === 'number' ? gp.hungerMax : 20;
+                        hunEl.textContent = `hunger: ${gp.hunger}/${fMax}`;
+                    }
+                    if (bioEl && gp.biome) bioEl.textContent = `biome: ${gp.biome}`;
+                    if (modeEl && gp.gamemode) modeEl.textContent = `gamemode: ${gp.gamemode}`;
                 }
             });
         });
@@ -412,6 +478,126 @@
             });
         }
 
+        // Agent settings modal logic
+        const agentSettingsModal = document.getElementById('agentSettingsModal');
+        const agentSettingsForm = document.getElementById('agentSettingsForm');
+        const applyBtn = document.getElementById('applyAgentSettingsBtn');
+        const discardBtn = document.getElementById('discardAgentSettingsBtn');
+        const closeAgentSettingsBtn = document.getElementById('closeAgentSettingsBtn');
+        const agentSettingsTitle = document.getElementById('agentSettingsTitle');
+        let currentAgentName = null;
+        let originalAgentSettings = null;
+
+        function buildAgentSettingsForm(settings) {
+            agentSettingsForm.innerHTML = '';
+            agentSettingsForm.style.display = 'grid';
+            agentSettingsForm.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+            agentSettingsForm.style.gap = '8px';
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile') return; // profile not edited here
+                const cfg = settingsSpec[key];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'setting-wrapper';
+                const label = document.createElement('label');
+                label.textContent = key;
+                label.title = cfg.description || '';
+                let input;
+                switch (cfg.type) {
+                    case 'boolean':
+                        input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.checked = Boolean(settings[key]);
+                        break;
+                    case 'number':
+                        input = document.createElement('input');
+                        input.type = 'number';
+                        input.value = settings[key] ?? cfg.default ?? 0;
+                        break;
+                    default:
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        const defVal = settings[key] ?? cfg.default ?? '';
+                        input.value = typeof defVal === 'object' ? JSON.stringify(defVal) : defVal;
+                }
+                input.id = `agent-setting-${key}`;
+                input.addEventListener('input', onAgentSettingsChanged);
+                if (input.type === 'checkbox') input.addEventListener('change', onAgentSettingsChanged);
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                agentSettingsForm.appendChild(wrapper);
+            });
+            onAgentSettingsChanged();
+        }
+
+        function openAgentSettings(name) {
+            currentAgentName = name;
+            agentSettingsTitle.textContent = `${name} Settings`;
+            fetchAgentSettings(name).then(settings => {
+                originalAgentSettings = JSON.parse(JSON.stringify(settings || {}));
+                buildAgentSettingsForm(settings || {});
+                agentSettingsModal.style.display = 'flex';
+            });
+        }
+        window.openAgentSettings = openAgentSettings;
+
+        function getEditedAgentSettings() {
+            const newSettings = { profile: (originalAgentSettings && originalAgentSettings.profile) || {} };
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile') return;
+                const cfg = settingsSpec[key];
+                const input = document.getElementById(`agent-setting-${key}`);
+                if (!input) return;
+                let val;
+                if (cfg.type === 'boolean') val = input.checked;
+                else if (cfg.type === 'number') val = Number(input.value);
+                else if (cfg.type === 'array' || cfg.type === 'object') {
+                    try { val = JSON.parse(input.value); }
+                    catch { val = input.value; }
+                } else val = input.value;
+                newSettings[key] = val;
+            });
+            return newSettings;
+        }
+
+        function shallowEqual(a, b) {
+            if (!a || !b) return false;
+            const keys = Object.keys(settingsSpec).filter(k => k !== 'profile');
+            for (const k of keys) {
+                const va = a[k];
+                const vb = b[k];
+                if (typeof va === 'object' || typeof vb === 'object') {
+                    if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+                } else if (va !== vb) return false;
+            }
+            return true;
+        }
+
+        function onAgentSettingsChanged() {
+            if (!originalAgentSettings) { applyBtn.disabled = true; return; }
+            const edited = getEditedAgentSettings();
+            applyBtn.disabled = shallowEqual(edited, originalAgentSettings);
+        }
+
+        function closeAgentSettings() {
+            agentSettingsModal.style.display = 'none';
+            currentAgentName = null;
+            originalAgentSettings = null;
+        }
+
+        discardBtn.addEventListener('click', () => {
+            if (!currentAgentName || !originalAgentSettings) return;
+            buildAgentSettingsForm(originalAgentSettings);
+        });
+
+        applyBtn.addEventListener('click', () => {
+            if (!currentAgentName) return;
+            const edited = getEditedAgentSettings();
+            socket.emit('set-agent-settings', currentAgentName, edited);
+            closeAgentSettings();
+        });
+
+        closeAgentSettingsBtn.addEventListener('click', closeAgentSettings);
+
         async function renderAgents(agents) {
             // fetch settings for any new agents
             await Promise.all(agents.map(a => fetchAgentSettings(a.name)));
@@ -425,7 +611,9 @@
                     return `
                     <div class="agent">
                         <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-                            <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}</span>
+                            <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}
+                                <button class="gear-btn" title="Settings" onclick="openAgentSettings('${agent.name}')">⚙</button>
+                            </span>
                             <div style="display:flex;align-items:center;">
                                 ${agent.in_game ? `
                                     <button class="stop-btn" onclick="stopAgent('${agent.name}')">Stop</button>
@@ -437,7 +625,13 @@
                                 `}
                             </div>
                         </div>
-                        <div id="health-${agent.name}" class="last-message">Health: -</div>
+                        <div class="agent-stats-row">
+                            <div id="mode-${agent.name}" class="stat">gamemode: -</div>
+                            <div id="health-${agent.name}" class="stat">health: -</div>
+                            <div id="hunger-${agent.name}" class="stat">hunger: -</div>
+                            <div id="pos-${agent.name}" class="stat">pos: -</div>
+                            <div id="biome-${agent.name}" class="stat">biome: -</div>
+                        </div>
                         <div id="lastMessage-${agent.name}" class="last-message">${lastMessage}</div>
                         ${viewerHTML}
                     </div>`;

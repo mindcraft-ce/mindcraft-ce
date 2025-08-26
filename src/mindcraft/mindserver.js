@@ -26,6 +26,9 @@ class AgentConnection {
         this.in_game = false;
         this.full_state = null;
     }
+    setSettings(settings) {
+        this.settings = settings;
+    }
 }
 
 export function registerAgent(settings) {
@@ -127,6 +130,14 @@ export function createMindServer(host_public = false, port = 8080) {
             }
             console.log(`${curAgentName} sending message to ${agentName}: ${json.message}`);
             agent_connections[agentName].socket.emit('chat-message', curAgentName, json);
+        });
+
+        socket.on('set-agent-settings', (agentName, settings) => {
+            const agent = agent_connections[agentName];
+            if (agent) {
+                agent.setSettings(settings);
+                agent.socket.emit('restart-agent');
+            }
         });
 
         socket.on('restart-agent', (agentName) => {

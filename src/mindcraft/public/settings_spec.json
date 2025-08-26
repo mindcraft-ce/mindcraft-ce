@@ -102,6 +102,11 @@
         "default": "full",
         "options": ["full", "shortened", "none"]
     },
+    "chat_ingame": {
+        "type": "boolean",
+        "description": "Whether to show bot's chat messages in game chat",
+        "default": true
+    },
     "chat_bot_messages": {
         "type": "boolean",
         "description": "Whether to publicly chat messages to and from other bots",
