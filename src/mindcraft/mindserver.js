@@ -173,14 +173,13 @@ export function createMindServer(host_public = false, port = 8080) {
             
         });
 
-		socket.on('send-message', (agentName, message) => {
+		socket.on('send-message', (agentName, data) => {
 			if (!agent_connections[agentName]) {
 				console.warn(`Agent ${agentName} not in game, cannot send message via MindServer.`);
 				return
 			}
 			try {
-				console.log(`Sending message to agent ${agentName}: ${message}`);
-				agent_connections[agentName].socket.emit('send-message', agentName, message)
+				agent_connections[agentName].socket.emit('send-message', data)
 			} catch (error) {
 				console.error('Error: ', error);
 			}

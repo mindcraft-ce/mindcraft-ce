@@ -66,6 +66,8 @@ export function getFullState(agent) {
         },
         inventory: {
             counts: getInventoryCounts(bot),
+            stacksUsed: bot.inventory.items().length,
+            totalSlots: bot.inventory.slots.length,
             equipment: {
                 helmet: helmet ? helmet.name : null,
                 chestplate: chestplate ? chestplate.name : null,
@@ -78,7 +80,6 @@ export function getFullState(agent) {
             humanPlayers: players,
             botPlayers: bots,
             entityTypes: getNearbyEntityTypes(bot).filter(t => t !== 'player' && t !== 'item'),
-            blockTypes: getNearbyBlockTypes(bot)
         },
         modes: {
             summary: bot.modes.getMiniDocs()

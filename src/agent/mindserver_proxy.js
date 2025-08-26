@@ -58,9 +58,9 @@ class MindServerProxy {
             this.agent.cleanKill();
         });
 		
-        this.socket.on('send-message', (agentName, message) => {
+        this.socket.on('send-message', (data) => {
             try {
-                this.agent.respondFunc("NO USERNAME", message);
+                this.agent.respondFunc(data.from, data.message);
             } catch (error) {
                 console.error('Error: ', JSON.stringify(error, Object.getOwnPropertyNames(error)));
             }

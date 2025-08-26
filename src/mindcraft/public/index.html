@@ -26,7 +26,7 @@
             border-radius: 4px;
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
+            align-items: stretch;
         }
         .restart-btn, .start-btn, .stop-btn {
             color: white;
@@ -107,18 +107,26 @@
         .setting-wrapper input[type="checkbox"] {
             transform: scale(1.2);
         }
+        .agent-view-container {
+            width: 100%;
+            height: 100%;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+        }
         .agent-viewer {
-            width: 200px;
-            height: 150px;
+            width: 100%;
+            height: 100%;
             border: none;
-            margin-left: 10px;
+            display: block;
         }
         .last-message {
             font-style: italic;
             color: #aaa;
             margin-top: 5px;
-            white-space: pre-wrap;
-            word-break: break-word;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
         }
         .start-btn:disabled {
             opacity: 0.4;
@@ -128,6 +136,90 @@
             margin-top: 6px;
             display: flex;
             justify-content: flex-start;
+        }
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 8px;
+            width: 100%;
+            align-items: start;
+        }
+        .agent-grid .cell {
+            background: #3a3a3a;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+        .agent-grid .cell.title {
+            background: transparent;
+            padding: 0;
+        }
+        .agent-inventory {
+            margin-top: 8px;
+            background: #2f2f2f;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .agent-inventory h3 { margin: 0 0 6px 0; font-size: 1em; }
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 6px;
+        }
+        .agent-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 6px;
+            width: 100%;
+        }
+        .controls-row {
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: auto 1fr auto auto auto auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .msg-input {
+            width: calc(100% - 8px);
+            background: #262626;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            border-radius: 4px;
+            padding: 4px 6px;
+        }
+        .neutral-btn {
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+            background: #505050;
+        }
+        .neutral-btn:hover { background: #5a5a5a; }
+        .neutral-btn:disabled {
+            background: #383838;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .msg-input:disabled {
+            background: #1a1a1a;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .page-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #2d2d2d;
+            padding: 16px;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+        }
+        body {
+            padding-bottom: 80px;  /* Make room for footer */
         }
         .agent-stats-row {
             display: grid;
@@ -226,8 +318,14 @@
     </div>
     <div id="agents"></div>
 
-    <div style="margin-top:10px;">
-        <button id="openCreateAgentBtn" class="start-btn">New Agent</button>
+    <div class="page-footer">
+        <div>
+            <button id="openCreateAgentBtn" class="start-btn">New Agent</button>
+        </div>
+        <div style="display:flex; gap:12px;">
+            <button class="stop-btn" onclick="disconnectAllAgents()">Disconnect All Agents</button>
+            <button class="stop-btn" onclick="confirmShutdown()">Full Shutdown</button>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -439,6 +537,7 @@
 
         // Subscribe to aggregated state updates (re-sent on each connect)
         socket.on('state-update', (states) => {
+            window.lastStates = states;
             Object.keys(states || {}).forEach(name => {
                 const st = states[name];
                 const healthEl = document.getElementById(`health-${name}`);
@@ -452,9 +551,13 @@
                     const hunEl = document.getElementById(`hunger-${name}`);
                     const bioEl = document.getElementById(`biome-${name}`);
                     const modeEl = document.getElementById(`mode-${name}`);
+                    const itemsEl = document.getElementById(`items-${name}`);
+                    const equippedEl = document.getElementById(`equipped-${name}`);
+                    const invGrid = document.getElementById(`inventory-${name}`);
+                    const actionEl = document.getElementById(`action-${name}`);
                     if (posEl && gp.position) {
                         const p = gp.position;
-                        posEl.textContent = `pos: x ${p.x}, y ${p.y}, z ${p.z}`;
+                        posEl.textContent = `x ${p.x}, y ${p.y}, z ${p.z}`;
                     }
                     if (hunEl && typeof gp.hunger === 'number') {
                         const fMax = typeof gp.hungerMax === 'number' ? gp.hungerMax : 20;
@@ -462,6 +565,24 @@
                     }
                     if (bioEl && gp.biome) bioEl.textContent = `biome: ${gp.biome}`;
                     if (modeEl && gp.gamemode) modeEl.textContent = `gamemode: ${gp.gamemode}`;
+                    if (itemsEl && st.inventory) {
+                        const used = st.inventory.stacksUsed ?? 0;
+                        const total = st.inventory.totalSlots ?? 0;
+                        itemsEl.textContent = `inventory slots: ${used}/${total}`;
+                    }
+                    if (equippedEl && st.inventory?.equipment) {
+                        const e = st.inventory.equipment;
+                        equippedEl.textContent = `equipped: ${e.mainHand || 'none'}`;
+                    }
+                    if (actionEl && st.action) {
+                        actionEl.textContent = `${st.action.current || 'Idle'}`;
+                    }
+                    if (invGrid && st.inventory?.counts) {
+                        const counts = st.inventory.counts;
+                        invGrid.innerHTML = Object.keys(counts).length ?
+                            Object.entries(counts).map(([k, v]) => `<div class="cell">${k}: ${v}</div>`).join('') :
+                            '<div class="cell">(empty)</div>';
+                    }
                 }
             });
         });
@@ -584,6 +705,19 @@
             originalAgentSettings = null;
         }
 
+        function updateAgentViewer(name) {
+            const agentEl = document.getElementById(`agent-${name}`);
+            if (!agentEl) return;
+
+            const settings = agentSettings[name];
+            const viewerContainer = agentEl.querySelector('.agent-view-container');
+            if (!viewerContainer) return;
+
+            const agentState = agents.find(a => a.name === name);
+            const shouldShow = agentState?.in_game && settings?.render_bot_view === true;
+            viewerContainer.parentElement.style.display = shouldShow ? '' : 'none';
+        }
+
         discardBtn.addEventListener('click', () => {
             if (!currentAgentName || !originalAgentSettings) return;
             buildAgentSettingsForm(originalAgentSettings);
@@ -593,6 +727,9 @@
             if (!currentAgentName) return;
             const edited = getEditedAgentSettings();
             socket.emit('set-agent-settings', currentAgentName, edited);
+            // Update local settings immediately
+            agentSettings[currentAgentName] = { ...edited, fetched: true };
+            updateAgentViewer(currentAgentName);
             closeAgentSettings();
         });
 
@@ -602,53 +739,118 @@
             // fetch settings for any new agents
             await Promise.all(agents.map(a => fetchAgentSettings(a.name)));
 
+            // Update all agent viewers after render
+            const updateViewers = () => {
+                agents.forEach(a => {
+                    if (a.in_game) updateAgentViewer(a.name);
+                });
+            };
+
             agentsDiv.innerHTML = agents.length ?
+            // Set timeout to run after DOM update
                 agents.map((agent, idx) => {
                     const cfg = agentSettings[agent.name] || {};
-                    const showViewer = cfg.render_bot_view === true;
+                    const showViewer = agent.in_game && cfg.render_bot_view === true;
                     const viewerHTML = showViewer ? `<div class="agent-view-container"><iframe class="agent-viewer" src="http://localhost:${3000 + idx}"></iframe></div>` : '';
                     const lastMessage = agentLastMessage[agent.name] || '';
                     return `
-                    <div class="agent">
-                        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-                            <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}
-                                <button class="gear-btn" title="Settings" onclick="openAgentSettings('${agent.name}')">⚙</button>
-                            </span>
-                            <div style="display:flex;align-items:center;">
-                                ${agent.in_game ? `
-                                    <button class="stop-btn" onclick="stopAgent('${agent.name}')">Stop</button>
-                                    <button class="restart-btn" onclick="restartAgent('${agent.name}')">Restart</button>
-                                    <input type="text" id="messageInput-${agent.name}" placeholder="Enter message..." style="margin-left:4px;">
-                                    <button class="start-btn" onclick="sendMessage('${agent.name}', document.getElementById('messageInput-${agent.name}').value)">Send</button>
-                                ` : `
-                                    <button class="start-btn" onclick="startAgent('${agent.name}')">Start</button>
-                                `}
+                    <div class="agent" id="agent-${agent.name}">
+                        <div class="agent-grid">
+                            <div class="cell title" style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between;">
+                                <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}
+                                    <button class="gear-btn" title="Settings" onclick="openAgentSettings('${agent.name}')">⚙</button>
+                                    <button class="gear-btn" title="Inventory" onclick="toggleDetails('${agent.name}')">Inventory</button>
+                                </span>
                             </div>
+                            ${showViewer ? `<div class="cell" style="grid-row: span 3; padding:0;">${viewerHTML}</div>` : ''}
+                            <div class="cell" id="action-${agent.name}">action: -</div>
+                            <div class="cell" id="mode-${agent.name}">gamemode: -</div>
+                            <div class="cell" id="health-${agent.name}">health: -</div>
+                            <div class="cell" id="hunger-${agent.name}">hunger: -</div>
+                            <div class="cell" id="pos-${agent.name}">pos: -</div>
+                            <div class="cell" id="biome-${agent.name}">biome: -</div>
+                            <div class="cell" id="items-${agent.name}">inventory slots: -</div>
+                            <div class="cell" id="equipped-${agent.name}">equipped: -</div>
+                            <div class="agent-inventory" id="inventorySection-${agent.name}" style="display:none; grid-column: 1 / -1;">
+                                <h3>Inventory</h3>
+                                <div class="inventory-grid" id="inventory-${agent.name}"></div>
+                            </div>
+                            <div id="lastMessage-${agent.name}" class="last-message" style="grid-column: 1 / -1;"><strong>Last Message:</strong> ${lastMessage}</div>
                         </div>
-                        <div class="agent-stats-row">
-                            <div id="mode-${agent.name}" class="stat">gamemode: -</div>
-                            <div id="health-${agent.name}" class="stat">health: -</div>
-                            <div id="hunger-${agent.name}" class="stat">hunger: -</div>
-                            <div id="pos-${agent.name}" class="stat">pos: -</div>
-                            <div id="biome-${agent.name}" class="stat">biome: -</div>
+                        <div class="controls-row">
+                            <button class="start-btn" id="sendBtn-${agent.name}" disabled onclick="sendMessage('${agent.name}', document.getElementById('messageInput-${agent.name}').value)">Send</button>
+                            <input class="msg-input" type="text" id="messageInput-${agent.name}" placeholder="Enter message..." 
+                                oninput="onMsgInputChange('${agent.name}')"
+                                onkeydown="if(event.key === 'Enter') document.getElementById('sendBtn-${agent.name}').click()"
+                                ${!agent.in_game ? 'disabled' : ''}>
+                            <button class="neutral-btn" onclick="startAgent('${agent.name}')" style="display: ${agent.in_game ? 'none' : ''}">Connect</button>
+                            <button class="neutral-btn" onclick="disconnectAgent('${agent.name}')" style="display: ${agent.in_game ? '' : 'none'}">Disconnect</button>
+                            <button class="neutral-btn" onclick="restartAgent('${agent.name}')" ${!agent.in_game ? 'disabled' : ''}>Restart</button>
+                            <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stop')" ${!agent.in_game ? 'disabled' : ''}>Stop Action</button>
+                            <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stay(-1)')" ${!agent.in_game ? 'disabled' : ''}>Stay Still</button>
                         </div>
-                        <div id="lastMessage-${agent.name}" class="last-message">${lastMessage}</div>
-                        ${viewerHTML}
                     </div>`;
-                }).join('') +
-                `<button class="stop-btn" onclick="killAllAgents()">Stop All</button>
-                 <button class="stop-btn" onclick="shutdown()">Shutdown</button>` :
+                }).join('') :
                 '<div class="agent">No agents connected</div>';
+            
+            // Update viewers after DOM has updated
+            setTimeout(updateViewers, 0);
         }
 
-        socket.on('agents-update', agents => { renderAgents(agents); });
+        socket.on('agents-update', async (agents) => {
+            // Fetch settings for any newly connected agents
+            const newlyConnected = agents.filter(a => a.in_game && (!agentSettings[a.name] || !agentSettings[a.name].fetched));
+            await Promise.all(newlyConnected.map(async (a) => {
+                const settings = await fetchAgentSettings(a.name);
+                if (settings) {
+                    agentSettings[a.name] = { ...settings, fetched: true };
+                }
+            }));
+            renderAgents(agents);
+        });
 
         function restartAgent(n) { socket.emit('restart-agent', n); }
-        function startAgent(n) { socket.emit('start-agent', n); }
+        function disconnectAgent(n) { socket.emit('stop-agent', n); }
+        function startAgent(n) { 
+            const btn = document.querySelector(`button[onclick="startAgent('${n}')"]`);
+            if (btn) {
+                btn.textContent = 'Connecting...';
+                btn.disabled = true;
+            }
+            socket.emit('start-agent', n);
+        }
         function stopAgent(n) { socket.emit('stop-agent', n); }
-        function killAllAgents() { socket.emit('stop-all-agents'); }
-        function shutdown() { socket.emit('shutdown'); }
-        function sendMessage(n, m) { socket.emit('send-message', n, m); }
+        function disconnectAllAgents() { 
+            socket.emit('stop-all-agents'); 
+        }
+        function confirmShutdown() {
+            if (confirm('Are you sure you want to perform a full shutdown?\nThis will stop all agents and close the server.')) {
+                socket.emit('shutdown');
+            }
+        }
+        function sendMessage(n, m) {
+            if (!m || !m.trim()) return;
+            socket.emit('send-message', n, { from: 'ADMIN', message: m });
+            const input = document.getElementById(`messageInput-${n}`);
+            const btn = document.getElementById(`sendBtn-${n}`);
+            if (input) input.value = '';
+            if (btn) btn.disabled = true;
+        }
+        function onMsgInputChange(name) {
+            const input = document.getElementById(`messageInput-${name}`);
+            const btn = document.getElementById(`sendBtn-${name}`);
+            if (btn && input) {
+                btn.disabled = !(input.value && input.value.trim().length > 0);
+            }
+        }
+
+        function toggleDetails(name) {
+            const invSection = document.getElementById(`inventorySection-${name}`);
+            if (!invSection) return;
+            const visible = invSection.style.display !== 'none';
+            invSection.style.display = visible ? 'none' : '';
+        }
+        window.toggleDetails = toggleDetails;
     </script>
 </body>
 </html> 
