@@ -98,8 +98,6 @@ const sendAudioRequest = async (text, model, voice, url) => {
         input: text
     }
 
-    let audioData = null;
-
     let config = {};
 
     if (url)
