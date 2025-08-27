@@ -9,7 +9,7 @@ let agent_processes = {};
 let agent_count = 0;
 let port = 8080;
 
-export async function init(host_public=false, port=8080, auto_open_browser=true) {
+export async function init(host_public=false, port=8080, auto_open_ui=true) {
     if (connected) {
         console.error('Already initiliazed!');
         return;
@@ -17,7 +17,7 @@ export async function init(host_public=false, port=8080, auto_open_browser=true)
     mindserver = createMindServer(host_public, port);
     port = port;
     connected = true;
-    if (auto_open_browser) {
+    if (auto_open_ui) {
         setTimeout(() => {
             // check if browser listener is already open
             if (numStateListeners() === 0) {
@@ -34,7 +34,8 @@ export async function createAgent(settings) {
     }
     settings = JSON.parse(JSON.stringify(settings));
     let agent_name = settings.profile.name;
-    registerAgent(settings);
+    const viewer_port = 3000 + agent_count;
+    registerAgent(settings, viewer_port);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
 
@@ -65,6 +66,13 @@ export function startAgent(agentName) {
 export function stopAgent(agentName) {
     if (agent_processes[agentName]) {
         agent_processes[agentName].stop();
+    }
+}
+
+export function destroyAgent(agentName) {
+    if (agent_processes[agentName]) {
+        agent_processes[agentName].stop();
+        delete agent_processes[agentName];
     }
 }
 

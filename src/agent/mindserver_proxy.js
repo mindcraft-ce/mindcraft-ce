@@ -44,7 +44,7 @@ class MindServerProxy {
             convoManager.receiveFromBot(agentName, json);
         });
 
-        this.socket.on('agents-update', (agents) => {
+        this.socket.on('agents-status', (agents) => {
             this.agents = agents;
             convoManager.updateAgents(agents);
             if (this.agent?.task) {

@@ -20,26 +20,27 @@ const agent_listeners = [];
 const settings_spec = JSON.parse(readFileSync(path.join(__dirname, 'public/settings_spec.json'), 'utf8'));
 
 class AgentConnection {
-    constructor(settings) {
+    constructor(settings, viewer_port) {
         this.socket = null;
         this.settings = settings;
         this.in_game = false;
         this.full_state = null;
+        this.viewer_port = viewer_port;
     }
     setSettings(settings) {
         this.settings = settings;
     }
 }
 
-export function registerAgent(settings) {
-    let agentConnection = new AgentConnection(settings);
+export function registerAgent(settings, viewer_port) {
+    let agentConnection = new AgentConnection(settings, viewer_port);
     agent_connections[settings.profile.name] = agentConnection;
 }
 
 export function logoutAgent(agentName) {
     if (agent_connections[agentName]) {
         agent_connections[agentName].in_game = false;
-        agentsUpdate();
+        agentsStatusUpdate();
     }
 }
 
@@ -58,7 +59,7 @@ export function createMindServer(host_public = false, port = 8080) {
         let curAgentName = null;
         console.log('Client connected');
 
-        agentsUpdate(socket);
+        agentsStatusUpdate(socket);
 
         socket.on('create-agent', (settings, callback) => {
             console.log('API create agent...');
@@ -105,7 +106,7 @@ export function createMindServer(host_public = false, port = 8080) {
                 agent_connections[agentName].socket = socket;
                 agent_connections[agentName].in_game = true;
                 curAgentName = agentName;
-                agentsUpdate();
+                agentsStatusUpdate();
             }
             else {
                 console.warn(`Unregistered agent ${agentName} tried to login`);
@@ -116,7 +117,7 @@ export function createMindServer(host_public = false, port = 8080) {
             if (agent_connections[curAgentName]) {
                 console.log(`Agent ${curAgentName} disconnected`);
                 agent_connections[curAgentName].in_game = false;
-                agentsUpdate();
+                agentsStatusUpdate();
             }
             if (agent_listeners.includes(socket)) {
                 removeListener(socket);
@@ -151,6 +152,14 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('start-agent', (agentName) => {
             mindcraft.startAgent(agentName);
+        });
+
+        socket.on('destroy-agent', (agentName) => {
+            if (agent_connections[agentName]) {
+                mindcraft.destroyAgent(agentName);
+                delete agent_connections[agentName];
+            }
+            agentsStatusUpdate();
         });
 
         socket.on('stop-all-agents', () => {
@@ -202,15 +211,20 @@ export function createMindServer(host_public = false, port = 8080) {
     return server;
 }
 
-function agentsUpdate(socket) {
+function agentsStatusUpdate(socket) {
     if (!socket) {
         socket = io;
     }
     let agents = [];
     for (let agentName in agent_connections) {
-        agents.push({name: agentName, in_game: agent_connections[agentName].in_game});
+        const conn = agent_connections[agentName];
+        agents.push({
+            name: agentName, 
+            in_game: conn.in_game,
+            viewerPort: conn.viewer_port
+        });
     };
-    socket.emit('agents-update', agents);
+    socket.emit('agents-status', agents);
 }
 
 
