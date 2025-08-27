@@ -4,8 +4,9 @@ import { strictFormat } from '../utils/text.js';
 
 // llama, mistral
 export class Novita {
+	static prefix = 'novita';
 	constructor(model_name, url, params) {
-    this.model_name = model_name.replace('novita/', '');
+    this.model_name = model_name;
     this.url = url || 'https://api.novita.ai/v3/openai';
     this.params = params;
 
@@ -25,7 +26,7 @@ export class Novita {
       messages = strictFormat(messages);
       
       const pack = {
-          model: this.model_name || "meta-llama/llama-3.1-70b-instruct",
+          model: this.model_name || "meta-llama/llama-4-scout-17b-16e-instruct",
           messages,
           stop: [stop_seq],
           ...(this.params || {})

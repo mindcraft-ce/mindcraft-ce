@@ -228,28 +228,33 @@ export async function smeltItem(bot, itemName, num=1) {
     await furnace.putInput(mc.getItemId(itemName), null, num);
     // wait for the items to smelt
     let total = 0;
-    let collected_last = true;
     let smelted_item = null;
     await new Promise(resolve => setTimeout(resolve, 200));
+    let last_collected = Date.now();
     while (total < num) {
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        console.log('checking...');
-        let collected = false;
+        await new Promise(resolve => setTimeout(resolve, 1000));
         if (furnace.outputItem()) {
             smelted_item = await furnace.takeOutput();
             if (smelted_item) {
                 total += smelted_item.count;
-                collected = true;
+                last_collected = Date.now();
             }
         }
-        if (!collected && !collected_last) {
-            break; // if nothing was collected this time or last time
+        if (Date.now() - last_collected > 11000) {
+            break; // if nothing has been collected in 11 seconds, stop
         }
-        collected_last = collected;
         if (bot.interrupt_code) {
             break;
         }
     }
+    // take all remaining in input/fuel slots
+    if (furnace.inputItem()) {
+        await furnace.takeInput();
+    }
+    if (furnace.fuelItem()) {
+        await furnace.takeFuel();
+    }
+
     await bot.closeWindow(furnace);
 
     if (placedFurnace) {
@@ -1040,7 +1045,7 @@ export async function goToGoal(bot, goal) {
         log(bot, `Found destructive path.`);
     }
     else {
-        log(bot, `Could not find a path to goal, attempting to navigate anyway using destructive movements.`);
+        log(bot, `Path not found, but attempting to navigate anyway using destructive movements.`);
     }
 
     const doorCheckInterval = startDoorInterval(bot);
@@ -1288,11 +1293,29 @@ export async function followPlayer(bot, username, distance=4) {
     while (!bot.interrupt_code) {
         await new Promise(resolve => setTimeout(resolve, 500));
         // in cheat mode, if the distance is too far, teleport to the player
-        if (bot.modes.isOn('cheat') && bot.entity.position.distanceTo(player.position) > 100 && player.isOnGround) {
+        const distance_from_player = bot.entity.position.distanceTo(player.position);
+
+        const teleport_distance = 100;
+        const ignore_modes_distance = 30; 
+        const nearby_distance = distance + 2;
+
+        if (distance_from_player > teleport_distance && bot.modes.isOn('cheat')) {
+            // teleport with cheat mode
             await goToPlayer(bot, username);
         }
-        const is_nearby = bot.entity.position.distanceTo(player.position) <= distance + 2;
-        if (is_nearby) {
+        else if (distance_from_player > ignore_modes_distance) {
+            // these modes slow down the bot, and we want to catch up
+            bot.modes.pause('item_collecting');
+            bot.modes.pause('hunting');
+            bot.modes.pause('torch_placing');
+        }
+        else if (distance_from_player <= ignore_modes_distance) {
+            bot.modes.unpause('item_collecting');
+            bot.modes.unpause('hunting');
+            bot.modes.unpause('torch_placing');
+        }
+
+        if (distance_from_player <= nearby_distance) {
             clearInterval(doorCheckInterval);
             doorCheckInterval = null;
             bot.modes.pause('unstuck');

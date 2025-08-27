@@ -94,10 +94,10 @@
         "description": "Whether to log all prompts to file. Can be very verbose.",
         "default": false
     },
-    "verbose_commands": {
-        "type": "boolean",
-        "description": "Whether to show full command syntax in bot responses. If false will use a shortened syntax.",
-        "default": true
+    "show_command_syntax": {
+        "type": "string",
+        "description": "Whether to show \"full\" command syntax, \"shortened\" command syntax, or \"none\"",
+        "default": "full"
     },
     "chat_bot_messages": {
         "type": "boolean",

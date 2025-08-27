@@ -6,8 +6,9 @@ import { lamejs } from 'lamejs/lame.all.js';
 
 
 export class Gemini {
-    constructor(model, url, params) {
-        this.model = model || "gemini-2.5-flash";
+    static prefix = 'google';
+    constructor(model_name, url, params) {
+        this.model_name = model_name;
         this.params = params;
         this.safetySettings = [
             {
@@ -48,7 +49,7 @@ export class Gemini {
         }
 
         const result = await this.genAI.models.generateContent({
-            model: this.model,
+            model: this.model_name || "gemini-2.5-flash",
             contents: contents,
             safetySettings: this.safetySettings,
             config: {
@@ -112,7 +113,7 @@ export class Gemini {
 
     async embed(text) {
         const result = await this.genAI.models.embedContent({
-            model: 'gemini-embedding-001',
+            model: this.model_name || "gemini-embedding-001",
             contents: text,
         })
 

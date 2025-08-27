@@ -3,6 +3,7 @@ import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 export class Claude {
+    static prefix = 'anthropic';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params || {};
@@ -20,7 +21,7 @@ export class Claude {
         const messages = strictFormat(turns);
         let res = null;
         try {
-            console.log('Awaiting anthropic api response...')
+            console.log(`Awaiting anthropic response from ${this.model_name}...`)
             if (!this.params.max_tokens) {
                 if (this.params.thinking?.budget_tokens) {
                     this.params.max_tokens = this.params.thinking.budget_tokens + 1000;
@@ -30,7 +31,7 @@ export class Claude {
                 }
             }
             const resp = await this.anthropic.messages.create({
-                model: this.model_name || "claude-3-sonnet-20240229",
+                model: this.model_name || "claude-sonnet-4-20250514",
                 system: systemMessage,
                 messages: messages,
                 ...(this.params || {})

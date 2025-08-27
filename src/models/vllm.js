@@ -6,6 +6,7 @@ import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
 export class VLLM {
+    static prefix = 'vllm';
     constructor(model_name, url) {
         this.model_name = model_name;
 
@@ -23,13 +24,14 @@ export class VLLM {
 
     async sendRequest(turns, systemMessage, stop_seq = '***') {
         let messages = [{ 'role': 'system', 'content': systemMessage }].concat(turns);
+        let model = this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B";  
         
-        if (this.model_name.includes('deepseek') || this.model_name.includes('qwen')) {
+        if (model.includes('deepseek') || model.includes('qwen')) {
             messages = strictFormat(messages);
         } 
 
         const pack = {
-            model: this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+            model: model,
             messages,
             stop: stop_seq,
         };

@@ -156,7 +156,7 @@ const modes_list = [
     {
         name: 'hunting',
         description: 'Hunt nearby animals when idle.',
-        interrupts: [],
+        interrupts: ['action:followPlayer'],
         on: true,
         active: false,
         update: async function (agent) {
