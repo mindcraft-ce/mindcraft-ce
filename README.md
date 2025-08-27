@@ -143,6 +143,12 @@ You can pass a string or an object for these fields. A model object must specify
   "api": "openai",
   "url": "https://api.openai.com/v1/",
   "model": "text-embedding-ada-002"
+},
+"speak_model": {
+  "api": "openai",
+  "url": "https://api.openai.com/v1/",
+  "model": "tts-1",
+  "voice": "echo"
 }
 
 ```

@@ -383,9 +383,9 @@ export class Agent {
             }
         }
         else {
-	    if (settings.speak) {
-            say(to_translate);
-	    }
+            if (settings.speak) {
+                say(to_translate, this.prompter.profile.speak_model);
+            }
             if (settings.chat_ingame) {this.bot.chat(message);}
             sendOutputToServer(this.name, message);
         }
