@@ -2,8 +2,6 @@ import { GoogleGenAI } from '@google/genai';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
-import { lamejs } from 'lamejs/lame.all.js';
-
 
 export class Gemini {
     static prefix = 'google';
@@ -137,36 +135,41 @@ const sendAudioRequest = async (text, model, voice, url) => {
         },
     })
 
-    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    // data is base64-encoded pcm
-
-    // convert pcm to mp3
-    const SAMPLE_RATE = 24000;
-    const CHANNELS = 1;
-    const pcmBuffer = Buffer.from(data, 'base64');
-    const pcmInt16Array = new Int16Array(
-        pcmBuffer.buffer, 
-        pcmBuffer.byteOffset, 
-        pcmBuffer.length / 2
-    );
-    const mp3encoder = new lamejs.Mp3Encoder(CHANNELS, SAMPLE_RATE, 128);
-    const sampleBlockSize = 1152; // Standard for MPEG audio
-    const mp3Data = [];
-    for (let i = 0; i < pcmInt16Array.length; i += sampleBlockSize) {
-        const sampleChunk = pcmInt16Array.subarray(i, i + sampleBlockSize);
-        const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-        if (mp3buf.length > 0) {
-            mp3Data.push(Buffer.from(mp3buf));
-        }
+    const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!pcmBase64) {
+        console.warn('Gemini TTS: no audio data returned');
+        return null;
     }
-    const mp3buf = mp3encoder.flush();
-    if (mp3buf.length > 0) {
-        mp3Data.push(Buffer.from(mp3buf));
-    }
-    const finalBuffer = Buffer.concat(mp3Data);
-    // finished converting
 
-    return finalBuffer.toString('base64');
+    // Wrap PCM in a minimal WAV container so ffplay can decode it.
+    const pcmBuffer = Buffer.from(pcmBase64, 'base64');
+    const wavHeader = createWavHeader(pcmBuffer.length, 24000, 1, 16);
+    const wavBuffer = Buffer.concat([wavHeader, pcmBuffer]);
+
+    const wavBase64 = wavBuffer.toString('base64');
+    return wavBase64;
+}
+
+// helper: create PCM WAV header
+function createWavHeader(dataLength, sampleRate, channels, bitsPerSample) {
+    const header = Buffer.alloc(44);
+    const byteRate = sampleRate * channels * bitsPerSample / 8;
+    const blockAlign = channels * bitsPerSample / 8;
+
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + dataLength, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16); // PCM
+    header.writeUInt16LE(1, 20); // Audio format = PCM
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(dataLength, 40);
+    return header;
 }
 
 export const TTSConfig = {
