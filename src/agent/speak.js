@@ -1,5 +1,4 @@
 import { exec, spawn } from 'child_process';
-import { TTSConfig as pollinationsTTSConfig } from '../models/pollinations.js';
 import { TTSConfig as gptTTSConfig } from '../models/gpt.js';
 import { TTSConfig as geminiTTSConfig } from '../models/gemini.js';
 
@@ -41,9 +40,7 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
   } else {
 
     function getModelUrl(prov) {
-      if (prov === 'pollinations') {
-        return pollinationsTTSConfig.baseUrl;
-      } else if (prov === 'openai') {
+      if (prov === 'openai') {
         return gptTTSConfig.baseUrl;
       } else if (prov === 'google') {
         return geminiTTSConfig.baseUrl;
@@ -67,9 +64,7 @@ $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
 
     try {
       let audioData;
-      if (prov === "pollinations") {
-        audioData = await pollinationsTTSConfig.sendAudioRequest(txt, mdl, voice, url);
-      } else if (prov === "openai") {
+      if (prov === "openai") {
         audioData = await gptTTSConfig.sendAudioRequest(txt, mdl, voice, url);
       } else if (prov === "google") {
         audioData = await geminiTTSConfig.sendAudioRequest(txt, mdl, voice, url);

@@ -1,5 +1,5 @@
-import { GoogleGenAI, VideoCompressionQuality } from '@google/genai';
-import { toSinglePrompt, strictFormat } from '../utils/text.js';
+import { GoogleGenAI } from '@google/genai';
+import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
 
 import { lamejs } from 'lamejs/lame.all.js';

@@ -63,7 +63,6 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `openrouter` | `OPENROUTER_API_KEY` | `openrouter/anthropic/claude-3.5-sonnet` | [docs](https://openrouter.ai/models) |
 | `glhf.chat` | `GHLF_API_KEY` | `glhf/hf:meta-llama/Llama-3.1-405B-Instruct` | [docs](https://glhf.chat/user-settings/api) |
 | `hyperbolic` | `HYPERBOLIC_API_KEY` | `hyperbolic/deepseek-ai/DeepSeek-V3` | [docs](https://docs.hyperbolic.xyz/docs/getting-started) |
-| `pollinations` | n/a | `pollinations/openai-large` | [docs](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md) |
 | `vllm` | n/a | `vllm/llama3` | n/a |
 
 If you use Ollama, to install the models used by default (generation and embedding), execute the following terminal command:
@@ -142,9 +141,9 @@ You can pass a string or an object for these fields. A model object must specify
   "model": "text-embedding-ada-002"
 },
 "speak_model": {
-  "api": "pollinations",
-  "url": "https://text.pollinations.ai/openai",
-  "model": "openai-audio",
+  "api": "openai",
+  "url": "https://api.openai.com/v1/",
+  "model": "tts-1",
   "voice": "echo"
 }
 
