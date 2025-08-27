@@ -29,9 +29,11 @@ const settings = {
     "init_message": "Respond with hello world and your name", // sends to all on spawn
     "only_chat_with": [], // users that the bots listen to and send general messages to. if empty it will chat publicly
 
-    "speak": true,
-    // allows all bots to speak through text-to-speech. format: {provider}/{model}/{voice}. if set to "system" it will use system text-to-speech, which works on windows and mac, but on linux you need to `apt install espeak`.
-    // specify speech model inside each profile - so that you can have each bot with different voices
+    "speak": false,
+    // allows all bots to speak through text-to-speech. 
+    // specify speech model inside each profile with format: {provider}/{model}/{voice}.
+    // if set to "system" it will use basic system text-to-speech. 
+    // Works on windows and mac, but linux requires you to `apt install espeak`.
 
     "chat_ingame": true, // bot responses are shown in minecraft chat
     "language": "en", // translate to/from this language. Supports these language names: https://cloud.google.com/translate/docs/languages
