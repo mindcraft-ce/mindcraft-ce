@@ -759,7 +759,7 @@
                     <div class="agent" id="agent-${agent.name}">
                         <div class="agent-grid">
                             <div class="cell title" style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between;">
-                                <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}
+                                <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}${agent.socket_connected && !agent.in_game ? '<span style="margin-left:6px;color:#f0ad4e;">joining...</span>' : ''}
                                     <button class="gear-btn" title="Settings" onclick="openAgentSettings('${agent.name}')">⚙</button>
                                     <button class="gear-btn" title="Inventory" onclick="toggleDetails('${agent.name}')">Inventory</button>
                                 </span>
@@ -789,7 +789,7 @@
                             <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stop')" ${!agent.in_game ? 'disabled' : ''}>Stop Action</button>
                             <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stay(-1)')" ${!agent.in_game ? 'disabled' : ''}>Stay Still</button>
                             <button class="neutral-btn" onclick="restartAgent('${agent.name}')" ${!agent.in_game ? 'disabled' : ''}>Restart</button>
-                            <button class="neutral-btn" onclick="${agent.in_game ? 'disconnectAgent' : 'startAgent'}('${agent.name}')">${agent.in_game ? 'Disconnect' : 'Connect'}</button>
+                            <button class="neutral-btn" ${agent.in_game ? `onclick=\"disconnectAgent('${agent.name}')\"` : (agent.socket_connected ? 'disabled' : `onclick=\"startAgent('${agent.name}')\"`)}>${agent.in_game ? 'Disconnect' : (agent.socket_connected ? 'Connecting...' : 'Connect')}</button>
                             <button class="stop-btn" onclick="destroyAgent('${agent.name}')">Remove</button>
                         </div>
                     </div>`;
@@ -817,7 +817,7 @@
             const prevAgents = currentAgents.reduce((acc, a) => ({ ...acc, [a.name]: a }), {});
             const changedAgents = agents.filter(a => {
                 const prev = prevAgents[a.name];
-                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort;
+                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort || prev.socket_connected !== a.socket_connected;
             });
 
             // Update only changed agents
@@ -859,7 +859,7 @@
             const prevAgents = currentAgents.reduce((acc, a) => ({ ...acc, [a.name]: a }), {});
             const changedAgents = agents.filter(a => {
                 const prev = prevAgents[a.name];
-                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort;
+                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort || prev.socket_connected !== a.socket_connected;
             });
 
             // Update current agents list
@@ -907,6 +907,16 @@
             if (btn) {
                 btn.textContent = 'Connecting...';
                 btn.disabled = true;
+                // Re-enable after 10s if still disabled (agent failed to connect)
+                setTimeout(() => {
+                    const retryBtn = document.querySelector(`button[onclick=\\"startAgent('${n}')\\"]`);
+                    const agentState = (window.currentAgents || []).find(a => a.name === n);
+                    const stillWaiting = agentState ? (!agentState.in_game && !agentState.socket_connected) : true;
+                    if (retryBtn && stillWaiting) {
+                        retryBtn.disabled = false;
+                        retryBtn.textContent = 'Connect';
+                    }
+                }, 10000);
             }
             socket.emit('start-agent', n);
         }

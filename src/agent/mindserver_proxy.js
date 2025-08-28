@@ -88,6 +88,7 @@ class MindServerProxy {
                     return reject(new Error(response.error));
                 }
                 setSettings(response.settings);
+                this.socket.emit('connect-agent-process', name);
                 resolve();
             });
         });
