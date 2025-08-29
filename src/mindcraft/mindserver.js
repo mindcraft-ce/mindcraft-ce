@@ -61,7 +61,7 @@ export function createMindServer(host_public = false, port = 8080) {
 
         agentsStatusUpdate(socket);
 
-        socket.on('create-agent', (settings, callback) => {
+        socket.on('create-agent', async (settings, callback) => {
             console.log('API create agent...');
             for (let key in settings_spec) {
                 if (!(key in settings)) {
@@ -84,8 +84,14 @@ export function createMindServer(host_public = false, port = 8080) {
                     callback({ success: false, error: 'Agent already exists' });
                     return;
                 }
-                mindcraft.createAgent(settings);
-                callback({ success: true });
+                let returned = await mindcraft.createAgent(settings);
+                callback({ success: returned.success, error: returned.error });
+                let name = settings.profile.name;
+                if (!returned.success && agent_connections[name]) {
+                    mindcraft.destroyAgent(name);
+                    delete agent_connections[name];
+                }
+                agentsStatusUpdate();
             }
             else {
                 console.error('Agent name is required in profile');

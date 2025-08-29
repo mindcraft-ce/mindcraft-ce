@@ -23,14 +23,17 @@ export async function init(host_public=false, port=8080, auto_open_ui=true) {
             if (numStateListeners() === 0) {
                 open('http://localhost:'+port);
             }
-        }, 2000);
+        }, 3000);
     }
 }
 
 export async function createAgent(settings) {
     if (!settings.profile.name) {
         console.error('Agent name is required in profile');
-        return;
+        return {
+            success: false,
+            error: 'Agent name is required in profile'
+        };
     }
     settings = JSON.parse(JSON.stringify(settings));
     let agent_name = settings.profile.name;
@@ -39,15 +42,28 @@ export async function createAgent(settings) {
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
 
-    const server = await getServer(settings.host, settings.port, settings.minecraft_version);
-    settings.host = server.host;
-    settings.port = server.port;
-    settings.minecraft_version = server.version;
+    try {
+        const server = await getServer(settings.host, settings.port, settings.minecraft_version);
+        settings.host = server.host;
+        settings.port = server.port;
+        settings.minecraft_version = server.version;
 
-    const agentProcess = new AgentProcess(agent_name, port);
-    agentProcess.start(load_memory, init_message, agent_count);
-    agent_count++;
-    agent_processes[settings.profile.name] = agentProcess;
+        const agentProcess = new AgentProcess(agent_name, port);
+        agentProcess.start(load_memory, init_message, agent_count);
+        agent_count++;
+        agent_processes[settings.profile.name] = agentProcess;
+    } catch (error) {
+        console.error(`Error creating agent ${agent_name}:`, error);
+        destroyAgent(agent_name);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    return {
+        success: true,
+        error: null
+    };
 }
 
 export function getAgentProcess(agentName) {
