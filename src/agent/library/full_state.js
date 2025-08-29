@@ -4,7 +4,6 @@ import {
     getNearbyPlayerNames,
     getInventoryCounts,
     getNearbyEntityTypes,
-    getNearbyBlockTypes,
     getBlockAtPosition,
     getFirstBlockAboveHead
 } from "./world.js";
