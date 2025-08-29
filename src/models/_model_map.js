@@ -55,7 +55,7 @@ export function selectAPI(profile) {
             else if (profile.model.includes('gemini'))
                 profile.api = "google";
             else if (profile.model.includes('grok'))
-                profile.api = 'grok';
+                profile.api = 'xai';
             else if (profile.model.includes('mistral'))
                 profile.api = 'mistral';
             else if (profile.model.includes('deepseek'))

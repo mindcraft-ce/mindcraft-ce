@@ -15,27 +15,32 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let io;
 let server;
 const agent_connections = {};
+const agent_listeners = [];
 
 const settings_spec = JSON.parse(readFileSync(path.join(__dirname, 'public/settings_spec.json'), 'utf8'));
 
 class AgentConnection {
-    constructor(settings) {
+    constructor(settings, viewer_port) {
         this.socket = null;
         this.settings = settings;
         this.in_game = false;
+        this.full_state = null;
+        this.viewer_port = viewer_port;
     }
-    
+    setSettings(settings) {
+        this.settings = settings;
+    }
 }
 
-export function registerAgent(settings) {
-    let agentConnection = new AgentConnection(settings);
+export function registerAgent(settings, viewer_port) {
+    let agentConnection = new AgentConnection(settings, viewer_port);
     agent_connections[settings.profile.name] = agentConnection;
 }
 
 export function logoutAgent(agentName) {
     if (agent_connections[agentName]) {
         agent_connections[agentName].in_game = false;
-        agentsUpdate();
+        agentsStatusUpdate();
     }
 }
 
@@ -54,9 +59,9 @@ export function createMindServer(host_public = false, port = 8080) {
         let curAgentName = null;
         console.log('Client connected');
 
-        agentsUpdate(socket);
+        agentsStatusUpdate(socket);
 
-        socket.on('create-agent', (settings, callback) => {
+        socket.on('create-agent', async (settings, callback) => {
             console.log('API create agent...');
             for (let key in settings_spec) {
                 if (!(key in settings)) {
@@ -79,8 +84,14 @@ export function createMindServer(host_public = false, port = 8080) {
                     callback({ success: false, error: 'Agent already exists' });
                     return;
                 }
-                mindcraft.createAgent(settings);
-                callback({ success: true });
+                let returned = await mindcraft.createAgent(settings);
+                callback({ success: returned.success, error: returned.error });
+                let name = settings.profile.name;
+                if (!returned.success && agent_connections[name]) {
+                    mindcraft.destroyAgent(name);
+                    delete agent_connections[name];
+                }
+                agentsStatusUpdate();
             }
             else {
                 console.error('Agent name is required in profile');
@@ -96,12 +107,19 @@ export function createMindServer(host_public = false, port = 8080) {
             }
         });
 
+        socket.on('connect-agent-process', (agentName) => {
+            if (agent_connections[agentName]) {
+                agent_connections[agentName].socket = socket;
+                agentsStatusUpdate();
+            }
+        });
+
         socket.on('login-agent', (agentName) => {
             if (agent_connections[agentName]) {
                 agent_connections[agentName].socket = socket;
                 agent_connections[agentName].in_game = true;
                 curAgentName = agentName;
-                agentsUpdate();
+                agentsStatusUpdate();
             }
             else {
                 console.warn(`Unregistered agent ${agentName} tried to login`);
@@ -112,7 +130,11 @@ export function createMindServer(host_public = false, port = 8080) {
             if (agent_connections[curAgentName]) {
                 console.log(`Agent ${curAgentName} disconnected`);
                 agent_connections[curAgentName].in_game = false;
-                agentsUpdate();
+                agent_connections[curAgentName].socket = null;
+                agentsStatusUpdate();
+            }
+            if (agent_listeners.includes(socket)) {
+                removeListener(socket);
             }
         });
 
@@ -123,6 +145,14 @@ export function createMindServer(host_public = false, port = 8080) {
             }
             console.log(`${curAgentName} sending message to ${agentName}: ${json.message}`);
             agent_connections[agentName].socket.emit('chat-message', curAgentName, json);
+        });
+
+        socket.on('set-agent-settings', (agentName, settings) => {
+            const agent = agent_connections[agentName];
+            if (agent) {
+                agent.setSettings(settings);
+                agent.socket.emit('restart-agent');
+            }
         });
 
         socket.on('restart-agent', (agentName) => {
@@ -136,6 +166,14 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('start-agent', (agentName) => {
             mindcraft.startAgent(agentName);
+        });
+
+        socket.on('destroy-agent', (agentName) => {
+            if (agent_connections[agentName]) {
+                mindcraft.destroyAgent(agentName);
+                delete agent_connections[agentName];
+            }
+            agentsStatusUpdate();
         });
 
         socket.on('stop-all-agents', () => {
@@ -158,14 +196,13 @@ export function createMindServer(host_public = false, port = 8080) {
             
         });
 
-		socket.on('send-message', (agentName, message) => {
+		socket.on('send-message', (agentName, data) => {
 			if (!agent_connections[agentName]) {
 				console.warn(`Agent ${agentName} not in game, cannot send message via MindServer.`);
 				return
 			}
 			try {
-				console.log(`Sending message to agent ${agentName}: ${message}`);
-				agent_connections[agentName].socket.emit('send-message', agentName, message)
+				agent_connections[agentName].socket.emit('send-message', data)
 			} catch (error) {
 				console.error('Error: ', error);
 			}
@@ -173,6 +210,10 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('bot-output', (agentName, message) => {
             io.emit('bot-output', agentName, message);
+        });
+
+        socket.on('listen-to-agents', () => {
+            addListener(socket);
         });
     });
 
@@ -184,17 +225,59 @@ export function createMindServer(host_public = false, port = 8080) {
     return server;
 }
 
-function agentsUpdate(socket) {
+function agentsStatusUpdate(socket) {
     if (!socket) {
         socket = io;
     }
     let agents = [];
     for (let agentName in agent_connections) {
-        agents.push({name: agentName, in_game: agent_connections[agentName].in_game});
+        const conn = agent_connections[agentName];
+        agents.push({
+            name: agentName, 
+            in_game: conn.in_game,
+            viewerPort: conn.viewer_port,
+            socket_connected: !!conn.socket
+        });
     };
-    socket.emit('agents-update', agents);
+    socket.emit('agents-status', agents);
+}
+
+
+let listenerInterval = null;
+function addListener(listener_socket) {
+    agent_listeners.push(listener_socket);
+    if (agent_listeners.length === 1) {
+        listenerInterval = setInterval(async () => {
+            const states = {};
+            for (let agentName in agent_connections) {
+                let agent = agent_connections[agentName];
+                if (agent.in_game) {
+                    try {
+                        const state = await new Promise((resolve) => {
+                            agent.socket.emit('get-full-state', (s) => resolve(s));
+                        });
+                        states[agentName] = state;
+                    } catch (e) {
+                        states[agentName] = { error: String(e) };
+                    }
+                }
+            }
+            for (let listener of agent_listeners) {
+                listener.emit('state-update', states);
+            }
+        }, 1000);
+    }
+}
+
+function removeListener(listener_socket) {
+    agent_listeners.splice(agent_listeners.indexOf(listener_socket), 1);
+    if (agent_listeners.length === 0) {
+        clearInterval(listenerInterval);
+        listenerInterval = null;
+    }
 }
 
 // Optional: export these if you need access to them from other files
 export const getIO = () => io;
 export const getServer = () => server;
+export const numStateListeners = () => agent_listeners.length;

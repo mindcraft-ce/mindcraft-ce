@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import convoManager from './conversation.js';
 import { setSettings } from './settings.js';
+import { getFullState } from './library/full_state.js';
 
 // agent's individual connection to the mindserver
 // always connect to localhost
@@ -43,7 +44,7 @@ class MindServerProxy {
             convoManager.receiveFromBot(agentName, json);
         });
 
-        this.socket.on('agents-update', (agents) => {
+        this.socket.on('agents-status', (agents) => {
             this.agents = agents;
             convoManager.updateAgents(agents);
             if (this.agent?.task) {
@@ -57,11 +58,21 @@ class MindServerProxy {
             this.agent.cleanKill();
         });
 		
-        this.socket.on('send-message', (agentName, message) => {
+        this.socket.on('send-message', (data) => {
             try {
-                this.agent.respondFunc("NO USERNAME", message);
+                this.agent.respondFunc(data.from, data.message);
             } catch (error) {
                 console.error('Error: ', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            }
+        });
+
+        this.socket.on('get-full-state', (callback) => {
+            try {
+                const state = getFullState(this.agent);
+                callback(state);
+            } catch (error) {
+                console.error('Error getting full state:', error);
+                callback(null);
             }
         });
 
@@ -77,6 +88,7 @@ class MindServerProxy {
                     return reject(new Error(response.error));
                 }
                 setSettings(response.settings);
+                this.socket.emit('connect-agent-process', name);
                 resolve();
             });
         });
