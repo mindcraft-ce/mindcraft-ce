@@ -1,5 +1,5 @@
 diff --git a/node_modules/mineflayer-pathfinder/index.js b/node_modules/mineflayer-pathfinder/index.js
-index b38bd30..fb39b45 100644
+index b38bd30..2cb2b14 100644
 --- a/node_modules/mineflayer-pathfinder/index.js
 +++ b/node_modules/mineflayer-pathfinder/index.js
 @@ -170,6 +170,16 @@ function inject (bot) {
@@ -9,7 +9,7 @@ index b38bd30..fb39b45 100644
 +
 +      // openned doors have small Collision box
 +      // that may stop the bot from moving forward
-+      if(i === 0 && b.name.includes('door')) {
++      if(i === 0 && b?.name.includes('door')) {
 +        curPoint.x = Math.floor(curPoint.x) + 0.5
 +        curPoint.y = Math.floor(curPoint.y)
 +        curPoint.z = Math.floor(curPoint.z) + 0.5
@@ -46,10 +46,10 @@ index b38bd30..fb39b45 100644
                })
                .catch(_ignoreError => {
 diff --git a/node_modules/mineflayer-pathfinder/lib/movements.js b/node_modules/mineflayer-pathfinder/lib/movements.js
-index a7e3505..3c4a8f2 100644
+index a7e3505..b5b54b6 100644
 --- a/node_modules/mineflayer-pathfinder/lib/movements.js
 +++ b/node_modules/mineflayer-pathfinder/lib/movements.js
-@@ -62,7 +62,13 @@
+@@ -62,7 +62,13 @@ class Movements {
  
      this.climbables = new Set()
      this.climbables.add(registry.blocksByName.ladder.id)
@@ -64,7 +64,7 @@ index a7e3505..3c4a8f2 100644
      this.emptyBlocks = new Set()
  
      this.replaceables = new Set()
-@@ -92,13 +98,15 @@
+@@ -92,13 +98,15 @@ class Movements {
        }
      })
      registry.blocksArray.forEach(block => {
@@ -82,7 +82,7 @@ index a7e3505..3c4a8f2 100644
  
      this.exclusionAreasStep = []
      this.exclusionAreasBreak = []
-@@ -230,8 +238,13 @@
+@@ -230,8 +238,13 @@ class Movements {
        }
      }
      b.climbable = this.climbables.has(b.type)
@@ -98,7 +98,7 @@ index a7e3505..3c4a8f2 100644
      b.replaceable = this.replaceables.has(b.type) && !b.physical
      b.liquid = this.liquids.has(b.type)
      b.height = pos.y + dy
-@@ -284,6 +297,18 @@
+@@ -284,6 +297,18 @@ class Movements {
      cost += this.exclusionStep(block) // Is excluded so can't move or break
      cost += this.getNumEntitiesAt(block.position, 0, 0, 0) * this.entityCost
      if (block.safe) return cost
@@ -117,7 +117,7 @@ index a7e3505..3c4a8f2 100644
      if (!this.safeToBreak(block)) return 100 // Can't break, so can't move
      toBreak.push(block.position)
  
-@@ -387,8 +412,8 @@
+@@ -387,8 +412,8 @@ class Movements {
      cost += this.safeOrBreak(blockB, toBreak)
      if (cost > 100) return
  
@@ -128,12 +128,10 @@ index a7e3505..3c4a8f2 100644
        toPlace.push({ x: node.x + dir.x, y: node.y, z: node.z + dir.z, dx: 0, dy: 0, dz: 0, useOne: true }) // Indicate that a block should be used on this block not placed
      } else {
        cost += this.safeOrBreak(blockC, toBreak)
-@@ -552,6 +577,54 @@
-     if (cost > 100) return
- 
+@@ -554,6 +579,54 @@ class Movements {
      neighbors.push(new Move(node.x, node.y + 1, node.z, node.remainingBlocks - toPlace.length, cost, toBreak, toPlace))
-+  }
-+
+   }
+ 
 +  getMoveClimbUpThroughTrapdoor (node, neighbors) {
 +    const blockCurrent = this.getBlock(node, 0, 0, 0) // Current position (should be climbable)
 +    const blockAbove = this.getBlock(node, 0, 1, 0) // Block directly above
@@ -180,17 +178,19 @@ index a7e3505..3c4a8f2 100644
 +    if (cost > 100) return
 +    
 +    neighbors.push(new Move(node.x, node.y + 2, node.z, node.remainingBlocks - toPlace.length, cost, toBreak, toPlace))
-   }
- 
++  }
++
    // Jump up, down or forward over a 1 block gap
-@@ -655,6 +728,10 @@
- 
+   getMoveParkourForward (node, dir, neighbors) {
+     const block0 = this.getBlock(node, 0, -1, 0)
+@@ -656,6 +729,10 @@ class Movements {
      this.getMoveDown(node, neighbors)
      this.getMoveUp(node, neighbors)
-+    
+     
 +    // Enhanced climbing moves for ladders, vines, and trapdoors
 +    this.getMoveClimbUpThroughTrapdoor(node, neighbors)
 +    this.getMoveClimbTop(node, neighbors)
- 
++
      return neighbors
    }
+ }
