@@ -38,6 +38,12 @@ export class GroqCloudAPI {
         try {
             console.log("Awaiting Groq response...");
 
+            // Handle deprecated max_tokens parameter
+            if (this.params.max_tokens) {
+                console.warn("GROQCLOUD WARNING: A profile is using `max_tokens`. This is deprecated. Please move to `max_completion_tokens`.");
+                this.params.max_completion_tokens = this.params.max_tokens;
+                delete this.params.max_tokens;
+            }
             if (!this.params.max_completion_tokens) {
                 this.params.max_completion_tokens = 4000;
             }
