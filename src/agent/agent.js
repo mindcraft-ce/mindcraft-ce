@@ -15,7 +15,7 @@ import { addBrowserViewer } from './vision/browser_viewer.js';
 import { serverProxy, sendOutputToServer } from './mindserver_proxy.js';
 import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
-import { say } from './speak.js';
+import { speak } from './speak.js';
 
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
@@ -383,9 +383,9 @@ export class Agent {
             }
         }
         else {
-	    if (settings.speak) {
-            say(to_translate);
-	    }
+            if (settings.speak) {
+                speak(to_translate, this.prompter.profile.speak_model);
+            }
             if (settings.chat_ingame) {this.bot.chat(message);}
             sendOutputToServer(this.name, message);
         }
