@@ -130,6 +130,14 @@ export function getBlockName(blockId) {
     return null;
 }
 
+export function getEntityId(entityName) {
+    let entity = mcdata.entitiesByName[entityName];
+    if (entity) {
+        return entity.id;
+    }
+    return null;
+}
+
 export function getAllItems(ignore) {
     if (!ignore) {
         ignore = [];

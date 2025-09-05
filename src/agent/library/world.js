@@ -305,6 +305,14 @@ export function getNearbyEntityTypes(bot) {
     return found;
 }
 
+export function isEntityType(name) {
+    /**
+     * Check if a given name is a valid entity type.
+     * @param {string} name - The name of the entity type to check.
+     * @returns {boolean} - True if the name is a valid entity type, false otherwise.
+     */
+    return mc.getEntityId(name) !== null;
+}
 
 export function getNearbyPlayerNames(bot) {
     /**
