@@ -1637,6 +1637,7 @@ export async function showTrades (bot, id) {
           log(bot, `${i + 1}: ${trade}`)
         })
       } catch (err) {
+        log(bot, 'failed to reach villager or open trading interface - this is likely a baby or jobless villager')
         console.log(err)
       }
       break
