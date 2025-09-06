@@ -761,8 +761,14 @@ export async function equip(bot, itemName) {
      **/
     let item = bot.inventory.slots.find(slot => slot && slot.name === itemName);
     if (!item) {
-        log(bot, `You do not have any ${itemName} to equip.`);
-        return false;
+        if (bot.game.gameMode === "creative") {
+            await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1));
+            block = bot.inventory.items().find(item => item.name === item_name);
+        }
+        else {
+            log(bot, `You do not have any ${itemName} to equip.`);
+            return false;
+        }
     }
     if (itemName.includes('leggings')) {
         await bot.equip(item, 'legs');
@@ -778,6 +784,9 @@ export async function equip(bot, itemName) {
     }
     else if (itemName.includes('shield')) {
         await bot.equip(item, 'off-hand');
+    }
+    else if (itemName === 'hand') {
+        await bot.unequip('hand');
     }
     else {
         await bot.equip(item, 'hand');
@@ -1869,3 +1878,51 @@ export async function digDown(bot, distance = 10) {
     log(bot, `Dug down ${distance} blocks.`);
     return true;
 }
+
+export async function useToolOn(bot, toolName, targetName) {
+    /**
+     * Equip a tool and use it on the nearest target.
+     * @param {MinecraftBot} bot
+     * @param {string} toolName - item name of the tool to equip, or "hand" for no tool.
+     * @param {string} targetName - entity type, block type, or "nothing" for no target
+     * @returns {Promise<boolean>} true if action succeeded
+     */
+    if (toolName === 'hand') {
+        await bot.unequip('hand');
+    }
+    else {
+        const equipped = await equip(bot, toolName);
+        if (!equipped) return false;
+    }
+
+    if (toolName.includes('bucket') && !targetName.includes('cow')) {
+        log(bot, `KNOWN ISSUE: Buckets do not work, except on cows.`);
+        return false;
+    }
+    targetName = targetName.toLowerCase();
+    if (targetName === 'nothing') {
+        await bot.activateItem();
+        log(bot, `Used ${toolName}.`);
+        return true;
+    } else if (world.isEntityType(targetName)) {
+        const entity = world.getNearestEntityWhere(bot, e => e.name === targetName, 64);
+        if (!entity) {
+            log(bot, `Could not find any ${targetName}.`);
+            return false;
+        }
+        await goToPosition(bot, entity.position.x, entity.position.y, entity.position.z);
+        await bot.useOn(entity);
+    } else {
+        const block = world.getNearestBlock(bot, targetName, 64);
+        if (!block) {
+            log(bot, `Could not find any ${targetName}.`);
+            return false;
+        }
+        await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
+        await bot.lookAt(block.position);
+        await bot.activateBlock(block);
+        log(bot, `Used ${toolName} on ${targetName}.`);
+    }
+
+    return true;
+ }

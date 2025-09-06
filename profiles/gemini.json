@@ -3,5 +3,7 @@
 
     "model": "gemini-2.5-flash",
 
+    "speak_model": "google/gemini-2.5-flash-preview-tts/Kore",
+
     "cooldown": 5000
 }

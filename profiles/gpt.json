@@ -2,9 +2,11 @@
     "name": "gpt",
 
     "model": {
-        "model": "gpt-4o",
+        "model": "gpt-5",
         "params": {
-            "temperature": 0.5
+            "reasoning": {
+                "effort": "minimal"
+            }
         }
     }
 }
