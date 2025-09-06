@@ -388,6 +388,26 @@ export const actionsList = [
         }
     },
     {
+        name: '!showTrades',
+        description: 'Show trades of a specified villager.',
+        params: {'id': { type: 'string', description: 'The id number of the villager that you want to trade with.' }},
+        perform: runAsAction(async (agent, id) => {
+            await skills.showTrades(agent.bot, id);
+        })
+    },
+    {
+        name: '!trade',
+        description: 'trade with a specified villager.',
+        params: {
+            'id': { type: 'string', description: 'The id number of the villager that you want to trade with.' },
+            'index': { type: 'string', description: 'The index of the trade you want executed.' },
+            'count': { type: 'string', description: 'How many times that trade should be executed.' },
+            },
+        perform: runAsAction(async (agent, id, index, count) => {
+            await skills.trade(agent.bot, id, index, count);
+        })
+    },
+    {
         name: '!startConversation',
         description: 'Start a conversation with a player. Use for bots only.',
         params: {
