@@ -21,29 +21,21 @@ export class GPT {
     }
 
     async sendRequest(turns, systemMessage, stop_seq='***') {
-        let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
-        messages = strictFormat(messages);
+        let messages = strictFormat(turns);
         let model = this.model_name || "gpt-4o-mini";
-        const pack = {
-            model: model,
-            messages,
-            stop: stop_seq,
-            ...(this.params || {})
-        };
-        if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
-            delete pack.stop;
-        }
 
         let res = null;
 
         try {
             console.log('Awaiting openai api response from model', model)
-            // console.log('Messages:', messages);
-            let completion = await this.openai.chat.completions.create(pack);
-            if (completion.choices[0].finish_reason == 'length')
-                throw new Error('Context length exceeded'); 
+            const response = await this.openai.responses.create({
+                model: model,
+                instructions: systemMessage,
+                input: messages,
+                ...(this.params || {})
+            });
             console.log('Received.')
-            res = completion.choices[0].message.content;
+            res = response.output_text;
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -65,12 +57,10 @@ export class GPT {
         imageMessages.push({
             role: "user",
             content: [
-                { type: "text", text: systemMessage },
+                { type: "input_text", text: systemMessage },
                 {
-                    type: "image_url",
-                    image_url: {
-                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
-                    }
+                    type: "input_image",
+                    image_url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
                 }
             ]
         });
