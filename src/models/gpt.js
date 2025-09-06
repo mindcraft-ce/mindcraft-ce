@@ -57,12 +57,10 @@ export class GPT {
         imageMessages.push({
             role: "user",
             content: [
-                { type: "text", text: systemMessage },
+                { type: "input_text", text: systemMessage },
                 {
-                    type: "image_url",
-                    image_url: {
-                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
-                    }
+                    type: "input_image",
+                    image_url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
                 }
             ]
         });
