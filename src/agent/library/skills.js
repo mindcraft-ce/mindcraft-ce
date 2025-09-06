@@ -786,7 +786,7 @@ export async function equip(bot, itemName) {
         await bot.equip(item, 'off-hand');
     }
     else if (itemName === 'hand') {
-        await bot.equip(null, 'hand');
+        await bot.unequip('hand');
     }
     else {
         await bot.equip(item, 'hand');
