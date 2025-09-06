@@ -155,11 +155,32 @@ export const queryList = [
                 res += `\n- Bot player: ${bot}`;
             }
 
-            for (const entity of world.getNearbyEntityTypes(bot)) {
-                if (entity === 'player' || entity === 'item')
+            let nearbyEntities = world.getNearbyEntities(bot);
+            let entityCounts = {};
+            let villagerIds = [];
+            
+            for (const entity of nearbyEntities) {
+                if (entity.type === 'player' || entity.name === 'item')
                     continue;
-                res += `\n- entities: ${entity}`;
+                    
+                if (!entityCounts[entity.name]) {
+                    entityCounts[entity.name] = 0;
+                }
+                entityCounts[entity.name]++;
+                
+                if (entity.name === 'villager') {
+                    villagerIds.push(entity.id);
+                }
             }
+            
+            for (const [entityType, count] of Object.entries(entityCounts)) {
+                if (entityType === 'villager' && villagerIds.length > 0) {
+                    res += `\n- entities: ${count} ${entityType}(s) with IDs: ${villagerIds.join(', ')}`;
+                } else {
+                    res += `\n- entities: ${count} ${entityType}(s)`;
+                }
+            }
+            
             if (res == 'NEARBY_ENTITIES') {
                 res += ': none';
             }

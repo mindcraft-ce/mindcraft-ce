@@ -1608,6 +1608,124 @@ export async function activateNearestBlock(bot, type) {
     return true;
 }
 
+export async function showTrades (bot, id) {
+  const e = bot.entities[id]
+  switch (true) {
+    case !e:
+      log(bot, `cant find entity with id ${id}`)
+      break
+    case e.entityType !== bot.registry.entitiesByName.villager.id:
+      log(bot, 'entity is not a villager')
+      break
+    case bot.entity.position.distanceTo(e.position) > 3:
+      log(bot, 'villager out of reach')
+      break
+    default: {
+      const villager = await bot.openVillager(e)
+      villager.close()
+      stringifyTrades(bot, villager.trades).forEach((trade, i) => {
+        console.log(`${i + 1}: ${trade}`)
+        log(bot, `${i + 1}: ${trade}`)
+      })
+    }
+  }
+}
+
+export async function trade (bot, id, index, count) {
+  const e = bot.entities[id]
+  switch (true) {
+    case !e:
+      log(bot, `cant find entity with id ${id}`)
+      break
+    case e.entityType !== bot.registry.entitiesByName.villager.id:
+      log(bot, 'entity is not a villager')
+      break
+    case bot.entity.position.distanceTo(e.position) > 3:
+      log(bot, 'villager out of reach')
+      break
+    default: {
+      const villager = await bot.openVillager(e)
+      const trade = villager.trades[index - 1]
+      count = count || trade.maximumNbTradeUses - trade.nbTradeUses
+      switch (true) {
+        case !trade:
+          villager.close()
+          log(bot, 'trade not found')
+          break
+        case trade.disabled:
+          villager.close()
+          log(bot, 'trade is disabled')
+          break
+        case trade.maximumNbTradeUses - trade.nbTradeUses < count:
+          villager.close()
+          log(bot, 'cant trade that often')
+          break
+        case !hasResources(villager.slots, trade, count):
+          villager.close()
+          log(bot, 'dont have the resources to do that trade')
+          break
+        default:
+          log(bot, 'starting to trade')
+          try {
+            await bot.trade(villager, index - 1, count)
+            log(bot, `traded ${count} times`)
+          } catch (err) {
+            log(bot, 'an error occurred while trying to trade')
+            console.log(err)
+          }
+          villager.close()
+      }
+    }
+  }
+}
+
+function hasResources (window, trade, count) {
+    const first = enough(trade.inputItem1, count)
+    const second = !trade.inputItem2 || enough(trade.inputItem2, count)
+    return first && second
+
+    function enough (item, count) {
+      let c = 0
+      window.forEach((element) => {
+        if (element && element.type === item.type && element.metadata === item.metadata) {
+          c += element.count
+        }
+      })
+      return c >= item.count * count
+    }
+  }
+
+function stringifyTrades (bot, trades) {
+  return trades.map((trade) => {
+    let text = stringifyItem(bot, trade.inputItem1)
+    if (trade.inputItem2) text += ` & ${stringifyItem(bot, trade.inputItem2)}`
+    if (trade.disabled) text += ' x '; else text += ' » '
+    text += stringifyItem(bot, trade.outputItem)
+    return `(${trade.nbTradeUses}/${trade.maximumNbTradeUses}) ${text}`
+  })
+}
+function stringifyItem (bot, item) {
+  if (!item) return 'nothing'
+  let text = `${item.count} ${item.displayName}`
+  if (item.nbt && item.nbt.value) {
+    const ench = item.nbt.value.ench
+    const StoredEnchantments = item.nbt.value.StoredEnchantments
+    const Potion = item.nbt.value.Potion
+    const display = item.nbt.value.display
+
+    if (Potion) text += ` of ${Potion.value.replace(/_/g, ' ').split(':')[1] || 'unknown type'}`
+    if (display) text += ` named ${display.value.Name.value}`
+    if (ench || StoredEnchantments) {
+      text += ` enchanted with ${(ench || StoredEnchantments).value.value.map((e) => {
+        const lvl = e.lvl.value
+        const id = e.id.value
+        return bot.registry.enchantments[id].displayName + ' ' + lvl
+      }).join(' ')}`
+    }
+  }
+  return text
+}
+
 export async function digDown(bot, distance = 10) {
     /**
      * Digs down a specified distance. Will stop if it reaches lava, water, or a fall of >=4 blocks below the bot.
