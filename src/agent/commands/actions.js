@@ -128,9 +128,13 @@ export const actionsList = [
         description: 'Find and go to the nearest block of a given type in a given range.',
         params: {
             'type': { type: 'BlockName', description: 'The block type to go to.' },
-            'search_range': { type: 'float', description: 'The range to search for the block.', domain: [32, 512] }
+            'search_range': { type: 'float', description: 'The range to search for the block. Minimum 32.', domain: [10, 512] }
         },
         perform: runAsAction(async (agent, block_type, range) => {
+            if (range < 32) {
+                log(agent.bot, `Minimum search range is 32.`);
+                range = 32;
+            }
             await skills.goToNearestBlock(agent.bot, block_type, 4, range);
         })
     },

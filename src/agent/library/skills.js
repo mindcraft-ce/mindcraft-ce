@@ -1658,7 +1658,6 @@ export async function useToolOn(bot, toolName, targetName) {
      * @param {string} targetName - entity type, block type, or "nothing" for no target
      * @returns {Promise<boolean>} true if action succeeded
      */
-    // Equip the specified tool first
     if (toolName === 'hand') {
         await bot.unequip('hand');
     }
@@ -1667,6 +1666,10 @@ export async function useToolOn(bot, toolName, targetName) {
         if (!equipped) return false;
     }
 
+    if (toolName.includes('bucket') && !targetName.includes('cow')) {
+        log(bot, `KNOWN ISSUE: Buckets do not work, except on cows.`);
+        return false;
+    }
     targetName = targetName.toLowerCase();
     if (targetName === 'nothing') {
         await bot.activateItem();
