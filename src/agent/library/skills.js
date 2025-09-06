@@ -761,8 +761,14 @@ export async function equip(bot, itemName) {
      **/
     let item = bot.inventory.slots.find(slot => slot && slot.name === itemName);
     if (!item) {
-        log(bot, `You do not have any ${itemName} to equip.`);
-        return false;
+        if (bot.game.gameMode === "creative") {
+            await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1));
+            block = bot.inventory.items().find(item => item.name === item_name);
+        }
+        else {
+            log(bot, `You do not have any ${itemName} to equip.`);
+            return false;
+        }
     }
     if (itemName.includes('leggings')) {
         await bot.equip(item, 'legs');
@@ -778,6 +784,9 @@ export async function equip(bot, itemName) {
     }
     else if (itemName.includes('shield')) {
         await bot.equip(item, 'off-hand');
+    }
+    else if (itemName === 'hand') {
+        await bot.unequip('hand');
     }
     else {
         await bot.equip(item, 'hand');
@@ -1584,30 +1593,6 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     return true;
 }
 
-export async function activateNearestBlock(bot, type) {
-    /**
-     * Activate the nearest block of the given type.
-     * @param {MinecraftBot} bot, reference to the minecraft bot.
-     * @param {string} type, the type of block to activate.
-     * @returns {Promise<boolean>} true if the block was activated, false otherwise.
-     * @example
-     * await skills.activateNearestBlock(bot, "lever");
-     * **/
-    let block = world.getNearestBlock(bot, type, 16);
-    if (!block) {
-        log(bot, `Could not find any ${type} to activate.`);
-        return false;
-    }
-    if (bot.entity.position.distanceTo(block.position) > 4.5) {
-        let pos = block.position;
-        bot.pathfinder.setMovements(new pf.Movements(bot));
-        await goToGoal(bot, new pf.goals.GoalNear(pos.x, pos.y, pos.z, 4));
-    }
-    await bot.activateBlock(block);
-    log(bot, `Activated ${type} at x:${block.position.x.toFixed(1)}, y:${block.position.y.toFixed(1)}, z:${block.position.z.toFixed(1)}.`);
-    return true;
-}
-
 export async function digDown(bot, distance = 10) {
     /**
      * Digs down a specified distance. Will stop if it reaches lava, water, or a fall of >=4 blocks below the bot.
@@ -1664,3 +1649,51 @@ export async function digDown(bot, distance = 10) {
     log(bot, `Dug down ${distance} blocks.`);
     return true;
 }
+
+export async function useToolOn(bot, toolName, targetName) {
+    /**
+     * Equip a tool and use it on the nearest target.
+     * @param {MinecraftBot} bot
+     * @param {string} toolName - item name of the tool to equip, or "hand" for no tool.
+     * @param {string} targetName - entity type, block type, or "nothing" for no target
+     * @returns {Promise<boolean>} true if action succeeded
+     */
+    if (toolName === 'hand') {
+        await bot.unequip('hand');
+    }
+    else {
+        const equipped = await equip(bot, toolName);
+        if (!equipped) return false;
+    }
+
+    if (toolName.includes('bucket') && !targetName.includes('cow')) {
+        log(bot, `KNOWN ISSUE: Buckets do not work, except on cows.`);
+        return false;
+    }
+    targetName = targetName.toLowerCase();
+    if (targetName === 'nothing') {
+        await bot.activateItem();
+        log(bot, `Used ${toolName}.`);
+        return true;
+    } else if (world.isEntityType(targetName)) {
+        const entity = world.getNearestEntityWhere(bot, e => e.name === targetName, 64);
+        if (!entity) {
+            log(bot, `Could not find any ${targetName}.`);
+            return false;
+        }
+        await goToPosition(bot, entity.position.x, entity.position.y, entity.position.z);
+        await bot.useOn(entity);
+    } else {
+        const block = world.getNearestBlock(bot, targetName, 64);
+        if (!block) {
+            log(bot, `Could not find any ${targetName}.`);
+            return false;
+        }
+        await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
+        await bot.lookAt(block.position);
+        await bot.activateBlock(block);
+        log(bot, `Used ${toolName} on ${targetName}.`);
+    }
+
+    return true;
+ }
