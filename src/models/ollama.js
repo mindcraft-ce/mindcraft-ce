@@ -69,7 +69,7 @@ export class Ollama {
     }
 
     async embed(text) {
-        let model = this.model_name || 'nomic-embed-text';
+        let model = this.model_name || 'embeddinggemma';
         let body = { model: model, input: text };
         let res = await this.send(this.embedding_endpoint, body);
         return res['embedding'];
