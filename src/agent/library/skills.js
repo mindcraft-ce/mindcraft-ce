@@ -1617,16 +1617,46 @@ export async function showTrades (bot, id) {
     case e.entityType !== bot.registry.entitiesByName.villager.id:
       log(bot, 'entity is not a villager')
       break
+    case e.metadata && e.metadata[16] === 1:
+      log(bot, 'this is either a baby villager or a villager with no job - neither can trade')
+      break
     case bot.entity.position.distanceTo(e.position) > 3:
-      log(bot, 'villager out of reach')
+      log(bot, `villager is ${bot.entity.position.distanceTo(e.position).toFixed(1)} blocks away, moving closer...`)
+      try {
+        await goToPosition(bot, e.position.x, e.position.y, e.position.z, 2)
+        log(bot, 'reached villager, now checking trades...')
+        const villager = await bot.openVillager(e)
+        if (!villager.trades || villager.trades.length === 0) {
+          log(bot, 'this villager has no trades available - might be a baby or jobless villager')
+          villager.close()
+          break
+        }
+        villager.close()
+        stringifyTrades(bot, villager.trades).forEach((trade, i) => {
+          console.log(`${i + 1}: ${trade}`)
+          log(bot, `${i + 1}: ${trade}`)
+        })
+      } catch (err) {
+        console.log(err)
+      }
       break
     default: {
-      const villager = await bot.openVillager(e)
-      villager.close()
-      stringifyTrades(bot, villager.trades).forEach((trade, i) => {
-        console.log(`${i + 1}: ${trade}`)
-        log(bot, `${i + 1}: ${trade}`)
-      })
+      try {
+        const villager = await bot.openVillager(e)
+        if (!villager.trades || villager.trades.length === 0) {
+          log(bot, 'this villager has no trades available - might be a baby or jobless villager')
+          villager.close()
+          break
+        }
+        villager.close()
+        stringifyTrades(bot, villager.trades).forEach((trade, i) => {
+          console.log(`${i + 1}: ${trade}`)
+          log(bot, `${i + 1}: ${trade}`)
+        })
+      } catch (err) {
+        log(bot, 'failed to open villager trading interface - this is likely a baby or jobless villager')
+        console.log(err)
+      }
     }
   }
 }
@@ -1640,40 +1670,96 @@ export async function trade (bot, id, index, count) {
     case e.entityType !== bot.registry.entitiesByName.villager.id:
       log(bot, 'entity is not a villager')
       break
+    case e.metadata && e.metadata[16] === 1:
+      log(bot, 'this is either a baby villager or a villager with no job - neither can trade')
+      break
     case bot.entity.position.distanceTo(e.position) > 3:
-      log(bot, 'villager out of reach')
+      log(bot, `villager is ${bot.entity.position.distanceTo(e.position).toFixed(1)} blocks away, moving closer for trade...`)
+      try {
+        await goToPosition(bot, e.position.x, e.position.y, e.position.z, 2)
+        log(bot, 'reached villager, now attempting trade...')
+        const villager = await bot.openVillager(e)
+        if (!villager.trades || villager.trades.length === 0) {
+          log(bot, 'this villager has no trades available - might be a baby or jobless villager')
+          villager.close()
+          break
+        }
+        const trade = villager.trades[index - 1]
+        count = count || trade.maximumNbTradeUses - trade.nbTradeUses
+        switch (true) {
+          case !trade:
+            villager.close()
+            log(bot, 'trade not found')
+            break
+          case trade.disabled:
+            villager.close()
+            log(bot, 'trade is disabled')
+            break
+          case trade.maximumNbTradeUses - trade.nbTradeUses < count:
+            villager.close()
+            log(bot, 'cant trade that often')
+            break
+          case !hasResources(villager.slots, trade, count):
+            villager.close()
+            log(bot, 'dont have the resources to do that trade')
+            break
+          default:
+            log(bot, 'starting to trade')
+            try {
+              await bot.trade(villager, index - 1, count)
+              log(bot, `traded ${count} times`)
+            } catch (err) {
+              log(bot, 'an error occurred while trying to trade')
+              console.log(err)
+            }
+            villager.close()
+        }
+      } catch (err) {
+        log(bot, 'failed to reach villager or open trading interface - this is likely a baby or jobless villager')
+        console.log(err)
+      }
       break
     default: {
-      const villager = await bot.openVillager(e)
-      const trade = villager.trades[index - 1]
-      count = count || trade.maximumNbTradeUses - trade.nbTradeUses
-      switch (true) {
-        case !trade:
+      try {
+        const villager = await bot.openVillager(e)
+        if (!villager.trades || villager.trades.length === 0) {
+          log(bot, 'this villager has no trades available - might be a baby or jobless villager')
           villager.close()
-          log(bot, 'trade not found')
           break
-        case trade.disabled:
-          villager.close()
-          log(bot, 'trade is disabled')
-          break
-        case trade.maximumNbTradeUses - trade.nbTradeUses < count:
-          villager.close()
-          log(bot, 'cant trade that often')
-          break
-        case !hasResources(villager.slots, trade, count):
-          villager.close()
-          log(bot, 'dont have the resources to do that trade')
-          break
-        default:
-          log(bot, 'starting to trade')
-          try {
-            await bot.trade(villager, index - 1, count)
-            log(bot, `traded ${count} times`)
-          } catch (err) {
-            log(bot, 'an error occurred while trying to trade')
-            console.log(err)
-          }
-          villager.close()
+        }
+        const trade = villager.trades[index - 1]
+        count = count || trade.maximumNbTradeUses - trade.nbTradeUses
+        switch (true) {
+          case !trade:
+            villager.close()
+            log(bot, 'trade not found')
+            break
+          case trade.disabled:
+            villager.close()
+            log(bot, 'trade is disabled')
+            break
+          case trade.maximumNbTradeUses - trade.nbTradeUses < count:
+            villager.close()
+            log(bot, 'cant trade that often')
+            break
+          case !hasResources(villager.slots, trade, count):
+            villager.close()
+            log(bot, 'dont have the resources to do that trade')
+            break
+          default:
+            log(bot, 'starting to trade')
+            try {
+              await bot.trade(villager, index - 1, count)
+              log(bot, `traded ${count} times`)
+            } catch (err) {
+              log(bot, 'an error occurred while trying to trade')
+              console.log(err)
+            }
+            villager.close()
+        }
+      } catch (err) {
+        log(bot, 'failed to open villager trading interface - this is likely a baby or jobless villager')
+        console.log(err)
       }
     }
   }

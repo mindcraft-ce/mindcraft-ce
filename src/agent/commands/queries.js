@@ -158,6 +158,7 @@ export const queryList = [
             let nearbyEntities = world.getNearbyEntities(bot);
             let entityCounts = {};
             let villagerIds = [];
+            let babyVillagerIds = [];
             
             for (const entity of nearbyEntities) {
                 if (entity.type === 'player' || entity.name === 'item')
@@ -169,13 +170,24 @@ export const queryList = [
                 entityCounts[entity.name]++;
                 
                 if (entity.name === 'villager') {
-                    villagerIds.push(entity.id);
+                    if (entity.metadata && entity.metadata[16] === 1) {
+                        babyVillagerIds.push(entity.id);
+                    } else {
+                        villagerIds.push(entity.id);
+                    }
                 }
             }
             
             for (const [entityType, count] of Object.entries(entityCounts)) {
-                if (entityType === 'villager' && villagerIds.length > 0) {
-                    res += `\n- entities: ${count} ${entityType}(s) with IDs: ${villagerIds.join(', ')}`;
+                if (entityType === 'villager') {
+                    let villagerInfo = `${count} ${entityType}(s)`;
+                    if (villagerIds.length > 0) {
+                        villagerInfo += ` - Adult IDs: ${villagerIds.join(', ')}`;
+                    }
+                    if (babyVillagerIds.length > 0) {
+                        villagerInfo += ` - Baby IDs: ${babyVillagerIds.join(', ')} (babies cannot trade)`;
+                    }
+                    res += `\n- entities: ${villagerInfo}`;
                 } else {
                     res += `\n- entities: ${count} ${entityType}(s)`;
                 }
