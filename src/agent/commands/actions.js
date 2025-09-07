@@ -12,6 +12,11 @@ export function runAsAction (actionFn, resume = false, timeout = -1) {
             actionLabel = actionObj.name.substring(1); // Remove the ! prefix
         }
 
+        // Cancel followPlayer if this is a different action
+        if (actionLabel !== 'followPlayer' && agent.actions.currentActionLabel === 'action:followPlayer') {
+            agent.actions.cancelCurrentAction(`Cancelled follow to execute ${actionLabel}`);
+        }
+
         const actionFnWithAgent = async () => {
             await actionFn(agent, ...args);
         };
@@ -106,6 +111,9 @@ export const actionsList = [
             'follow_dist': {type: 'float', description: 'The distance to follow from.', domain: [0, Infinity]}
         },
         perform: runAsAction(async (agent, player_name, follow_dist) => {
+            // Store the current follow target and distance for resuming
+            agent._lastFollowPlayer = player_name;
+            agent._lastFollowDistance = follow_dist;
             await skills.followPlayer(agent.bot, player_name, follow_dist);
         }, true)
     },
@@ -256,7 +264,7 @@ export const actionsList = [
         },
         perform: runAsAction(async (agent, type, num) => {
             await skills.collectBlock(agent.bot, type, num);
-        }, false, 10) // 10 minute timeout
+        }, false, 5) // 5 minute timeout instead of 10
     },
     {
         name: '!craftRecipe',

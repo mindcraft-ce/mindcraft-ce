@@ -385,3 +385,22 @@ export function getBiomeName(bot) {
     const biomeId = bot.world.getBiome(bot.entity.position);
     return mc.getAllBiomes()[biomeId].name;
 }
+
+export async function getNearestEntityWherePath(bot, predicate, maxPathLength=5, maxDistance=16) {
+    // Find all entities matching predicate and within maxDistance
+    const candidates = Object.values(bot.entities).filter(entity => predicate(entity) && bot.entity.position.distanceTo(entity.position) < maxDistance);
+    let best = null;
+    let bestPath = null;
+    for (const entity of candidates) {
+        let movements = new pf.Movements(bot);
+        let goal = new pf.goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, 1);
+        let path = await bot.pathfinder.getPathTo(movements, goal, 100);
+        if (path.status === 'success' && path.path && path.path.length <= maxPathLength) {
+            if (!best || path.path.length < bestPath.path.length) {
+                best = entity;
+                bestPath = path;
+            }
+        }
+    }
+    return best;
+}
