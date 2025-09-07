@@ -26,7 +26,7 @@ export class AgentProcess {
         
         let last_restart = Date.now();
         agentProcess.on('exit', (code, signal) => {
-            console.log(`Agent process exited with code ${code} and signal ${signal}`);
+            console.error(`Agent process exited with code ${code} and signal ${signal}`);
             this.running = false;
             mainProxy.logoutAgent(this.name);
             

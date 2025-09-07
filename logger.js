@@ -8,11 +8,13 @@ import path from 'path'; // Needed for path operations
 // import fetch from 'node-fetch';
 
 // --- Configuration ---
+const loggingConsentPath = './.logging_consent';
+
 const LOGS_DIR = './logs';
 const VISION_DATASET_DIR = join(LOGS_DIR, 'vision_dataset'); // HuggingFace dataset format
 const VISION_IMAGES_DIR = join(VISION_DATASET_DIR, 'images'); // Images subdirectory
 
-const EXTERNAL_LOGGING_URL = 'https://mindcraft-ce.com/api/log'; // Base URL for external logging
+const EXTERNAL_LOGGING_URL = 'https://andy.mindcraft-ce.com/api/log'; // Base URL for external logging
 
 // --- Log File Paths ---
 const REASONING_LOG_FILE = join(LOGS_DIR, 'reasoning_logs.csv');
@@ -277,6 +279,23 @@ function printSummary() {
     console.log('='.repeat(60) + '\n');
 }
 
+function isExternalLoggingEnabled() {
+    if (existsSync(loggingConsentPath)) {
+        try {
+            const contents = readFileSync(loggingConsentPath, 'utf-8');
+            const consent = JSON.parse(contents);
+            return consent && consent.consent === true;
+        } catch (error) {
+            console.error(`[Logger] Error reading logging consent file:`, error);
+            return false; // Default to false if there's an error
+        }
+    } else {
+        return false; // Default to false if the file doesn't exist - file should be handled by initialization anyway.
+    }
+}
+
+const externalLoggingEnabled = isExternalLoggingEnabled();
+
 // --- Main Logging Function (for text-based input/output) ---
 export async function log(input, response) { // Made async to support fetch
     const trimmedInputStr = input ? (typeof input === 'string' ? input.trim() : JSON.stringify(input)) : "";
@@ -347,7 +366,7 @@ export async function log(input, response) { // Made async to support fetch
     }
 
     // Check if logging for this type is enabled (either local or external)
-    if (!settingFlag && !settings.external_logging) {
+    if (!settingFlag && !externalLoggingEnabled) {
         logCounts.skipped_disabled++;
         return;
     }
@@ -358,7 +377,7 @@ export async function log(input, response) { // Made async to support fetch
     const csvEntry = `${safeInput},${safeResponse}\n`;
 
     // Perform external logging if enabled
-    if (settings.external_logging) {
+    if (externalLoggingEnabled) {
         try {
             const endpoint = `${EXTERNAL_LOGGING_URL}/${logType === 'reasoning' ? 'reasoning-logs' : 'normal-logs'}`;
             const response = await fetch(endpoint, {
@@ -398,7 +417,7 @@ export async function log(input, response) { // Made async to support fetch
 
 // --- Enhanced Vision Logging Function for HuggingFace Dataset Format ---
 export async function logVision(conversationHistory, imageBuffer, response, visionMessage = null) { // Made async
-    if (!settings.log_vision_data && !settings.external_logging) {
+    if (!settings.log_vision_data && !externalLoggingEnabled) {
         logCounts.skipped_disabled++;
         return;
     }
@@ -486,7 +505,7 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
     const rawResponse = trimmedResponse;
 
     // Perform external logging if enabled
-    if (settings.external_logging) {
+    if (externalLoggingEnabled) {
         try {
             const endpoint = `${EXTERNAL_LOGGING_URL}/${logType}-vision`; // Vision logs now include type
             const payload = {
@@ -576,18 +595,58 @@ function initializeCounts() {
 
     console.log(`[Logger] Initialized session-based log counts.`);
 
-    if (settings.external_logging) {
+    if (externalLoggingEnabled) {
         console.log('\n' + '='.repeat(60));
         console.log('EXTERNAL LOGGING ENABLED');
-        console.log('Data will be sent to mindcraft-ce.com/api/log');
+        console.log('Data will be sent to andy.mindcraft-ce.com/api/log');
         console.log('The data will only be used to train future Andy models');
-        console.log('We only collect the messages you send to the agent');
-        console.log('And no other information.');
+        console.log('We collect all the messages you send to the agent');
+        console.log('and the responses it gives you, but everything is anonymized.');
+        console.log('These logs are publicly available for anyone to see.');
+        console.log('You can disable this by creating a file named `.logging_consent` and setting its content to `{"consent": false}`.');
         console.log('');
-        console.log('We recommend leaving this on to make Mindcraft-CE better!');
+        console.log('Leaving this on will help make Andy models better.');
         console.log('='.repeat(60) + '\n');
         // Send usernames to the server is now handled by the agent
     }
+}
+
+export function setupLogConsent() {
+    if (existsSync(loggingConsentPath)) {
+        // We don't need to do anything.
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+        // Prompt the user for consent.
+        console.log(' ============================== ')
+        console.log('To help us build smarter models like Andy-5, would you like to contribute your gameplay data for AI training?');
+        console.log('Here\'s what this means:');
+        console.log('- We record your ENTIRE in-game conversations with the bot.');
+        console.log('- This data is used to create PUBLIC datasets for training (e.g., on Hugging Face).');
+        console.log('- All data collected will be anonymous, your username will not be on Public Datasets.');
+        console.log('- This helps us collect training data to improve future Andy models.');
+        console.log('If you are of age 16 or younger you must have parental consent to say yes, as required by GDPR.');
+        console.log('To keep your info anonymous, we store it in a heap with other users\' data, meaning anything logged cannot be deleted.');
+        console.log('You can change this anytime by creating a file named `.logging_consent` and setting its content to `{"consent": false}`.');
+        process.stdout.write('Contribute to the future of Mindcraft-CE? [y/N]: '); // Keeps the cursor on the same line
+        process.stdin.setEncoding('utf8');
+
+        process.stdin.on('data', (data) => {
+            const consent = data.trim().toLowerCase();
+            if (consent.startsWith('n')) {
+                writeFileSync(loggingConsentPath, JSON.stringify({ consent: false }, null, 2));
+                console.log('You have opted out of data collection. You can change this anytime by editing the `.logging_consent` file.');
+            } else if (consent.startsWith('y')) {
+                writeFileSync(loggingConsentPath, JSON.stringify({ consent: true }, null, 2));
+                console.log('Thank you for your consent! Your data will help improve future models. You can change this anytime by editing the `.logging_consent` file.');
+            } else {
+                console.log('Invalid input. Please type "y" for yes or "n" for no.');
+                return; // Exit early if input is invalid
+            }
+            process.stdin.pause(); // Stop listening for input
+            resolve();
+        });
+    });
 }
 
 // Function to send usernames to the server
@@ -628,3 +687,5 @@ export async function sendUsernames(bot) {
 
 // Initialize counts at startup
 initializeCounts();
+
+

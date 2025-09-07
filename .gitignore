@@ -22,6 +22,7 @@ services/viaproxy/saves.json
 services/viaproxy/viaproxy.yml
 services/mc
 tmp/
+tests/
 src/server/analytics
 wandb/
 experiments/
@@ -41,7 +42,7 @@ twitch-integration.js
 test-mindserver-connection.js
 setup-twitch-integration.js
 
-# (to @Sweaterdog) DO NOT ignore `settings.js` as it is a required file for the repo to function.
+# DO NOT ignore `settings.js` as it is a required file for the repo to function.
 # If `settings.js` is put in the `.gitignore` file, changes made to do things like add new features - e.g. adding a new key to the file
 # will not be pushed to the repo.
 
@@ -57,8 +58,11 @@ setup-twitch-integration.js
 
 # This will tell `git` to start tracking changes to `settings.js` again.
 
-# (To @uukelele-scratch) Thanks for the tips! it probably wont happen again 👍
 settings.js.backup
 .kilocode/mcp.json
 pnpm-workspace.yaml
 pnpm-lock.yaml
+
+.logging_consent
+# This file would have {"consent": null}, {"consent": false}, or {"consent": true} be set.
+# If the file doesn't exist, we can assume `consent` is `null`.

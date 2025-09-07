@@ -17,5 +17,6 @@
     "HYPERBOLIC_API_KEY": "",
     "NOVITA_API_KEY": "",
     "OPENROUTER_API_KEY": "",
+    "ANDY_API_KEY": "optional",
     "POLLINATIONS_API_KEY": "optional"
 }

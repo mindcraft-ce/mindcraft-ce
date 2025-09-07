@@ -38,14 +38,15 @@ export class GroqCloudAPI {
         try {
             console.log("Awaiting Groq response...");
 
-            // Handle deprecated max_tokens parameter
-            if (this.params.max_tokens) {
-                console.warn("GROQCLOUD WARNING: A profile is using `max_tokens`. This is deprecated. Please move to `max_completion_tokens`.");
-                this.params.max_completion_tokens = this.params.max_tokens;
-                delete this.params.max_tokens;
-            }
             if (!this.params.max_completion_tokens) {
                 this.params.max_completion_tokens = 4000;
+            }
+
+            // FIXME: Groq is complaining about "property imagePath is unsupported"
+            for (let i = 0; i < messages.length; i++) {
+                if (messages[i] && messages[i].hasOwnProperty('imagePath')) {
+                    delete messages[i].imagePath;
+                }
             }
 
             let completion = await this.groq.chat.completions.create({

@@ -7,16 +7,48 @@ export class Andy {
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
-        
+        this.baseUrl = url || 'https://andy.mindcraft-ce.com/api/v1';
+
         // Andy API configuration
         let config = {
-            baseURL: url || 'https://mindcraft-ce.com/api/andy/v1',
+            baseURL: this.baseUrl,
             apiKey: getKey('ANDY_API_KEY') || 'no-key-needed' // Can work without key but with limits
         };
         
         this.openai = new OpenAIApi(config);
         this.supportsRawImageInput = true;
         this.fallbackToPool = true; // Enable pool fallback
+    }
+
+    async sendBotUpdate(model, usage) {
+        try {
+            if(!process.env.WEBAPI_ENABLED) return;
+
+            const botName = process.env.AGENT_NAME || 'Unknown';
+            const apiUrl = process.env.WEBAPI_URL;
+
+            const updateData = {
+                botName: botName,
+                model: model,
+                usage: usage
+            };
+
+            const response = await fetch(`${apiUrl}/api/bot/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (response.ok) {
+                console.log(`[Andy] Bot update sent successfully for ${botName}`);
+            } else {
+                console.warn(`[Andy] Failed to send bot update: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.warn(`[Andy] Error sending bot update:`, error.message);
+        }
     }
 
     async sendRequest(turns, systemMessage, imageData = null, stop_seq = '***') {
@@ -57,6 +89,8 @@ export class Andy {
         };
 
         let res = null;
+        let usage = null;
+        let model = null;
         try {
             console.log('Awaiting Andy API response from model', this.model_name);
 
@@ -65,7 +99,19 @@ export class Andy {
                 throw new Error('Context length exceeded');
             }
             console.log('Received.');
+
+
             res = completion.choices[0].message.content;
+            model = completion.model;
+
+            // Extract usage information
+            if (completion.usage) {
+                usage = {
+                    prompt_tokens: completion.usage.prompt_tokens || 0,
+                    completion_tokens: completion.usage.completion_tokens || 0,
+                    total_tokens: completion.usage.total_tokens || 0
+                };
+            }
         } catch (err) {
             console.log('Andy API error:', err.message);
             
@@ -83,6 +129,11 @@ export class Andy {
                 console.log(err);
                 res = 'My brain disconnected, try again.';
             }
+        }
+
+        // Send bot update if request was successful and we have usage data
+        if (res && usage) {
+            this.sendBotUpdate(model, usage);
         }
 
         // Handle thinking tags for o1-style models
@@ -143,32 +194,12 @@ export class Andy {
         return Array.from({ length: dimension }, () => Math.random() - 0.5);
     }
 
-    async checkAPIStatus() {
-        /**
-         * Check the status of the Andy API pool
-         * This is a convenience method for debugging
-         */
-        try {
-            const response = await fetch('https://mindcraft-ce.com/api/andy/pool_status');
-            const status = await response.json();
-            console.log('[Andy] Pool Status:', {
-                totalHosts: status.total_hosts,
-                activeHosts: status.active_hosts,
-                totalModels: status.total_models
-            });
-            return status;
-        } catch (err) {
-            console.warn('[Andy] Could not fetch pool status:', err.message);
-            return null;
-        }
-    }
-
     async listAvailableModels() {
         /**
          * Get list of currently available models in the pool
          */
         try {
-            const response = await fetch('https://mindcraft-ce.com/api/andy/models');
+            const response = await fetch(`${this.baseUrl}/models`);
             const models = await response.json();
             console.log('[Andy] Available models:', models.models.map(m => m.name));
             return models.models;

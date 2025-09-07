@@ -1,21 +1,20 @@
-<h1 align="center">mindcraft-ce</h1>
+<a href="https://www.mindcraft-ce.com"><h1 align="center">mindcraft-ce</h1></a>
 <h3 align="center">
   Mindcraft Community Edition 🧠⛏️
 </h3>
 <h4 align="center">
   Maintained by 
   <a href="https://github.com/uukelele-scratch">@uukelele-scratch</a>, 
-  <a href="https://github.com/sweaterdog">@Sweaterdog</a>, and 
-  <a href="https://github.com/riqvip">@riqvip</a>
+  <a href="https://github.com/sweaterdog">@Sweaterdog</a>,
+  <a href="https://github.com/riqvip">@riqvip</a>,
+  <a href="https://github.com/mrelmida">@MrElmida</a>, and
+  the community.
 </h4>
 <p align="center">
   <img alt="Static Badge" src="https://img.shields.io/badge/mindcraft-ce-badge">
   <img alt="GitHub Release Date" src="https://img.shields.io/github/release-date/mindcraft-ce/mindcraft-ce">
   <img alt="GitHub commits since latest release" src="https://img.shields.io/github/commits-since/mindcraft-ce/mindcraft-ce/latest">
-  <!--
-    uh we can make this visible when there are more downloads
-    <img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/mindcraft-ce/mindcraft-ce/total">
-  -->
+  <img alt="Discord" src="https://img.shields.io/discord/1382794682962153575?logo=discord&logoColor=%235865F2&label=discord&labelColor=black">
   <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/mindcraft-ce/mindcraft-ce">
 
 
@@ -36,22 +35,24 @@
 > [!Note]
 > This fork of Mindcraft is maintained by the community and includes features not present in [the official repo](https://github.com/kolbytn/mindcraft).
 
+<b>The open-source platform for crafting intelligent, collaborative agents in Minecraft using Large Language Models.</b>
+
 ### mindcraft vs. mindcraft-ce
 
 | Feature | mindcraft (Original) | mindcraft-ce (Community Edition) |
 | --- | --- | --- |
-| **Development Status** | Inactive | **Active** |
-| **Minecraft Version** | Up to 1.21.1 | Up to **1.21.4** |
-| **Node.js Version** | v14+ | **v18+** (v22 recommended) |
-| **Default Ollama Model**| `llama3.1` (Generic) | **`Andy-4`** (Built for Minecraft) |
-| **Free API Option** | No | **Yes** (`pollinations`) |
-| **Voice Interaction** | Basic Text-to-Speech (TTS) | Advanced TTS & **Speech-to-Text (STT)** |
+| **Development Status** | **Active** | **Active** |
+| **Minecraft Version** | Up to **1.21.6** | Up to **1.21.6** |
+| **Node.js Version** | idk | idk |
+| **Default Ollama Model**| **`Andy-4`** (Built for Minecraft) | **`Andy-4`** (Built for Minecraft) |
+| **Free API Option** | No | No |
+| **Voice Interaction** | Advanced TTS | Advanced TTS & **Speech-to-Text (STT)** |
 | **Vision Mode** | Simple on/off toggle | **Modes**: `off`, `prompted`, `always` |
 | **Extensibility** | None | **Plugin System** |
 | **Dataset Tools** | No | **Yes**, built-in tools for data collection |
-| **Dependencies** | Older | **Updated** (e.g., Mineflayer 4.29.0) |
+| **Dependencies** | **Updated** | **Updated** |
 | **Error Handling** | Shows technical error message, difficult to troubleshoot | **Includes suggested fix** for easy fixing |
-| **Pathfinding** | Basic, standard robotic movement. | **Upgraded movements**, ability to use doors, fence gates, and swim better.|
+| **Pathfinding** | **Upgraded movements**, ability to use doors, fence gates, and swim better. | **Upgraded movements**, ability to use doors, fence gates, and swim better. |
 
 > [!Caution]
 > Do not connect this bot to public servers with coding enabled. This project allows an LLM to write/execute code on your computer. The code is sandboxed, but still vulnerable to injection attacks. Code writing is disabled by default. You can enable it by setting <code>allow_insecure_coding</code> to <code>true</code> in <code>settings.js</code>. Ye be warned.
@@ -129,7 +130,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `glhf.chat` | `GHLF_API_KEY` | `glhf/hf:meta-llama/Llama-3.1-405B-Instruct` | [docs](https://glhf.chat/user-settings/api) |
 | `hyperbolic` | `HYPERBOLIC_API_KEY` | `hyperbolic/deepseek-ai/DeepSeek-V3` | [docs](https://docs.hyperbolic.xyz/docs/getting-started) |
 | `pollinations` | n/a | `pollinations/openai-large` | [docs](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md) |
-| `andy API` | `ANDY_API_KEY` (optional) | `andy/sweaterdog/andy-4` | [docs](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md) |
+| `andy API` | `ANDY_API_KEY` (optional) | `andy/auto` (depends on what models are available) | [docs](https://andy.mindcraft-ce.com/andy-docs) |
 | `vllm` | n/a | `vllm/llama3` | n/a |
 
 If you use Ollama, to install the models used by default (generation and embedding), execute the following terminal command:
@@ -301,7 +302,7 @@ To use Groq STT, simply set `"stt_provider": "groq"` in your settings.js file. T
 
 Mindcraft has the capabilities to collect data from you playing with the bots, which can be used to generate training data to fine-tune models such as Andy-4. To do this, enable logging inside of `settings.js`, then navigate to the `logs` folder.
 
-Inside of the logs folder, and installing the dependecies, you will find a file named `generate_usernames.py`, you need to run this in order to convert your collected data into a usable dataset. This will generate a bunch of random names to replace the name of your bot, and your username. Both of which improve performance later on.
+Inside of the logs folder, and installing the dependencies, you will find a file named `generate_usernames.py`, you need to run this in order to convert your collected data into a usable dataset. This will generate a bunch of random names to replace the name of your bot, and your username. Both of which improve performance later on.
 
 To run it, run `python generate_usernames.py`. The max amount of usernames will take up multiple Terabytes of data. If for some reason you want to do this, run it with the `--make_all` flag.
 
@@ -313,9 +314,44 @@ To convert, run `python convert.py`, if you get a dependency error, ensure you a
 
 For setting up vision datasets, run `convert.py` with the flag of `--vision`, this will do the same thing as the rest of the conversions, but change the format to an image-friendly way. But it should be known that the formatted image data is **not yet prepared** for training, we are still working out how to have the data effectively be used by Unsloth.
 
+## Andy API - Distributed AI Compute Pool
+
+The **Andy API** is a revolutionary distributed compute pool that allows users to share their AI resources and access models from around the world. By connecting to the Andy API network, you can:
+
+- **Contribute Resources**: Share your local AI models (Ollama, LM Studio, etc.) or API quotas (OpenAI, Anthropic, etc.) with the community
+- **Access Diverse Models**: Use models from other contributors without needing to host them locally
+- **Scale Dynamically**: Automatically distribute workload across available compute resources
+
+### Andy API Local Client
+
+The [**Andy API Local Client**](https://github.com/mindcraft-ce/Andy-API) is a modern web-based interface that makes it easy to connect any OpenAI-compatible endpoint to the distributed compute pool:
+
+🔗 **Repository**: [https://github.com/mindcraft-ce/Andy-API](https://github.com/mindcraft-ce/Andy-API)
+
+**Key Features**:
+- **Universal Compatibility**: Works with Ollama, OpenAI API, LM Studio, vLLM, and any OpenAI-compatible endpoint
+- **Web Dashboard**: Real-time monitoring, model management, and performance analytics
+- **Easy Setup**: Simple installation with automatic model discovery
+- **Resource Sharing**: Contribute your compute power or API quotas to help the community
+
+**Quick Start**:
+```bash
+# Clone the Andy API Local Client
+git clone https://github.com/mindcraft-ce/Andy-API.git
+cd Andy-API
+
+# Install and run
+pip install -r requirements.txt
+python launch.py
+
+# Open http://localhost:5000 in your browser
+```
+
+By running the Andy API Local Client alongside mindcraft-ce, you can contribute to the distributed AI ecosystem while using the best available models for your Minecraft agents!
+
 ## Tasks
 
-Bot performance can be roughly evaluated with Tasks. Tasks automatically intialize bots with a goal to aquire specific items or construct predefined buildings, and remove the bot once the goal is achieved.
+Bot performance can be roughly evaluated with Tasks. Tasks automatically initialize bots with a goal to acquire specific items or construct predefined buildings, and remove the bot once the goal is achieved.
 
 To run tasks, you need python, pip, and optionally conda. You can then install dependencies with `pip install -r requirements.txt`. 
 

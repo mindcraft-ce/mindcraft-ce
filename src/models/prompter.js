@@ -404,7 +404,7 @@ export class Prompter {
                 return '';
             }
 
-            let prompt = this.profile.conversing;
+            let prompt = ( process.env.CONVERSING_PROMPT || this.profile.conversing) + this.profile.conversing_end;
             prompt = await this.replaceStrings(prompt, messages, this.convo_examples);
             let generation;
             let imageData = null;
