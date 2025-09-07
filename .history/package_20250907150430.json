@@ -1,0 +1,72 @@
+{
+    "type": "module",
+    "dependencies": {
+<<<<<<< HEAD
+        "@anthropic-ai/sdk": "0.17.2",
+        "@google/genai": "1.6.0",
+        "@huggingface/inference": "2.8.1",
+        "@mistralai/mistralai": "1.7.2",
+        "canvas": "3.1.1",
+        "cheerio": "1.1.0",
+        "express": "4.21.2",
+        "google-translate-api-x": "10.7.2",
+        "groq-sdk": "0.5.0",
+        "minecraft-data": "3.90.0",
+        "mineflayer": "4.29.0",
+        "mineflayer-armor-manager": "2.0.1",
+        "mineflayer-auto-eat": "3.3.6",
+        "mineflayer-collectblock": "1.6.0",
+        "mineflayer-pathfinder": "2.4.5",
+        "mineflayer-pvp": "1.3.2",
+=======
+        "@anthropic-ai/sdk": "^0.17.1",
+        "@google/genai": "^1.6.0",
+        "@huggingface/inference": "^2.8.1",
+        "@mistralai/mistralai": "^1.1.0",
+        "canvas": "^3.1.0",
+        "cheerio": "^1.0.0",
+        "express": "^4.18.2",
+        "google-translate-api-x": "^10.7.1",
+        "groq-sdk": "^0.5.0",
+        "minecraft-data": "^3.97.0",
+        "mineflayer": "^4.32.0",
+        "mineflayer-armor-manager": "^2.0.1",
+        "mineflayer-auto-eat": "^3.3.6",
+        "mineflayer-collectblock": "^1.4.1",
+        "mineflayer-pathfinder": "^2.4.5",
+        "mineflayer-pvp": "^1.3.2",
+>>>>>>> 2fa9f72ea79671c8d78dd1faa7a81b6fba8442d7
+        "node-canvas-webgl": "PrismarineJS/node-canvas-webgl",
+        "openai": "4.104.0",
+        "patch-package": "8.0.0",
+        "prismarine-item": "1.16.0",
+        "prismarine-viewer": "1.33.0",
+        "replicate": "0.29.4",
+        "ses": "1.13.1",
+        "socket.io": "4.8.1",
+        "socket.io-client": "4.8.1",
+        "three": "0.128.0",
+        "vec3": "0.1.10",
+        "wav": "1.0.2",
+        "yargs": "17.7.2"
+    },
+    "optionalDependencies": {
+<<<<<<< HEAD
+        "naudiodon": "2.3.6",
+        "mic": "2.1.2"
+=======
+        "mic": "^2.1.2",
+        "naudiodon": "^2.3.6"
+>>>>>>> 2fa9f72ea79671c8d78dd1faa7a81b6fba8442d7
+    },
+    "scripts": {
+        "postinstall": "patch-package",
+        "start": "node main.js"
+    },
+    "devDependencies": {
+        "@eslint/js": "9.29.0",
+        "eslint": "9.29.0",
+        "eslint-plugin-no-floating-promise": "2.0.0",
+        "globals": "15.15.0"
+    }
+}
