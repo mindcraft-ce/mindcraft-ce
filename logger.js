@@ -563,7 +563,6 @@ function initializeCounts() {
         return;
     }
     isInitialized = true;
-    
     // Set all counts to 0 at startup to avoid reading large files,
     // which can cause performance issues or crashes.
     // Log counts will be for the current session only.

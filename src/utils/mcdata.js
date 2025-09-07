@@ -107,23 +107,7 @@ export function initBot(username) {
         }
         console.error('Client error:', err);
     });
-    
-    // Override the protocol parser's error handler to catch PartialReadError at the source
-    const deserializer = getDeserializer(bot);
-    if (deserializer) {
-        const originalParsePacketBuffer = deserializer.parsePacketBuffer;
-        deserializer.parsePacketBuffer = function(buffer) {
-            try {
-                return originalParsePacketBuffer.call(this, buffer);
-            } catch (err) {
-                if (err.name === 'PartialReadError' || err.message?.includes('PartialReadError')) {
-                    console.warn('Protocol deserializer error (non-fatal):', err.message);
-                    return null; // Return null to indicate failed parsing
-                }
-                throw err;
-            }
-        };
-    }
+
     
     bot.loadPlugin(pathfinder);
     bot.loadPlugin(pvp);

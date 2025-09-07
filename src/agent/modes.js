@@ -35,10 +35,67 @@ const modes_list = [
             let blockAbove = bot.blockAt(bot.entity.position.offset(0, 1, 0));
             if (!block) block = {name: 'air'}; // hacky fix when blocks are not loaded
             if (!blockAbove) blockAbove = {name: 'air'};
-            if (blockAbove.name === 'water' || blockAbove.name === 'flowing_water') {
-                // does not call execute so does not interrupt other actions
-                if (!bot.pathfinder.goal) {
-                    bot.setControlState('jump', true);
+            
+            // Enhanced jump control for pillaring and swimming
+            const shouldJumpForSwimming = (blockAbove.name === 'water' || blockAbove.name === 'flowing_water') && !bot.pathfinder.goal;
+            
+            // Jump for pillaring ONLY when we need to go straight up (not during bridging)
+            let shouldJumpForPillaring = false;
+            if (bot.pathfinder.goal && bot.pathfinder.movements && bot.pathfinder.movements.allow1by1towers) {
+                const currentGoal = bot.pathfinder.goal;
+                const botPos = bot.entity.position;
+                
+                // Check if goal is significantly above us (pillaring scenario)
+                let goalY = null;
+                if (currentGoal.goalPosition) {
+                    goalY = currentGoal.goalPosition.y;
+                } else if (currentGoal.y !== undefined) {
+                    goalY = currentGoal.y;
+                } else if (currentGoal.entity && currentGoal.entity.position) {
+                    goalY = currentGoal.entity.position.y;
+                }
+                
+                if (goalY !== null && goalY > botPos.y + 2) {
+                    // Check if we're roughly horizontally aligned (within 2 blocks)
+                    let horizontalDistance = 999;
+                    if (currentGoal.goalPosition) {
+                        horizontalDistance = Math.sqrt(
+                            Math.pow(currentGoal.goalPosition.x - botPos.x, 2) + 
+                            Math.pow(currentGoal.goalPosition.z - botPos.z, 2)
+                        );
+                    } else if (currentGoal.x !== undefined && currentGoal.z !== undefined) {
+                        horizontalDistance = Math.sqrt(
+                            Math.pow(currentGoal.x - botPos.x, 2) + 
+                            Math.pow(currentGoal.z - botPos.z, 2)
+                        );
+                    } else if (currentGoal.entity && currentGoal.entity.position) {
+                        horizontalDistance = Math.sqrt(
+                            Math.pow(currentGoal.entity.position.x - botPos.x, 2) + 
+                            Math.pow(currentGoal.entity.position.z - botPos.z, 2)
+                        );
+                    }
+                    
+                    // Only pillar if we're close horizontally (within 3 blocks) - this means we need to go UP, not sideways
+                    if (horizontalDistance <= 3) {
+                        shouldJumpForPillaring = true;
+                    }
+                }
+            }
+            
+            if (shouldJumpForSwimming || shouldJumpForPillaring) {
+                bot.setControlState('jump', true);
+                
+                // If pillaring, also try to place blocks below feet
+                // Use a non-blocking async call that doesn't interrupt other actions
+                if (shouldJumpForPillaring) {
+                    // Don't use execute() here since it would interrupt pathfinding
+                    // Instead, run pillaring assistance in background without interrupting
+                    if (!agent.bot._pillaringAssistanceRunning) {
+                        agent.bot._pillaringAssistanceRunning = true;
+                        skills.assistPillaring(bot).finally(() => {
+                            agent.bot._pillaringAssistanceRunning = false;
+                        });
+                    }
                 }
             }
             else if (this.fall_blocks.some(name => blockAbove.name.includes(name))) {
