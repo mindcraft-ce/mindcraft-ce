@@ -510,8 +510,10 @@ export async function pickupNearbyItems(bot) {
     let nearestItem = getNearestItem(bot);
     let pickedUp = 0;
     while (nearestItem) {
-        bot.pathfinder.setMovements(new pf.Movements(bot));
-        await goToGoal(bot, new pf.goals.GoalFollow(nearestItem, 0.8));
+        let movements = new pf.Movements(bot);
+        movements.canDig = false;
+        bot.pathfinder.setMovements(movements);
+        await goToGoal(bot, new pf.goals.GoalFollow(nearestItem, 1));
         await new Promise(resolve => setTimeout(resolve, 200));
         let prev = nearestItem;
         nearestItem = getNearestItem(bot);
@@ -591,7 +593,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
      * await skills.placeBlock(bot, "oak_log", p.x + 2, p.y, p.x);
      * await skills.placeBlock(bot, "torch", p.x + 1, p.y, p.x, 'side');
      **/
-    if (!mc.getBlockId(blockType) && blockType !== 'air') {
+    if (!mc.getBlockId(blockType) && blockType !== 'air' && blockType !== 'water_bucket' && blockType !== 'lava_bucket') {
         log(bot, `Invalid block type: ${blockType}.`);
         return false;
     }
@@ -651,7 +653,12 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         return true;
     }
 
-    
+    if (blockType.includes('water')) {
+        blockType = 'water_bucket';
+    }
+    else if (blockType.includes('lava')) {
+        blockType = 'lava_bucket';
+    }
     let item_name = blockType;
     if (item_name == "redstone_wire")
         item_name = "redstone";
@@ -740,10 +747,15 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
 
     // will throw error if an entity is in the way, and sometimes even if the block was placed
     try {
-        await bot.placeBlock(buildOffBlock, faceVec);
-        log(bot, `Placed ${blockType} at ${target_dest}.`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-        return true;
+        if (blockType.includes('water') || blockType.includes('lava')) {
+            await useToolOnBlock(bot, blockType, buildOffBlock);
+        }
+        else {
+            await bot.placeBlock(buildOffBlock, faceVec);
+            log(bot, `Placed ${blockType} at ${target_dest}.`);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            return true;
+        }
     } catch (err) {
         log(bot, `Failed to place ${blockType} at ${target_dest}.`);
         return false;
@@ -1534,10 +1546,8 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
      * let position = world.getPosition(bot);
      * await skills.tillAndSow(bot, position.x, position.y - 1, position.x, "wheat");
      **/
-    x = Math.round(x);
-    y = Math.round(y);
-    z = Math.round(z);
-    let block = bot.blockAt(new Vec3(x, y, z));
+    let pos = new Vec3(Math.floor(x), Math.floor(y), Math.floor(z));
+    let block = bot.blockAt(pos);
 
     if (bot.modes.isOn('cheat')) {
         let to_remove = ['_seed', '_seeds'];
@@ -1587,7 +1597,7 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
         }
         await bot.equip(seeds, 'hand');
 
-        await bot.placeBlock(block, new Vec3(0, -1, 0));
+        await bot.activateBlock(block);
         log(bot, `Planted ${seedType} at x:${x.toFixed(1)}, y:${y.toFixed(1)}, z:${z.toFixed(1)}.`);
     }
     return true;
@@ -1658,20 +1668,14 @@ export async function useToolOn(bot, toolName, targetName) {
      * @param {string} targetName - entity type, block type, or "nothing" for no target
      * @returns {Promise<boolean>} true if action succeeded
      */
-    if (toolName === 'hand') {
-        await bot.unequip('hand');
-    }
-    else {
-        const equipped = await equip(bot, toolName);
-        if (!equipped) return false;
-    }
-
-    if (toolName.includes('bucket') && !targetName.includes('cow')) {
-        log(bot, `KNOWN ISSUE: Buckets do not work, except on cows.`);
+    if (!bot.inventory.slots.find(slot => slot && slot.name === toolName) && !bot.game.gameMode === 'creative') {
+        log(bot, `You do not have any ${toolName} to use.`);
         return false;
     }
+
     targetName = targetName.toLowerCase();
     if (targetName === 'nothing') {
+        await equip(bot, toolName);
         await bot.activateItem();
         log(bot, `Used ${toolName}.`);
         return true;
@@ -1682,18 +1686,85 @@ export async function useToolOn(bot, toolName, targetName) {
             return false;
         }
         await goToPosition(bot, entity.position.x, entity.position.y, entity.position.z);
+        if (toolName === 'hand') {
+            await bot.unequip('hand');
+        }
+        else {
+            const equipped = await equip(bot, toolName);
+            if (!equipped) return false;
+        }
         await bot.useOn(entity);
     } else {
-        const block = world.getNearestBlock(bot, targetName, 64);
+        let block = null;
+        if (targetName === 'water' || targetName === 'lava') {
+            // we want to get liquid source blocks, not flowing blocks
+            // so search for blocks with metadata 0 (not flowing)
+            let blocks = world.getNearestBlocks(bot, targetName, 64, 100);
+            if (blocks.length === 0) {
+                log(bot, `Could not find any ${targetName}.`);
+                return false;
+            }
+            block = blocks[0];
+            if (block.metadata !== 0) {
+                block = blocks.find(block => block.metadata === 0);
+            }
+        }
+        else {
+            block = world.getNearestBlock(bot, targetName, 64);
+        }
         if (!block) {
             log(bot, `Could not find any ${targetName}.`);
             return false;
         }
-        await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
-        await bot.lookAt(block.position);
-        await bot.activateBlock(block);
-        log(bot, `Used ${toolName} on ${targetName}.`);
+        return await useToolOnBlock(bot, toolName, block);
     }
 
+    return true;
+ }
+
+ export async function useToolOnBlock(bot, toolName, block) {
+    /**
+     * Use a tool on a specific block.
+     * @param {MinecraftBot} bot
+     * @param {string} toolName - item name of the tool to equip, or "hand" for no tool.
+     * @param {Block} block - the block reference to use the tool on.
+     * @returns {Promise<boolean>} true if action succeeded
+     */
+
+    await goToPosition(bot, block.position.x, block.position.y, block.position.z, 1.5);
+    await bot.lookAt(block.position.offset(0.5, 0.5, 0.5));
+
+    // if block in view is closer than the target block, it is in our way. try to move closer
+    const viewBlocked = () => {
+        const blockInView = bot.blockAtCursor(5);
+        const headPos = bot.entity.position.offset(0, bot.entity.height, 0);
+        return blockInView && 
+            !blockInView.position.equals(block.position) && 
+            blockInView.position.distanceTo(headPos) < block.position.distanceTo(headPos);
+    }
+    const blockInView = bot.blockAtCursor(5);
+    if (viewBlocked()) {
+        log(bot, `Block ${blockInView.name} is in the way, moving closer...`);
+        // choose random block next to target block, go to it
+        const nearbyPos = block.position.offset(Math.random() * 2 - 1, 0, Math.random() * 2 - 1);
+        const nearbyBlock = bot.blockAt(nearbyPos);
+        await goToPosition(bot, nearbyPos.x, nearbyPos.y, nearbyPos.z, 1);
+        await bot.lookAt(block.position.offset(0.5, 0.5, 0.5));
+        if (viewBlocked()) {
+            const blockInView = bot.blockAtCursor(5);
+            log(bot, `Block ${blockInView.name} is in the way, not using ${toolName}.`);
+            return false;
+        }
+    }
+
+    await equip(bot, toolName);
+
+    if (toolName.includes('bucket')) {
+        await bot.activateItem();
+    }
+    else {
+        await bot.activateBlock(block);
+    }
+    log(bot, `Used ${toolName} on ${block.name}.`);
     return true;
  }
