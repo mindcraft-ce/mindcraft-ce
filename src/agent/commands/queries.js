@@ -9,50 +9,6 @@ const pad = (str) => {
     return '\n' + str + '\n';
 }
 
-// Helper function to get villager profession from metadata
-function getVillagerProfession(entity) {
-    // Villager profession mapping based on metadata
-    const professions = {
-        0: 'Unemployed',
-        1: 'Armorer',
-        2: 'Butcher', 
-        3: 'Cartographer',
-        4: 'Cleric',
-        5: 'Farmer',
-        6: 'Fisherman',
-        7: 'Fletcher',
-        8: 'Leatherworker',
-        9: 'Librarian',
-        10: 'Mason',
-        11: 'Nitwit',
-        12: 'Shepherd',
-        13: 'Toolsmith',
-        14: 'Weaponsmith'
-    };
-    
-    if (entity.metadata && entity.metadata[18]) {
-        // Check if metadata[18] is an object with villagerProfession property
-        if (typeof entity.metadata[18] === 'object' && entity.metadata[18].villagerProfession !== undefined) {
-            const professionId = entity.metadata[18].villagerProfession;
-            const level = entity.metadata[18].level || 1;
-            const professionName = professions[professionId] || 'Unknown';
-            return `${professionName}(L${level})`;
-        }
-        // Fallback for direct profession ID
-        else if (typeof entity.metadata[18] === 'number') {
-            const professionId = entity.metadata[18];
-            return professions[professionId] || 'Unknown';
-        }
-    }
-    
-    // If we can't determine profession but it's an adult villager
-    if (entity.metadata && entity.metadata[16] !== 1) { // Not a baby
-        return 'Adult';
-    }
-    
-    return 'Unknown';
-}
-
 // queries are commands that just return strings and don't affect anything in the world
 export const queryList = [
     {
@@ -218,7 +174,7 @@ export const queryList = [
                     if (entity.metadata && entity.metadata[16] === 1) {
                         babyVillagerIds.push(entity.id);
                     } else {
-                        const profession = getVillagerProfession(entity);
+                        const profession = world.getVillagerProfession(entity);
                         villagerIds.push(entity.id);
                         villagerDetails.push({
                             id: entity.id,
@@ -232,7 +188,7 @@ export const queryList = [
                 if (entityType === 'villager') {
                     let villagerInfo = `${count} ${entityType}(s)`;
                     if (villagerDetails.length > 0) {
-                        const detailStrings = villagerDetails.map(v => `${v.id}(${v.profession})`);
+                        const detailStrings = villagerDetails.map(v => `(${v.id}:${v.profession})`);
                         villagerInfo += ` - Adults: ${detailStrings.join(', ')}`;
                     }
                     if (babyVillagerIds.length > 0) {

@@ -1039,6 +1039,7 @@ export async function goToGoal(bot, goal) {
     for (let block of dontBreakBlocks) {
         nonDestructiveMovements.blocksCantBreak.add(mc.getBlockId(block));
     }
+    nonDestructiveMovements.placeCost = 2;
     nonDestructiveMovements.digCost = 10;
 
     const destructiveMovements = new pf.Movements(bot);
@@ -1620,14 +1621,32 @@ export async function activateNearestBlock(bot, type) {
 /**
  * Helper function to find and navigate to a villager for trading
  * @param {MinecraftBot} bot - reference to the minecraft bot
- * @param {string} id - the entity id of the villager
+ * @param {number} id - the entity id of the villager
  * @returns {Promise<Object|null>} the villager entity if found and reachable, null otherwise
  */
 async function findAndGoToVillager(bot, id) {
+    id = id+"";
     const entity = bot.entities[id];
     
     if (!entity) {
-        log(bot, `Cannot find entity with id ${id}`);
+        log(bot, `Cannot find villager with id ${id}`);
+        let entities = world.getNearbyEntities(bot, 16);
+        let villager_list = "Available villagers:\n";
+        for (let entity of entities) {
+            if (entity.name === 'villager') {
+                if (entity.metadata && entity.metadata[16] === 1) {
+                    villager_list += `${entity.id}: baby villager\n`;
+                } else {
+                    const profession = world.getVillagerProfession(entity);
+                    villager_list += `${entity.id}: ${profession}\n`;
+                }
+            }
+        }
+        if (villager_list === "Available villagers:\n") {
+            log(bot, "No villagers found nearby.");
+            return null;
+        }
+        log(bot, villager_list);
         return null;
     }
     
@@ -1646,14 +1665,9 @@ async function findAndGoToVillager(bot, id) {
         log(bot, `Villager is ${distance.toFixed(1)} blocks away, moving closer...`);
         try {
             bot.modes.pause('unstuck');
-            await goToPosition(bot, entity.position.x, entity.position.y, entity.position.z, 1.5);
+            const goal = new pf.goals.GoalFollow(entity, 2);
+            await goToGoal(bot, goal);
             
-            await wait(bot, 500);
-            const finalDistance = bot.entity.position.distanceTo(entity.position);
-            if (finalDistance > 4) {
-                log(bot, `Still too far from villager (${finalDistance.toFixed(1)} blocks). Trying to get closer...`);
-                await goToPosition(bot, entity.position.x, entity.position.y, entity.position.z, 2);
-            }
             
             log(bot, 'Successfully reached villager');
         } catch (err) {
@@ -1671,7 +1685,7 @@ async function findAndGoToVillager(bot, id) {
 /**
  * Show available trades for a specified villager
  * @param {MinecraftBot} bot - reference to the minecraft bot
- * @param {string} id - the entity id of the villager to show trades for
+ * @param {number} id - the entity id of the villager to show trades for
  * @returns {Promise<boolean>} true if trades were shown successfully, false otherwise
  * @example
  * await skills.showVillagerTrades(bot, "123");
@@ -1686,7 +1700,7 @@ export async function showVillagerTrades(bot, id) {
         const villager = await bot.openVillager(villagerEntity);
         
         if (!villager.trades || villager.trades.length === 0) {
-            log(bot, 'This villager has no trades available - might be a baby or jobless villager');
+            log(bot, 'This villager has no trades available - might be sleeping, a baby, or jobless');
             villager.close();
             return false;
         }
@@ -1701,7 +1715,7 @@ export async function showVillagerTrades(bot, id) {
         villager.close();
         return true;
     } catch (err) {
-        log(bot, 'Failed to open villager trading interface - this might be a baby or jobless villager');
+        log(bot, 'Failed to open villager trading interface - they might be sleeping, a baby, or jobless');
         console.log('Villager trading error:', err.message);
         return false;
     }
@@ -1710,9 +1724,9 @@ export async function showVillagerTrades(bot, id) {
 /**
  * Trade with a specified villager
  * @param {MinecraftBot} bot - reference to the minecraft bot
- * @param {string} id - the entity id of the villager to trade with
- * @param {string} index - the index (1-based) of the trade to execute
- * @param {string} count - how many times to execute the trade (optional)
+ * @param {number} id - the entity id of the villager to trade with
+ * @param {number} index - the index (1-based) of the trade to execute
+ * @param {number} count - how many times to execute the trade (optional)
  * @returns {Promise<boolean>} true if trade was successful, false otherwise
  * @example
  * await skills.tradeWithVillager(bot, "123", "1", "2");
@@ -1727,7 +1741,7 @@ export async function tradeWithVillager(bot, id, index, count) {
         const villager = await bot.openVillager(villagerEntity);
         
         if (!villager.trades || villager.trades.length === 0) {
-            log(bot, 'This villager has no trades available - might be a baby or jobless villager');
+            log(bot, 'This villager has no trades available - might be sleeping, a baby, or jobless');
             villager.close();
             return false;
         }
@@ -1746,9 +1760,12 @@ export async function tradeWithVillager(bot, id, index, count) {
             villager.close();
             return false;
         }
+
+        const item_2 = trade.inputItem2 ? stringifyItem(bot, trade.inputItem2)+' ' : '';
+        log(bot, `Trading ${stringifyItem(bot, trade.inputItem1)} ${item_2}for ${stringifyItem(bot, trade.outputItem)}...`);
         
         const maxPossibleTrades = trade.maximumNbTradeUses - trade.nbTradeUses;
-        const requestedCount = count ? parseInt(count) : maxPossibleTrades;
+        const requestedCount = count;
         const actualCount = Math.min(requestedCount, maxPossibleTrades);
         
         if (actualCount <= 0) {
