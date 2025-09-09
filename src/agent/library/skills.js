@@ -435,6 +435,7 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         blocktypes.push('deepslate_'+blockType);
     if (blockType === 'dirt')
         blocktypes.push('grass_block');
+    const isLiquid = blockType === 'lava' || blockType === 'water';
 
     let collected = 0;
 
@@ -447,10 +448,14 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
                 );
             }
         }
+        if (isLiquid) {
+            // remove flowing blocks
+            blocks = blocks.filter(block => block.metadata === 0);
+        }
         const movements = new pf.Movements(bot);
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
-            block => movements.safeToBreak(block)
+            block => movements.safeToBreak(block) || isLiquid
         );
 
         if (blocks.length === 0) {
@@ -462,21 +467,36 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         }
         const block = blocks[0];
         await bot.tool.equipForBlock(block);
+        if (isLiquid) {
+            const bucket = bot.inventory.items().find(item => item.name === 'bucket');
+            if (!bucket) {
+                log(bot, `Don't have bucket to harvest ${blockType}.`);
+                return false;
+            }
+            await bot.equip(bucket, 'hand');
+        }
         const itemId = bot.heldItem ? bot.heldItem.type : null
         if (!block.canHarvest(itemId)) {
             log(bot, `Don't have right tools to harvest ${blockType}.`);
             return false;
         }
         try {
-            if (mc.mustCollectManually(blockType)) {
+            let success = false;
+            if (isLiquid) {
+                success = await useToolOnBlock(bot, 'bucket', block);
+            }
+            else if (mc.mustCollectManually(blockType)) {
                 await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
                 await bot.dig(block);
                 await pickupNearbyItems(bot);
+                success = true;
             }
             else {
                 await bot.collectBlock.collect(block);
+                success = true;
             }
-            collected++;
+            if (success)
+                collected++;
             await autoLight(bot);
         }
         catch (err) {
@@ -653,15 +673,15 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
         return true;
     }
 
-    if (blockType.includes('water')) {
-        blockType = 'water_bucket';
-    }
-    else if (blockType.includes('lava')) {
-        blockType = 'lava_bucket';
-    }
     let item_name = blockType;
     if (item_name == "redstone_wire")
         item_name = "redstone";
+    else if (item_name.includes('water')) {
+        item_name = 'water_bucket';
+    }
+    else if (item_name.includes('lava')) {
+        item_name = 'lava_bucket';
+    }
     let block = bot.inventory.items().find(item => item.name === item_name);
     if (!block && bot.game.gameMode === 'creative' && !bot.restrict_to_inventory) {
         await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1)); // 36 is first hotbar slot
@@ -673,7 +693,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     }
 
     const targetBlock = bot.blockAt(target_dest);
-    if (targetBlock.name === blockType) {
+    if (targetBlock.name === blockType || (targetBlock.name === 'grass_block' && blockType === 'dirt')) {
         log(bot, `${blockType} already at ${targetBlock.position}.`);
         return false;
     }
@@ -743,7 +763,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     }
     
     await bot.equip(block, 'hand');
-    await bot.lookAt(buildOffBlock.position);
+    await bot.lookAt(buildOffBlock.position.offset(0.5, 0.5, 0.5));
 
     // will throw error if an entity is in the way, and sometimes even if the block was placed
     try {
@@ -774,8 +794,8 @@ export async function equip(bot, itemName) {
     let item = bot.inventory.slots.find(slot => slot && slot.name === itemName);
     if (!item) {
         if (bot.game.gameMode === "creative") {
-            await bot.creative.setInventorySlot(36, mc.makeItem(item_name, 1));
-            block = bot.inventory.items().find(item => item.name === item_name);
+            await bot.creative.setInventorySlot(36, mc.makeItem(itemName, 1));
+            item = bot.inventory.items().find(item => item.name === itemName);
         }
         else {
             log(bot, `You do not have any ${itemName} to equip.`);
@@ -1549,6 +1569,7 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
      **/
     let pos = new Vec3(Math.floor(x), Math.floor(y), Math.floor(z));
     let block = bot.blockAt(pos);
+    log(bot, `Planting ${seedType} at x:${x.toFixed(1)}, y:${y.toFixed(1)}, z:${z.toFixed(1)}.`);
 
     if (bot.modes.isOn('cheat')) {
         let to_remove = ['_seed', '_seeds'];
@@ -1568,8 +1589,15 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     }
     let above = bot.blockAt(new Vec3(x, y+1, z));
     if (above.name !== 'air') {
-        log(bot, `Cannot till, there is ${above.name} above the block.`);
-        return false;
+        if (block.name === 'farmland') {
+            log(bot, `Land is already farmed with ${above.name}.`);
+            return true;
+        }
+        let broken = await breakBlockAt(bot, x, y+1, z);
+        if (!broken) {
+            log(bot, `Cannot cannot break above block to till.`);
+            return false;
+        }
     }
     // if distance is too far, move to the block
     if (bot.entity.position.distanceTo(block.position) > 4.5) {
@@ -1579,11 +1607,11 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     }
     if (block.name !== 'farmland') {
         let hoe = bot.inventory.items().find(item => item.name.includes('hoe'));
-        if (!hoe) {
+        let to_equip = hoe?.name || 'diamond_hoe';
+        if (!await equip(bot, to_equip)) {
             log(bot, `Cannot till, no hoes.`);
             return false;
         }
-        await bot.equip(hoe, 'hand');
         await bot.activateBlock(block);
         log(bot, `Tilled block x:${x.toFixed(1)}, y:${y.toFixed(1)}, z:${z.toFixed(1)}.`);
     }
@@ -1591,12 +1619,11 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     if (seedType) {
         if (seedType.endsWith('seed') && !seedType.endsWith('seeds'))
             seedType += 's'; // fixes common mistake
-        let seeds = bot.inventory.items().find(item => item.name === seedType);
-        if (!seeds) {
+        let equipped_seeds = await equip(bot, seedType);
+        if (!equipped_seeds) {
             log(bot, `No ${seedType} to plant.`);
             return false;
         }
-        await bot.equip(seeds, 'hand');
 
         await bot.activateBlock(block);
         log(bot, `Planted ${seedType} at x:${x.toFixed(1)}, y:${y.toFixed(1)}, z:${z.toFixed(1)}.`);
@@ -1986,7 +2013,8 @@ export async function useToolOn(bot, toolName, targetName) {
      * @returns {Promise<boolean>} true if action succeeded
      */
 
-    await goToPosition(bot, block.position.x, block.position.y, block.position.z, 1.5);
+    const distance = block.name === 'lava' ? 2 : 1.5;
+    await goToPosition(bot, block.position.x, block.position.y, block.position.z, distance);
     await bot.lookAt(block.position.offset(0.5, 0.5, 0.5));
 
     // if block in view is closer than the target block, it is in our way. try to move closer
@@ -2002,7 +2030,6 @@ export async function useToolOn(bot, toolName, targetName) {
         log(bot, `Block ${blockInView.name} is in the way, moving closer...`);
         // choose random block next to target block, go to it
         const nearbyPos = block.position.offset(Math.random() * 2 - 1, 0, Math.random() * 2 - 1);
-        const nearbyBlock = bot.blockAt(nearbyPos);
         await goToPosition(bot, nearbyPos.x, nearbyPos.y, nearbyPos.z, 1);
         await bot.lookAt(block.position.offset(0.5, 0.5, 0.5));
         if (viewBlocked()) {
