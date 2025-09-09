@@ -155,11 +155,51 @@ export const queryList = [
                 res += `\n- Bot player: ${bot}`;
             }
 
-            for (const entity of world.getNearbyEntityTypes(bot)) {
-                if (entity === 'player' || entity === 'item')
+            let nearbyEntities = world.getNearbyEntities(bot);
+            let entityCounts = {};
+            let villagerIds = [];
+            let babyVillagerIds = [];
+            let villagerDetails = []; // Store detailed villager info including profession
+            
+            for (const entity of nearbyEntities) {
+                if (entity.type === 'player' || entity.name === 'item')
                     continue;
-                res += `\n- entities: ${entity}`;
+                    
+                if (!entityCounts[entity.name]) {
+                    entityCounts[entity.name] = 0;
+                }
+                entityCounts[entity.name]++;
+                
+                if (entity.name === 'villager') {
+                    if (entity.metadata && entity.metadata[16] === 1) {
+                        babyVillagerIds.push(entity.id);
+                    } else {
+                        const profession = world.getVillagerProfession(entity);
+                        villagerIds.push(entity.id);
+                        villagerDetails.push({
+                            id: entity.id,
+                            profession: profession
+                        });
+                    }
+                }
             }
+            
+            for (const [entityType, count] of Object.entries(entityCounts)) {
+                if (entityType === 'villager') {
+                    let villagerInfo = `${count} ${entityType}(s)`;
+                    if (villagerDetails.length > 0) {
+                        const detailStrings = villagerDetails.map(v => `(${v.id}:${v.profession})`);
+                        villagerInfo += ` - Adults: ${detailStrings.join(', ')}`;
+                    }
+                    if (babyVillagerIds.length > 0) {
+                        villagerInfo += ` - Baby IDs: ${babyVillagerIds.join(', ')} (babies cannot trade)`;
+                    }
+                    res += `\n- entities: ${villagerInfo}`;
+                } else {
+                    res += `\n- entities: ${count} ${entityType}(s)`;
+                }
+            }
+            
             if (res == 'NEARBY_ENTITIES') {
                 res += ': none';
             }
