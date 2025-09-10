@@ -1,8 +1,8 @@
 diff --git a/node_modules/mineflayer/lib/plugins/digging.js b/node_modules/mineflayer/lib/plugins/digging.js
-index 496cf63..ef519d9 100644
+index 496cf63..813a667 100644
 --- a/node_modules/mineflayer/lib/plugins/digging.js
 +++ b/node_modules/mineflayer/lib/plugins/digging.js
-@@ -242,6 +242,9 @@ function inject (bot) {
+@@ -242,11 +242,14 @@ function inject (bot) {
        enchantments = enchantments.concat(helmetEnchantments)
      }
  
@@ -12,6 +12,12 @@ index 496cf63..ef519d9 100644
      const creative = bot.game.gameMode === 'creative'
      return block.digTime(
        type,
+       creative,
+-      bot.entity.isInWater,
++      false, // isInWater, water calc is bugged, so always false
+       !bot.entity.onGround,
+       enchantments,
+       bot.entity.effects
 diff --git a/node_modules/mineflayer/lib/plugins/inventory.js b/node_modules/mineflayer/lib/plugins/inventory.js
 index 70db312..93d2054 100644
 --- a/node_modules/mineflayer/lib/plugins/inventory.js
@@ -33,3 +39,16 @@ index 70db312..93d2054 100644
        })
      }
    }
+diff --git a/node_modules/mineflayer/lib/plugins/place_block.js b/node_modules/mineflayer/lib/plugins/place_block.js
+index fdaec6b..08983b6 100644
+--- a/node_modules/mineflayer/lib/plugins/place_block.js
++++ b/node_modules/mineflayer/lib/plugins/place_block.js
+@@ -11,7 +11,7 @@ function inject (bot) {
+     let newBlock = bot.blockAt(dest)
+     if (oldBlock.type === newBlock.type) {
+       [oldBlock, newBlock] = await onceWithCleanup(bot, `blockUpdate:${dest}`, {
+-        timeout: 5000,
++        timeout: 500,
+         // Condition to wait to receive block update actually changing the block type, in case the bot receives block updates with no changes
+         // oldBlock and newBlock will both be null when the world unloads
+         checkCondition: (oldBlock, newBlock) => !oldBlock || !newBlock || oldBlock.type !== newBlock.type
