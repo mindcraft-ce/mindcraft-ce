@@ -46,20 +46,30 @@ const modes_list = [
                     await skills.moveAway(bot, 2);
                 });
             }
-            else if (block.name === 'lava' || block.name === 'flowing_lava' || block.name === 'fire' ||
-                blockAbove.name === 'lava' || blockAbove.name === 'flowing_lava' || blockAbove.name === 'fire') {
+            else if (block.name === 'lava' || block.name === 'fire' ||
+                blockAbove.name === 'lava' || blockAbove.name === 'fire') {
                 say(agent, 'I\'m on fire!'); // TODO: gets stuck in lava
-                execute(this, agent, async () => {
-                    let nearestWater = world.getNearestBlock(bot, 'water', 20);
-                    if (nearestWater) {
-                        const pos = nearestWater.position;
-                        await skills.goToPosition(bot, pos.x, pos.y, pos.z, 0.2);
-                        say(agent, 'Ahhhh that\'s better!');
-                    }
-                    else {
-                        await skills.moveAway(bot, 5);
-                    }
-                });
+                // if you have a water bucket, use it
+                let waterBucket = bot.inventory.items().find(item => item.name === 'water_bucket');
+                if (waterBucket) {
+                    execute(this, agent, async () => {
+                        await skills.placeBlock(bot, 'water_bucket', block.position.x, block.position.y, block.position.z);
+                        say(agent, 'Placed some water, ahhhh that\'s better!');
+                    });
+                }
+                else {
+                    execute(this, agent, async () => {
+                        let nearestWater = world.getNearestBlock(bot, 'water', 20);
+                        if (nearestWater) {
+                            const pos = nearestWater.position;
+                            await skills.goToPosition(bot, pos.x, pos.y, pos.z, 0.2);
+                            say(agent, 'Found some water, ahhhh that\'s better!');
+                        }
+                        else {
+                            await skills.moveAway(bot, 5);
+                        }
+                    });
+                }
             }
             else if (Date.now() - bot.lastDamageTime < 3000 && (bot.health < 5 || bot.lastDamageTaken >= bot.health)) {
                 say(agent, 'I\'m dying!');
