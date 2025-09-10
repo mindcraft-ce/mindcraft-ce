@@ -455,7 +455,7 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         const movements = new pf.Movements(bot);
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
-            block => movements.safeToBreak(block) || isLiquid
+            block => movements.safeToBreak(block) || isLiquid || block.name === 'obsidian'
         );
 
         if (blocks.length === 0) {
@@ -671,10 +671,10 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     let item_name = blockType;
     if (item_name == "redstone_wire")
         item_name = "redstone";
-    else if (item_name.includes('water')) {
+    else if (item_name === 'water') {
         item_name = 'water_bucket';
     }
-    else if (item_name.includes('lava')) {
+    else if (item_name === 'lava') {
         item_name = 'lava_bucket';
     }
     let block_item = bot.inventory.items().find(item => item.name === item_name);
@@ -694,7 +694,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     }
     const empty_blocks = ['air', 'water', 'lava', 'grass', 'short_grass', 'tall_grass', 'snow', 'dead_bush', 'fern'];
     if (!empty_blocks.includes(targetBlock.name)) {
-        log(bot, `${blockType} in the way at ${targetBlock.position}.`);
+        log(bot, `${targetBlock.name} in the way at ${targetBlock.position}.`);
         const removed = await breakBlockAt(bot, x, y, z);
         if (!removed) {
             log(bot, `Cannot place ${blockType} at ${targetBlock.position}: block in the way.`);
@@ -743,7 +743,7 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
     const pos_above = pos.plus(Vec3(0,1,0));
     const dont_move_for = ['torch', 'redstone_torch', 'redstone', 'lever', 'button', 'rail', 'detector_rail', 
         'powered_rail', 'activator_rail', 'tripwire_hook', 'tripwire', 'water_bucket', 'string'];
-    if (!dont_move_for.includes(item_name) && (pos.distanceTo(targetBlock.position) < 1 || pos_above.distanceTo(targetBlock.position) < 1)) {
+    if (!dont_move_for.includes(item_name) && (pos.distanceTo(targetBlock.position) < 1.1 || pos_above.distanceTo(targetBlock.position) < 1.1)) {
         // too close
         let goal = new pf.goals.GoalNear(targetBlock.position.x, targetBlock.position.y, targetBlock.position.z, 2);
         let inverted_goal = new pf.goals.GoalInvert(goal);
@@ -786,6 +786,11 @@ export async function equip(bot, itemName) {
      * @example
      * await skills.equip(bot, "iron_pickaxe");
      **/
+    if (itemName === 'hand') {
+        await bot.unequip('hand');
+        log(bot, `Unequipped hand.`);
+        return true;
+    }
     let item = bot.inventory.slots.find(slot => slot && slot.name === itemName);
     if (!item) {
         if (bot.game.gameMode === "creative") {
@@ -811,9 +816,6 @@ export async function equip(bot, itemName) {
     }
     else if (itemName.includes('shield')) {
         await bot.equip(item, 'off-hand');
-    }
-    else if (itemName === 'hand') {
-        await bot.unequip('hand');
     }
     else {
         await bot.equip(item, 'hand');
@@ -1958,7 +1960,6 @@ export async function useToolOn(bot, toolName, targetName) {
         }
         await bot.activateItem();
         log(bot, `Used ${toolName}.`);
-        return true;
     } else if (world.isEntityType(targetName)) {
         const entity = world.getNearestEntityWhere(bot, e => e.name === targetName, 64);
         if (!entity) {
@@ -1974,6 +1975,7 @@ export async function useToolOn(bot, toolName, targetName) {
             if (!equipped) return false;
         }
         await bot.useOn(entity);
+        log(bot, `Used ${toolName} on ${targetName}.`);
     } else {
         let block = null;
         if (targetName === 'water' || targetName === 'lava') {
