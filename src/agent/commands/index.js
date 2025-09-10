@@ -134,7 +134,7 @@ export function parseCommandMessage(message) {
             case 'BlockOrItemName':
             case 'ItemName':
                 if (arg.endsWith('plank') || arg.endsWith('seed'))
-                    arg += 's'; // catches common mistakes like "oak_plank" instead of "oak_planks" or "oak_seed" instead of "oak_seeds"
+                    arg += 's'; // add 's' to for common mistakes like "oak_plank" or "wheat_seed"
             case 'string':
                 break;
             default:
