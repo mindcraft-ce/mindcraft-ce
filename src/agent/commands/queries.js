@@ -108,16 +108,24 @@ export const queryList = [
         perform: function (agent) {
             let bot = agent.bot;
             let res = 'NEARBY_BLOCKS';
-            let blocks = world.getNearbyBlockTypes(bot);
-            for (let i = 0; i < blocks.length; i++) {
-                res += `\n- ${blocks[i]}`;
+            let blocks = world.getNearestBlocks(bot);
+            let block_details = new Set();
+            
+            for (let block of blocks) {
+                let details = block.name;
+                if (block.name === 'water' || block.name === 'lava') {
+                    details += block.metadata === 0 ? ' (source)' : ' (flowing)';
+                }
+                block_details.add(details);
             }
-            if (blocks.length == 0) {
+            for (let details of block_details) {
+                res += `\n- ${details}`;
+            }
+            if (block_details.size === 0) {
                 res += ': none';
             } 
             else {
-                // Environmental Awareness
-                res += '\n- ' + world.getSurroundingBlocks(bot).join('\n- ')
+                res += '\n- ' + world.getSurroundingBlocks(bot).join('\n- ');
                 res += `\n- First Solid Block Above Head: ${world.getFirstBlockAboveHead(bot, null, 32)}`;
             }
             return pad(res);

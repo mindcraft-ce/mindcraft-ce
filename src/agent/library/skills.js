@@ -420,6 +420,7 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
      * @param {MinecraftBot} bot, reference to the minecraft bot.
      * @param {string} blockType, the type of block to collect.
      * @param {number} num, the number of blocks to collect. Defaults to 1.
+     * @param {list} exclude, a list of positions to exclude from the search. Defaults to null.
      * @returns {Promise<boolean>} true if the block was collected, false if the block type was not found.
      * @example
      * await skills.collectBlock(bot, "oak_log");
@@ -440,18 +441,21 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
     let collected = 0;
 
     for (let i=0; i<num; i++) {
-        let blocks = world.getNearestBlocks(bot, blocktypes, 64);
-        if (exclude) {
-            for (let position of exclude) {
-                blocks = blocks.filter(
-                    block => block.position.x !== position.x || block.position.y !== position.y || block.position.z !== position.z
-                );
+        let blocks = world.getNearestBlocksWhere(bot, block => {
+            if (exclude) {
+                for (let position of exclude) {
+                    if (block.position.x === position.x && block.position.y === position.y && block.position.z === position.z) {
+                        return false;
+                    }
+                }
             }
-        }
-        if (isLiquid) {
-            // remove flowing blocks
-            blocks = blocks.filter(block => block.metadata === 0);
-        }
+            if (isLiquid) {
+                // collect only source blocks
+                return block.metadata === 0;
+            }
+            return true;
+        }, 64);
+
         const movements = new pf.Movements(bot);
         movements.dontMineUnderFallingBlock = false;
         blocks = blocks.filter(
@@ -1239,7 +1243,18 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         log(bot, `Maximum search range capped at ${MAX_RANGE}. `);
         range = MAX_RANGE;
     }
-    let block = world.getNearestBlock(bot, blockType, range);
+    let block = null;
+    if (blockType === 'water' || blockType === 'lava') {
+        let blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType && block.metadata === 0, range, 1);
+        if (blocks.length === 0) {
+            log(bot, `Could not find any source ${blockType} in ${range} blocks, looking for uncollectable flowing instead...`);
+            blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType, range, 1);
+        }
+        block = blocks[0];
+    }
+    else {
+        block = world.getNearestBlock(bot, blockType, range);
+    }
     if (!block) {
         log(bot, `Could not find any ${blockType} in ${range} blocks.`);
         return false;
@@ -1247,7 +1262,6 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
     log(bot, `Found ${blockType} at ${block.position}. Navigating...`);
     await goToPosition(bot, block.position.x, block.position.y, block.position.z, min_distance);
     return true;
-    
 }
 
 export async function goToNearestEntity(bot, entityType, min_distance=2, range=64) {
@@ -1981,15 +1995,12 @@ export async function useToolOn(bot, toolName, targetName) {
         if (targetName === 'water' || targetName === 'lava') {
             // we want to get liquid source blocks, not flowing blocks
             // so search for blocks with metadata 0 (not flowing)
-            let blocks = world.getNearestBlocks(bot, targetName, 64, 100);
+            let blocks = world.getNearestBlocksWhere(bot, block => block.name === targetName && block.metadata === 0, 64, 1);
             if (blocks.length === 0) {
-                log(bot, `Could not find any ${targetName}.`);
+                log(bot, `Could not find any source ${targetName}.`);
                 return false;
             }
             block = blocks[0];
-            if (block.metadata !== 0) {
-                block = blocks.find(block => block.metadata === 0);
-            }
         }
         else {
             block = world.getNearestBlock(bot, targetName, 64);
