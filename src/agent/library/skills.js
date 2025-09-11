@@ -436,12 +436,24 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         blocktypes.push('deepslate_'+blockType);
     if (blockType === 'dirt')
         blocktypes.push('grass_block');
+    if (blockType === 'cobblestone')
+        blocktypes.push('stone');
     const isLiquid = blockType === 'lava' || blockType === 'water';
 
     let collected = 0;
 
+    const movements = new pf.Movements(bot);
+    movements.dontMineUnderFallingBlock = false;
+    movements.dontCreateFlow = true;
+
+    // Blocks to ignore safety for, usually next to lava/water
+    const unsafeBlocks = ['obsidian'];
+
     for (let i=0; i<num; i++) {
         let blocks = world.getNearestBlocksWhere(bot, block => {
+            if (!blocktypes.includes(block.name)) {
+                return false;
+            }
             if (exclude) {
                 for (let position of exclude) {
                     if (block.position.x === position.x && block.position.y === position.y && block.position.z === position.z) {
@@ -453,14 +465,9 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
                 // collect only source blocks
                 return block.metadata === 0;
             }
-            return true;
-        }, 64);
-
-        const movements = new pf.Movements(bot);
-        movements.dontMineUnderFallingBlock = false;
-        blocks = blocks.filter(
-            block => movements.safeToBreak(block) || isLiquid || block.name === 'obsidian'
-        );
+            
+            return movements.safeToBreak(block) || unsafeBlocks.includes(block.name);
+        }, 64, 1);
 
         if (blocks.length === 0) {
             if (collected === 0)
