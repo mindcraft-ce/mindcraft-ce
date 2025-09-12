@@ -2,8 +2,8 @@
     "type": "module",
     "dependencies": {
         "@anthropic-ai/sdk": "^0.17.1",
-        "@google/genai": "^1.15.0",
         "@cerebras/cerebras_cloud_sdk": "^1.46.0",
+        "@google/genai": "^1.15.0",
         "@huggingface/inference": "^2.8.1",
         "@mistralai/mistralai": "^1.1.0",
         "canvas": "^3.1.0",
@@ -12,7 +12,7 @@
         "google-translate-api-x": "^10.7.1",
         "groq-sdk": "^0.15.0",
         "minecraft-data": "^3.97.0",
-        "mineflayer": "^4.32.0",
+        "mineflayer": "^4.33.0",
         "mineflayer-armor-manager": "^2.0.1",
         "mineflayer-auto-eat": "^3.3.6",
         "mineflayer-collectblock": "^1.4.1",

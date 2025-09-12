@@ -115,7 +115,7 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
 }
 
 
-export function getNearestBlocks(bot, block_types=null, distance=16, count=10000) {
+export function getNearestBlocks(bot, block_types=null, distance=8, count=10000) {
     /**
      * Get a list of the nearest blocks of the given types.
      * @param {Bot} bot - The bot to get the nearest block for.
@@ -138,21 +138,23 @@ export function getNearestBlocks(bot, block_types=null, distance=16, count=10000
             block_ids.push(mc.getBlockId(block_type));
         }
     }
+    return getNearestBlocksWhere(bot, block_ids, distance, count);  
+}
 
-    let positions = bot.findBlocks({matching: block_ids, maxDistance: distance, count: count});
-    let blocks = [];
-    for (let i = 0; i < positions.length; i++) {
-        let block = bot.blockAt(positions[i]);
-        let distance = positions[i].distanceTo(bot.entity.position);
-        blocks.push({ block: block, distance: distance });
-    }
-    blocks.sort((a, b) => a.distance - b.distance);
-
-    let res = [];
-    for (let i = 0; i < blocks.length; i++) {
-        res.push(blocks[i].block);
-    }
-    return res;
+export function getNearestBlocksWhere(bot, predicate, distance=8, count=10000) {
+    /**
+     * Get a list of the nearest blocks that satisfy the given predicate.
+     * @param {Bot} bot - The bot to get the nearest blocks for.
+     * @param {function} predicate - The predicate to filter the blocks.
+     * @param {number} distance - The maximum distance to search, default 16.
+     * @param {number} count - The maximum number of blocks to find, default 10000.
+     * @returns {Block[]} - The nearest blocks that satisfy the given predicate.
+     * @example
+     * let waterBlocks = world.getNearestBlocksWhere(bot, block => block.name === 'water', 16, 10);
+     **/
+    let positions = bot.findBlocks({matching: predicate, maxDistance: distance, count: count});
+    let blocks = positions.map(position => bot.blockAt(position));
+    return blocks;
 }
 
 

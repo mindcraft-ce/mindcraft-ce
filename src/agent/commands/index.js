@@ -131,9 +131,10 @@ export function parseCommandMessage(message) {
             case 'boolean':
                 arg = parseBoolean(arg); break;
             case 'BlockName':
+            case 'BlockOrItemName':
             case 'ItemName':
-                if (arg.endsWith('plank'))
-                    arg += 's'; // catches common mistakes like "oak_plank" instead of "oak_planks"
+                if (arg.endsWith('plank') || arg.endsWith('seed'))
+                    arg += 's'; // add 's' to for common mistakes like "oak_plank" or "wheat_seed"
             case 'string':
                 break;
             default:
@@ -160,9 +161,11 @@ export function parseCommandMessage(message) {
                 suppressNoDomainWarning = true; //Don't spam console. Only give the warning once.
             }
         } else if(param.type === 'BlockName') { //Check that there is a block with this name
-            if(getBlockId(arg) == null && arg !== 'air') return  `Invalid block type: ${arg}.`
+            if(getBlockId(arg) == null) return  `Invalid block type: ${arg}.`
         } else if(param.type === 'ItemName') { //Check that there is an item with this name
             if(getItemId(arg) == null) return `Invalid item type: ${arg}.`
+        } else if(param.type === 'BlockOrItemName') {
+            if(getBlockId(arg) == null && getItemId(arg) == null) return  `Invalid block or item type: ${arg}.`
         }
         args[i] = arg;
     }
@@ -230,11 +233,12 @@ export function getCommandDocs(agent) {
     const typeTranslations = {
         //This was added to keep the prompt the same as before type checks were implemented.
         //If the language model is giving invalid inputs changing this might help.
-        'float':        'number',
-        'int':          'number',
-        'BlockName':    'string',
-        'ItemName':     'string',
-        'boolean':      'bool'
+        'float':             'number',
+        'int':               'number',
+        'BlockName':         'string',
+        'ItemName':          'string',
+        'BlockOrItemName':   'string',
+        'boolean':           'bool'
     }
     let docs = `\n*COMMAND DOCS\n You can use the following commands to perform actions and get information about the world. 
     Use the commands with the syntax: !commandName or !commandName("arg1", 1.2, ...) if the command takes arguments.\n
