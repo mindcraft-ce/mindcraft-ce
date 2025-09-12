@@ -405,7 +405,7 @@ export const actionsList = [
     },
     {
         name: '!startConversation',
-        description: 'Start a conversation with a player. Use for bots only.',
+        description: 'Start a conversation with a bot. (FOR OTHER BOTS ONLY)',
         params: {
             'player_name': { type: 'string', description: 'The name of the player to send the message to.' },
             'message': { type: 'string', description: 'The message to send.' },
@@ -422,7 +422,7 @@ export const actionsList = [
     },
     {
         name: '!endConversation',
-        description: 'End the conversation with the given player.',
+        description: 'End the conversation with the given bot. (FOR OTHER BOTS ONLY)',
         params: {
             'player_name': { type: 'string', description: 'The name of the player to end the conversation with.' }
         },

@@ -1423,7 +1423,7 @@ export async function moveAway(bot, distance) {
 
     await goToGoal(bot, inverted_goal);
     let new_pos = bot.entity.position;
-    log(bot, `Moved away from nearest entity to ${new_pos}.`);
+    log(bot, `Moved away from ${pos.floored()} to ${new_pos.floored()}.`);
     return true;
 }
 

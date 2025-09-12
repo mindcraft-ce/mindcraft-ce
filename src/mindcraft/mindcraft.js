@@ -37,7 +37,8 @@ export async function createAgent(settings) {
     }
     settings = JSON.parse(JSON.stringify(settings));
     let agent_name = settings.profile.name;
-    const viewer_port = 3000 + agent_count;
+    const agentIndex = agent_count++;
+    const viewer_port = 3000 + agentIndex;
     registerAgent(settings, viewer_port);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
@@ -49,8 +50,7 @@ export async function createAgent(settings) {
         settings.minecraft_version = server.version;
 
         const agentProcess = new AgentProcess(agent_name, port);
-        agentProcess.start(load_memory, init_message, agent_count);
-        agent_count++;
+        agentProcess.start(load_memory, init_message, agentIndex);
         agent_processes[settings.profile.name] = agentProcess;
     } catch (error) {
         console.error(`Error creating agent ${agent_name}:`, error);
