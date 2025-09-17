@@ -80,7 +80,7 @@ export function getAgentProcess(agentName) {
 
 export function startAgent(agentName) {
     if (agent_processes[agentName]) {
-        agent_processes[agentName].continue();
+        agent_processes[agentName].forceRestart();
     }
     else {
         console.error(`Cannot start agent ${agentName}; not found`);

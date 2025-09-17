@@ -38,6 +38,9 @@ class MindServerProxy {
         this.socket.on('disconnect', () => {
             console.log('Disconnected from MindServer');
             this.connected = false;
+            if (this.agent) {
+                this.agent.cleanKill('Disconnected from MindServer. Killing agent process.');
+            }
         });
 
         this.socket.on('chat-message', (agentName, json) => {

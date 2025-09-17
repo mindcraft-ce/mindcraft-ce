@@ -60,9 +60,22 @@ export class AgentProcess {
         this.process.kill('SIGINT');
     }
 
-    continue() {
-        if (!this.running) {
-            this.start(true, 'Agent process restarted.', this.count_id);
+    forceRestart() {
+        if (this.running && this.process && !this.process.killed) {
+            console.log(`Agent process for ${this.name} is still running. Attempting to force restart.`);
+            
+            const restartTimeout = setTimeout(() => {
+                console.warn(`Agent ${this.name} did not stop in time. It might be stuck.`);
+            }, 5000); // 5 seconds to exit
+
+            this.process.once('exit', () => {
+                 clearTimeout(restartTimeout);
+                 console.log(`Stopped hanging agent ${this.name}. Now restarting.`);
+                 this.start(true, 'Agent process restarted.', this.count_id);
+            });
+            this.stop(); // sends SIGINT
+        } else {
+             this.start(true, 'Agent process restarted.', this.count_id);
         }
     }
 }
