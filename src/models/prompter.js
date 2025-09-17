@@ -137,7 +137,9 @@ export class Prompter {
         prompt = prompt.replaceAll('$NAME', this.agent.name);
 
         if (prompt.includes('$STATS')) {
-            let stats = await getCommand('!stats').perform(this.agent);
+            let stats = await getCommand('!stats').perform(this.agent) + '\n';
+            stats += await getCommand('!entities').perform(this.agent) + '\n';
+            stats += await getCommand('!nearbyBlocks').perform(this.agent);
             prompt = prompt.replaceAll('$STATS', stats);
         }
         if (prompt.includes('$INVENTORY')) {
