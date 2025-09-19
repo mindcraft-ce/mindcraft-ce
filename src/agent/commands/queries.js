@@ -35,8 +35,6 @@ export const queryList = [
             // res += `\n- Artficial light: ${block.skyLight}`;
             // res += `\n- Sky light: ${block.light}`;
             // light properties are bugged, they are not accurate
-            res += '\n- ' + world.getSurroundingBlocks(bot).join('\n- ')
-            res += `\n- First Solid Block Above Head: ${world.getFirstBlockAboveHead(bot, null, 32)}`;
 
 
             if (bot.time.timeOfDay < 6000) {

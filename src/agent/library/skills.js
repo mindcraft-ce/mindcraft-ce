@@ -52,7 +52,7 @@ export async function craftRecipe(bot, itemName, num=1) {
     // get recipes that don't require a crafting table
     let recipes = bot.recipesFor(mc.getItemId(itemName), null, 1, null); 
     let craftingTable = null;
-    const craftingTableRange = 32;
+    const craftingTableRange = 16;
     placeTable: if (!recipes || recipes.length === 0) {
         recipes = bot.recipesFor(mc.getItemId(itemName), null, 1, true);
         if(!recipes || recipes.length === 0) break placeTable; //Don't bother going to the table if we don't have the required resources.
@@ -158,7 +158,7 @@ export async function smeltItem(bot, itemName, num=1) {
 
     let placedFurnace = false;
     let furnaceBlock = undefined;
-    const furnaceRange = 32;
+    const furnaceRange = 16;
     furnaceBlock = world.getNearestBlock(bot, 'furnace', furnaceRange);
     if (!furnaceBlock){
         // Try to place furnace
@@ -1423,7 +1423,7 @@ export async function moveAway(bot, distance) {
 
     await goToGoal(bot, inverted_goal);
     let new_pos = bot.entity.position;
-    log(bot, `Moved away from nearest entity to ${new_pos}.`);
+    log(bot, `Moved away from ${pos.floored()} to ${new_pos.floored()}.`);
     return true;
 }
 

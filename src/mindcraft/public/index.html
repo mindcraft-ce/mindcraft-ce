@@ -383,6 +383,7 @@
         let profileData = null;
         const agentSettings = {};
         const agentLastMessage = {};
+        const inventoryOpen = {};
         let currentAgents = [];
 
         const statusEl = document.getElementById('msStatus');
@@ -755,6 +756,8 @@
             const viewerPort = agent.viewerPort;
             const viewerHTML = showViewer ? `<div class="agent-view-container"><iframe class="agent-viewer" id="viewer-${agent.name}" src="http://localhost:${viewerPort}"></iframe></div>` : '';
             const lastMessage = agentLastMessage[agent.name] || '';
+            const invOpen = inventoryOpen[agent.name] === true;
+            const invStyle = invOpen ? '' : 'display:none;';
             return `
                     <div class="agent" id="agent-${agent.name}">
                         <div class="agent-grid">
@@ -773,7 +776,7 @@
                             <div class="cell" id="biome-${agent.name}">biome: -</div>
                             <div class="cell" id="items-${agent.name}">inventory slots: -</div>
                             <div class="cell" id="equipped-${agent.name}">equipped: -</div>
-                            <div class="agent-inventory" id="inventorySection-${agent.name}" style="display:none; grid-column: 1 / -1;">
+                            <div class="agent-inventory" id="inventorySection-${agent.name}" style="${invStyle} grid-column: 1 / -1;">
                                 <h3>Inventory</h3>
                                 <div class="cell" id="armor-${agent.name}" style="margin-bottom: 8px;">armor: -</div>
                                 <div class="inventory-grid" id="inventory-${agent.name}"></div>
@@ -839,6 +842,7 @@
                 const name = el.id.replace('agent-', '');
                 if (!agents.find(a => a.name === name)) {
                     el.remove();
+                    delete inventoryOpen[name];
                 }
             });
         }
@@ -896,6 +900,7 @@
                 const name = el.id.replace('agent-', '');
                 if (!agents.find(a => a.name === name)) {
                     el.remove();
+                    delete inventoryOpen[name];
                 }
             });
         });
@@ -950,7 +955,9 @@
             const invSection = document.getElementById(`inventorySection-${name}`);
             if (!invSection) return;
             const visible = invSection.style.display !== 'none';
-            invSection.style.display = visible ? 'none' : '';
+            const newVisible = !visible;
+            invSection.style.display = newVisible ? '' : 'none';
+            inventoryOpen[name] = newVisible;
         }
         window.toggleDetails = toggleDetails;
     </script>

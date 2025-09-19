@@ -37,20 +37,28 @@ export async function createAgent(settings) {
     }
     settings = JSON.parse(JSON.stringify(settings));
     let agent_name = settings.profile.name;
-    const viewer_port = 3000 + agent_count;
+    const agentIndex = agent_count++;
+    const viewer_port = 3000 + agentIndex;
     registerAgent(settings, viewer_port);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
 
     try {
-        const server = await getServer(settings.host, settings.port, settings.minecraft_version);
-        settings.host = server.host;
-        settings.port = server.port;
-        settings.minecraft_version = server.version;
+        try {
+            const server = await getServer(settings.host, settings.port, settings.minecraft_version);
+            settings.host = server.host;
+            settings.port = server.port;
+            settings.minecraft_version = server.version;
+        } catch (error) {
+            console.warn(`Error getting server:`, error);
+            if (settings.minecraft_version === "auto") {
+                settings.minecraft_version = null;
+            }
+            console.warn(`Attempting to connect anyway...`);
+        }
 
         const agentProcess = new AgentProcess(agent_name, port);
-        agentProcess.start(load_memory, init_message, agent_count);
-        agent_count++;
+        agentProcess.start(load_memory, init_message, agentIndex);
         agent_processes[settings.profile.name] = agentProcess;
     } catch (error) {
         console.error(`Error creating agent ${agent_name}:`, error);
@@ -72,7 +80,7 @@ export function getAgentProcess(agentName) {
 
 export function startAgent(agentName) {
     if (agent_processes[agentName]) {
-        agent_processes[agentName].continue();
+        agent_processes[agentName].forceRestart();
     }
     else {
         console.error(`Cannot start agent ${agentName}; not found`);

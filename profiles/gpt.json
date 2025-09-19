@@ -5,7 +5,7 @@
         "model": "gpt-5",
         "params": {
             "reasoning": {
-                "effort": "minimal"
+                "effort": "low"
             }
         }
     }

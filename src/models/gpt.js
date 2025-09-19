@@ -22,6 +22,10 @@ export class GPT {
 
     async sendRequest(turns, systemMessage, stop_seq='***') {
         let messages = strictFormat(turns);
+        messages = messages.map(message => {
+            message.content += stop_seq;
+            return message;
+        });
         let model = this.model_name || "gpt-4o-mini";
 
         let res = null;
@@ -36,6 +40,8 @@ export class GPT {
             });
             console.log('Received.')
             res = response.output_text;
+            let stop_seq_index = res.indexOf(stop_seq);
+            res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
