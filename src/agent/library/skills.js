@@ -1960,6 +1960,25 @@ export async function digDown(bot, distance = 10) {
     return true;
 }
 
+export async function goToSurface(bot) {
+    /**
+     * Navigate to the surface (highest non-air block at current x,z).
+     * @param {MinecraftBot} bot, reference to the minecraft bot.
+     * @returns {Promise<boolean>} true if the surface was reached, false otherwise.
+     **/
+    const pos = bot.entity.position;
+    for (let y = 360; y > -64; y--) { // probably not the best way to find the surface but it works
+        const block = bot.blockAt(new Vec3(pos.x, y, pos.z));
+        if (!block || block.name === 'air' || block.name === 'cave_air') {
+            continue;
+        }
+        await goToPosition(bot, block.position.x, block.position.y + 1, block.position.z, 0); // this will probably work most of the time but a custom mining and towering up implementation could be added if needed
+        log(bot, `Going to the surface at y=${y+1}.`);``
+        return true;
+    }
+    return false;
+}
+
 export async function useToolOn(bot, toolName, targetName) {
     /**
      * Equip a tool and use it on the nearest target.
