@@ -481,6 +481,14 @@ export const actionsList = [
         })
     },
     {
+        name: '!goToSurface',
+        description: 'Moves the bot to the highest block above it (usually the surface).',
+        params: {},
+        perform: runAsAction(async (agent) => {
+            await skills.goToSurface(agent.bot);
+        })
+    },
+    {
         name: '!useOn',
         description: 'Use (right click) the given tool on the nearest target of the given type.',
         params: {
