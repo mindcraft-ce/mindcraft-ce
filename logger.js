@@ -454,7 +454,6 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
         "Context length exceeded",
         "Image input modality is not enabled",
         "An unexpected error occurred",
-        "Image captured for always active vision", // Filter out placeholder responses
     ];
     
     if (errorMessages.some(err => trimmedResponse.includes(err))) {
@@ -576,7 +575,13 @@ export async function logVision(conversationHistory, imageBuffer, response, visi
 }
 
 // Initialize counts at startup
+let isInitialized = false;
 function initializeCounts() {
+    // Prevent duplicate initialization
+    if (isInitialized) {
+        return;
+    }
+    isInitialized = true;
     // Set all counts to 0 at startup to avoid reading large files,
     // which can cause performance issues or crashes.
     // Log counts will be for the current session only.

@@ -1,4 +1,15 @@
 export class ActionManager {
+    /**
+     * Cancels the current action, optionally with a reason.
+     * @param {string} reason - Optional reason for cancellation.
+     */
+    cancelCurrentAction(reason) {
+        if (reason) {
+            console.log(`Action cancelled: ${reason}`);
+        }
+        this.cancelResume();
+        this.stop();
+    }
     constructor(agent) {
         this.agent = agent;
         this.executing = false;
@@ -23,15 +34,32 @@ export class ActionManager {
 
     async stop() {
         if (!this.executing) return;
+        
+        const maxRetries = 5; // Max 1.5 seconds of waiting (5 * 300ms)
+        let retries = 0;
+        
         const timeout = setTimeout(() => {
             this.agent.cleanKill('Code execution refused stop after 10 seconds. Killing process.');
         }, 10000);
-        while (this.executing) {
+        
+        while (this.executing && retries < maxRetries) {
             this.agent.requestInterrupt();
-            console.log('waiting for code to finish executing...');
+            console.log(`waiting for code to finish executing... (attempt ${retries + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, 300));
+            retries++;
         }
+        
         clearTimeout(timeout);
+        
+        // Force stop if still executing after max retries
+        if (this.executing) {
+            console.warn('Force stopping execution after max retries reached');
+            this.executing = false;
+            this.currentActionLabel = '';
+            this.currentActionFn = null;
+            this.cancelResume();
+            this.agent.clearBotLogs();
+        }
     } 
 
     cancelResume() {
@@ -77,6 +105,12 @@ export class ActionManager {
 
             // timeout in minutes
             if (timeout > 0) {
+                // Cap timeout at 15 minutes to prevent hanging
+                const maxTimeout = 15;
+                if (timeout > maxTimeout) {
+                    console.warn(`Timeout capped from ${timeout} to ${maxTimeout} minutes`);
+                    timeout = maxTimeout;
+                }
                 TIMEOUT = this._startTimeout(timeout);
             }
 
@@ -108,8 +142,35 @@ export class ActionManager {
             this.currentActionFn = null;
             clearTimeout(TIMEOUT);
             this.cancelResume();
+            
             console.error("Code execution triggered catch:", err);
-            // Log the full stack trace
+            
+            // Handle PathStopped errors specifically - these are normal interruptions
+            if (err.name === 'PathStopped' || err.message?.includes('PathStopped')) {
+                console.log('PathStopped error caught - treating as successful interruption');
+                let output = this.getBotOutputSummary();
+                let interrupted = true; // PathStopped means we were interrupted
+                this.agent.clearBotLogs();
+                this.agent.bot.emit('idle');
+                return { success: true, message: output, interrupted, timedout: false };
+            }
+            
+            // Handle GoalChanged errors specifically
+            if (err.name === 'GoalChanged' || err.message?.includes('GoalChanged')) {
+                return this._handleGoalChangedError();
+            }
+            
+            // Handle Digging aborted errors specifically - these are normal interruptions
+            if (err.message?.includes('Digging aborted')) {
+                console.log('Digging aborted error caught - treating as successful interruption');
+                let output = this.getBotOutputSummary();
+                let interrupted = true; // Digging aborted means we were interrupted
+                this.agent.clearBotLogs();
+                this.agent.bot.emit('idle');
+                return { success: true, message: output, interrupted, timedout: false };
+            }
+            
+            // Log the full stack trace for other errors
             console.error(err.stack);
             await this.stop();
             err = err.toString();
