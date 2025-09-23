@@ -32,7 +32,7 @@ If you encounter issues, check the [FAQ](https://github.com/mindcraft-bots/mindc
 
 ## Tasks
 
-Bot performance can be roughly evaluated with Tasks. Tasks automatically intialize bots with a goal to aquire specific items or construct predefined buildings, and remove the bot once the goal is achieved.
+Bot performance can be roughly evaluated with Tasks. Tasks automatically intialize bots with a goal to acquire specific items or construct predefined buildings, and remove the bot once the goal is achieved.
 
 To run tasks, you need python, pip, and optionally conda. You can then install dependencies with `pip install -r requirements.txt`. 
 
