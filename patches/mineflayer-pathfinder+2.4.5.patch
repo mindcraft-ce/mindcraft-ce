@@ -1,8 +1,27 @@
 diff --git a/node_modules/mineflayer-pathfinder/index.js b/node_modules/mineflayer-pathfinder/index.js
-index b38bd30..2cb2b14 100644
+index b38bd30..2ca8205 100644
 --- a/node_modules/mineflayer-pathfinder/index.js
 +++ b/node_modules/mineflayer-pathfinder/index.js
-@@ -170,6 +170,16 @@ function inject (bot) {
+@@ -14,6 +14,7 @@ const interactableBlocks = require('./lib/interactable.json')
+ 
+ function inject (bot) {
+   const waterType = bot.registry.blocksByName.water.id
++  const lavaType = bot.registry.blocksByName.lava.id
+   const ladderId = bot.registry.blocksByName.ladder.id
+   const vineId = bot.registry.blocksByName.vine.id
+   let stateMovements = new Movements(bot)
+@@ -61,6 +62,10 @@ function inject (bot) {
+   }
+ 
+   bot.pathfinder.getPathTo = (movements, goal, timeout) => {
++    // Update lava avoidance based on current bot state
++    if (movements.updateLavaAvoidance) {
++      movements.updateLavaAvoidance()
++    }
+     const generator = bot.pathfinder.getPathFromTo(movements, bot.entity.position, goal, { timeout })
+     const { value: { result, astarContext: context } } = generator.next()
+     astarContext = context
+@@ -170,6 +175,16 @@ function inject (bot) {
        const curPoint = path[i]
        if (curPoint.toBreak.length > 0 || curPoint.toPlace.length > 0) break
        const b = bot.blockAt(new Vec3(curPoint.x, curPoint.y, curPoint.z))
@@ -19,7 +38,7 @@ index b38bd30..2cb2b14 100644
        if (b && (b.type === waterType || ((b.type === ladderId || b.type === vineId) && i + 1 < path.length && path[i + 1].y < curPoint.y))) {
          curPoint.x = Math.floor(curPoint.x) + 0.5
          curPoint.y = Math.floor(curPoint.y)
-@@ -524,6 +534,9 @@ function inject (bot) {
+@@ -524,6 +539,9 @@ function inject (bot) {
          bot.activateBlock(bot.blockAt(new Vec3(placingBlock.x, placingBlock.y, placingBlock.z))).then(() => {
            lockUseBlock.release()
            placingBlock = nextPoint.toPlace.shift()
@@ -29,7 +48,7 @@ index b38bd30..2cb2b14 100644
          }, err => {
            console.error(err)
            lockUseBlock.release()
-@@ -550,6 +563,7 @@ function inject (bot) {
+@@ -550,6 +568,7 @@ function inject (bot) {
              lockEquipItem.release()
              const refBlock = bot.blockAt(new Vec3(placingBlock.x, placingBlock.y, placingBlock.z), false)
              if (!lockPlaceBlock.tryAcquire()) return
@@ -37,7 +56,7 @@ index b38bd30..2cb2b14 100644
              if (interactableBlocks.includes(refBlock.name)) {
                bot.setControlState('sneak', true)
              }
-@@ -557,6 +571,7 @@ function inject (bot) {
+@@ -557,6 +576,7 @@ function inject (bot) {
                .then(function () {
                  // Dont release Sneak if the block placement was not successful
                  bot.setControlState('sneak', false)
@@ -45,11 +64,44 @@ index b38bd30..2cb2b14 100644
                  if (bot.pathfinder.LOSWhenPlacingBlocks && placingBlock.returnPos) returningPos = placingBlock.returnPos.clone()
                })
                .catch(_ignoreError => {
+@@ -576,7 +596,7 @@ function inject (bot) {
+     let dx = nextPoint.x - p.x
+     const dy = nextPoint.y - p.y
+     let dz = nextPoint.z - p.z
+-    if (Math.abs(dx) <= 0.35 && Math.abs(dz) <= 0.35 && Math.abs(dy) < 1) {
++    if (Math.abs(dx) <= 0.175 && Math.abs(dz) <= 0.175 && Math.abs(dy) < 1) {
+       // arrived at next point
+       lastNodeTime = performance.now()
+       if (stopPathing) {
+@@ -611,6 +631,9 @@ function inject (bot) {
+     if (bot.entity.isInWater) {
+       bot.setControlState('jump', true)
+       bot.setControlState('sprint', false)
++    } else if (bot.entity.isInLava) {
++      bot.setControlState('jump', true)
++      bot.setControlState('sprint', false)
+     } else if (stateMovements.allowSprinting && physics.canStraightLine(path, true)) {
+       bot.setControlState('jump', false)
+       bot.setControlState('sprint', true)
 diff --git a/node_modules/mineflayer-pathfinder/lib/movements.js b/node_modules/mineflayer-pathfinder/lib/movements.js
-index a7e3505..b5b54b6 100644
+index a7e3505..84a0841 100644
 --- a/node_modules/mineflayer-pathfinder/lib/movements.js
 +++ b/node_modules/mineflayer-pathfinder/lib/movements.js
-@@ -62,7 +62,13 @@ class Movements {
+@@ -50,7 +50,12 @@ class Movements {
+     this.blocksToAvoid.add(registry.blocksByName.fire.id)
+     if (registry.blocksByName.cobweb) this.blocksToAvoid.add(registry.blocksByName.cobweb.id)
+     if (registry.blocksByName.web) this.blocksToAvoid.add(registry.blocksByName.web.id)
+-    this.blocksToAvoid.add(registry.blocksByName.lava.id)
++    
++    // Only avoid lava if bot is not currently in lava
++    // Check if bot.entity exists and is initialized
++    if (!bot.entity || !bot.entity.isInLava) {
++      this.blocksToAvoid.add(registry.blocksByName.lava.id)
++    }
+ 
+     this.liquids = new Set()
+     this.liquids.add(registry.blocksByName.water.id)
+@@ -62,7 +67,13 @@ class Movements {
  
      this.climbables = new Set()
      this.climbables.add(registry.blocksByName.ladder.id)
@@ -64,7 +116,7 @@ index a7e3505..b5b54b6 100644
      this.emptyBlocks = new Set()
  
      this.replaceables = new Set()
-@@ -92,13 +98,15 @@ class Movements {
+@@ -92,13 +103,15 @@ class Movements {
        }
      })
      registry.blocksArray.forEach(block => {
@@ -82,7 +134,7 @@ index a7e3505..b5b54b6 100644
  
      this.exclusionAreasStep = []
      this.exclusionAreasBreak = []
-@@ -230,8 +238,13 @@ class Movements {
+@@ -230,8 +243,13 @@ class Movements {
        }
      }
      b.climbable = this.climbables.has(b.type)
@@ -98,7 +150,7 @@ index a7e3505..b5b54b6 100644
      b.replaceable = this.replaceables.has(b.type) && !b.physical
      b.liquid = this.liquids.has(b.type)
      b.height = pos.y + dy
-@@ -284,6 +297,18 @@ class Movements {
+@@ -284,6 +302,18 @@ class Movements {
      cost += this.exclusionStep(block) // Is excluded so can't move or break
      cost += this.getNumEntitiesAt(block.position, 0, 0, 0) * this.entityCost
      if (block.safe) return cost
@@ -117,7 +169,7 @@ index a7e3505..b5b54b6 100644
      if (!this.safeToBreak(block)) return 100 // Can't break, so can't move
      toBreak.push(block.position)
  
-@@ -387,8 +412,8 @@ class Movements {
+@@ -387,8 +417,8 @@ class Movements {
      cost += this.safeOrBreak(blockB, toBreak)
      if (cost > 100) return
  
@@ -128,7 +180,7 @@ index a7e3505..b5b54b6 100644
        toPlace.push({ x: node.x + dir.x, y: node.y, z: node.z + dir.z, dx: 0, dy: 0, dz: 0, useOne: true }) // Indicate that a block should be used on this block not placed
      } else {
        cost += this.safeOrBreak(blockC, toBreak)
-@@ -554,6 +579,54 @@ class Movements {
+@@ -554,6 +584,54 @@ class Movements {
      neighbors.push(new Move(node.x, node.y + 1, node.z, node.remainingBlocks - toPlace.length, cost, toBreak, toPlace))
    }
  
@@ -183,14 +235,31 @@ index a7e3505..b5b54b6 100644
    // Jump up, down or forward over a 1 block gap
    getMoveParkourForward (node, dir, neighbors) {
      const block0 = this.getBlock(node, 0, -1, 0)
-@@ -656,6 +729,10 @@ class Movements {
+@@ -656,8 +734,27 @@ class Movements {
      this.getMoveDown(node, neighbors)
      this.getMoveUp(node, neighbors)
-     
+ 
 +    // Enhanced climbing moves for ladders, vines, and trapdoors
 +    this.getMoveClimbUpThroughTrapdoor(node, neighbors)
 +    this.getMoveClimbTop(node, neighbors)
 +
      return neighbors
    }
++
++  // Update lava avoidance based on bot's current state
++  updateLavaAvoidance () {
++    const registry = this.bot.registry
++    const lavaId = registry.blocksByName.lava.id
++    
++    // Check if bot.entity exists and is initialized
++    if (this.bot.entity && this.bot.entity.isInLava) {
++      // If bot is in lava, allow pathfinding through lava to escape
++      this.blocksToAvoid.delete(lavaId)
++    } else {
++      // If bot is not in lava, avoid lava blocks
++      this.blocksToAvoid.add(lavaId)
++    }
++  }
  }
+ 
+ module.exports = Movements

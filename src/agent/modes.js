@@ -35,7 +35,7 @@ const modes_list = [
             let blockAbove = bot.blockAt(bot.entity.position.offset(0, 1, 0));
             if (!block) block = {name: 'air'}; // hacky fix when blocks are not loaded
             if (!blockAbove) blockAbove = {name: 'air'};
-            if (blockAbove.name === 'water' || blockAbove.name === 'flowing_water') {
+            if (blockAbove.name === 'water') {
                 // does not call execute so does not interrupt other actions
                 if (!bot.pathfinder.goal) {
                     bot.setControlState('jump', true);
@@ -48,26 +48,31 @@ const modes_list = [
             }
             else if (block.name === 'lava' || block.name === 'fire' ||
                 blockAbove.name === 'lava' || blockAbove.name === 'fire') {
-                say(agent, 'I\'m on fire!'); // TODO: gets stuck in lava
+                say(agent, 'I\'m on fire!');
                 // if you have a water bucket, use it
                 let waterBucket = bot.inventory.items().find(item => item.name === 'water_bucket');
                 if (waterBucket) {
                     execute(this, agent, async () => {
-                        await skills.placeBlock(bot, 'water_bucket', block.position.x, block.position.y, block.position.z);
-                        say(agent, 'Placed some water, ahhhh that\'s better!');
+                        let success = await skills.placeBlock(bot, 'water_bucket', block.position.x, block.position.y, block.position.z);
+                        if (success) say(agent, 'Placed some water, ahhhh that\'s better!');
                     });
                 }
                 else {
                     execute(this, agent, async () => {
+                        let waterBucket = bot.inventory.items().find(item => item.name === 'water_bucket');
+                        if (waterBucket) {
+                            let success = await skills.placeBlock(bot, 'water_bucket', block.position.x, block.position.y, block.position.z);
+                            if (success) say(agent, 'Placed some water, ahhhh that\'s better!');
+                            return;
+                        }
                         let nearestWater = world.getNearestBlock(bot, 'water', 20);
                         if (nearestWater) {
                             const pos = nearestWater.position;
-                            await skills.goToPosition(bot, pos.x, pos.y, pos.z, 0.2);
-                            say(agent, 'Found some water, ahhhh that\'s better!');
+                            let success = await skills.goToPosition(bot, pos.x, pos.y, pos.z, 0.2);
+                            if (success) say(agent, 'Found some water, ahhhh that\'s better!');
+                            return;
                         }
-                        else {
-                            await skills.moveAway(bot, 5);
-                        }
+                        await skills.moveAway(bot, 5);
                     });
                 }
             }
