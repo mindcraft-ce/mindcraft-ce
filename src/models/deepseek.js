@@ -16,7 +16,8 @@ export class DeepSeek {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, stop_seq='***') {
+    async sendRequest(turns, systemMessage, tools = []) {
+        let stop_seq='***';
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
         messages = strictFormat(messages);
@@ -24,6 +25,7 @@ export class DeepSeek {
         const pack = {
             model: this.model_name || "deepseek-chat",
             messages,
+            tools : tools,
             stop: stop_seq,
             ...(this.params || {})
         };
@@ -37,6 +39,12 @@ export class DeepSeek {
                 throw new Error('Context length exceeded'); 
             console.log('Received.')
             res = completion.choices[0].message.content;
+            for (const tool_call of completion.choices[0].message.tool_calls || []) {
+                function_calls.push({
+                    name: tool_call.function.name,
+                    arguments: tool_call.function.arguments
+                });
+            }
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -47,7 +55,7 @@ export class DeepSeek {
                 res = 'My brain disconnected, try again.';
             }
         }
-        return res;
+        return [res, function_calls];
     }
 
     async embed(text) {

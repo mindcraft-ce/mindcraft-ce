@@ -10,13 +10,14 @@ export class Ollama {
         this.embedding_endpoint = '/api/embeddings';
     }
 
-    async sendRequest(turns, systemMessage) {
+    async sendRequest(turns, systemMessage, tools = []) {
         let model = this.model_name || 'sweaterdog/andy-4:micro-q8_0';
         let messages = strictFormat(turns);
         messages.unshift({ role: 'system', content: systemMessage });
         const maxAttempts = 5;
         let attempt = 0;
         let finalRes = null;
+        let function_calls = [];
 
         while (attempt < maxAttempts) {
             attempt++;
@@ -26,6 +27,7 @@ export class Ollama {
                 let apiResponse = await this.send(this.chat_endpoint, {
                     model: model,
                     messages: messages,
+                    tools: tools,
                     stream: false,
                     ...(this.params || {})
                 });
@@ -33,6 +35,12 @@ export class Ollama {
                     res = apiResponse['message']['content'];
                 } else {
                     res = 'No response data.';
+                }
+                for (const tool_call of apiResponse['message']['tool_calls'] || []) {
+                    function_calls.push({
+                        name: tool_call.function.name,
+                        arguments: tool_call.function.arguments
+                    });
                 }
             } catch (err) {
                 if (err.message.toLowerCase().includes('context length') && turns.length > 1) {
@@ -65,7 +73,7 @@ export class Ollama {
             console.warn("Could not get a valid response after max attempts.");
             finalRes = 'I thought too hard, sorry, try again.';
         }
-        return finalRes;
+        return [finalRes, function_calls];
     }
 
     async embed(text) {

@@ -1,23 +1,36 @@
-import { readFileSync, mkdirSync, writeFileSync} from 'fs';
+import { readFileSync, mkdirSync, writeFileSync, readFile} from 'fs';
 import { Examples } from '../utils/examples.js';
-import { getCommandDocs } from '../agent/commands/index.js';
+import { executeTool, getToolDocs } from '../agent/commands/index.js';
 import { SkillLibrary } from "../agent/library/skill_library.js";
 import { stringifyTurns } from '../utils/text.js';
-import { getCommand } from '../agent/commands/index.js';
+import { getTool } from '../agent/commands/index.js';
 import settings from '../agent/settings.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
+import { getToolDefinitions, containsToolCall } from '../agent/commands/index.js';
+import { encode } from '@toon-format/toon';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 
 export class Prompter {
     constructor(agent, profile) {
         this.agent = agent;
         this.profile = profile;
-        let default_profile = JSON.parse(readFileSync('./profiles/defaults/_default.json', 'utf8'));
+        
+        if(this.profile == null || this.profile.use_function_calling === undefined)
+            this.tool_type = settings.use_function_calling ? 'tools' : 'commands';
+        else
+            this.tool_type = this.profile.use_function_calling ? 'tools' : 'commands';
+        let default_profile = JSON.parse(readFileSync(`./profiles/defaults/_default.${this.tool_type}.json`, 'utf8'));
+        default_profile.conversing = readFileSync(`./profiles/defaults/${this.tool_type}/conversing.xml`, 'utf8');
+        default_profile.coding = readFileSync(`./profiles/defaults/${this.tool_type}/coding.xml`, 'utf8');
+        default_profile.saving_memory = readFileSync(`./profiles/defaults/${this.tool_type}/saving_memory.xml`, 'utf8');
+        default_profile.bot_responder = readFileSync(`./profiles/defaults/${this.tool_type}/bot_responder.xml`, 'utf8');
+        default_profile.image_analysis = readFileSync(`./profiles/defaults/${this.tool_type}/image_analysis.xml`, 'utf8');
         let base_fp = '';
         if (settings.base_profile.includes('survival')) {
             base_fp = './profiles/defaults/survival.json';
@@ -136,21 +149,26 @@ export class Prompter {
     async replaceStrings(prompt, messages, examples=null, to_summarize=[], last_goals=null) {
         prompt = prompt.replaceAll('$NAME', this.agent.name);
 
+        if (prompt.includes('$MINECRAFT_CONTEXT')) {
+            let context = await this.agent.rag.getMinecraftContext(messages[messages.length - 1].content);
+            prompt = prompt.replaceAll('$MINECRAFT_CONTEXT', context);
+        }
+
         if (prompt.includes('$STATS')) {
-            let stats = await getCommand('!stats').perform(this.agent) + '\n';
-            stats += await getCommand('!entities').perform(this.agent) + '\n';
-            stats += await getCommand('!nearbyBlocks').perform(this.agent);
+            let stats = await executeTool(this.agent, '!stats', {}) + '\n';
+            stats += await executeTool(this.agent, '!entities', {}) + '\n';
+            stats += await executeTool(this.agent, '!nearbyBlocks', {}) + '\n';
             prompt = prompt.replaceAll('$STATS', stats);
         }
         if (prompt.includes('$INVENTORY')) {
-            let inventory = await getCommand('!inventory').perform(this.agent);
+            let inventory = await executeTool(this.agent, '!inventory', {});
             prompt = prompt.replaceAll('$INVENTORY', inventory);
         }
         if (prompt.includes('$ACTION')) {
             prompt = prompt.replaceAll('$ACTION', this.agent.actions.currentActionLabel);
         }
         if (prompt.includes('$COMMAND_DOCS'))
-            prompt = prompt.replaceAll('$COMMAND_DOCS', getCommandDocs(this.agent));
+            prompt = prompt.replaceAll('$COMMAND_DOCS', encode(getToolDocs(this.agent)));
         if (prompt.includes('$CODE_DOCS')) {
             const code_task_content = messages.slice().reverse().find(msg =>
                 msg.role !== 'system' && msg.content.includes('!newAction(')
@@ -222,10 +240,11 @@ export class Prompter {
 
             let prompt = this.profile.conversing;
             prompt = await this.replaceStrings(prompt, messages, this.convo_examples);
-            let generation;
+            let generation, function_calls;
 
             try {
-                generation = await this.chat_model.sendRequest(messages, prompt);
+                let tools = this.tool_type === 'tools' ? getToolDefinitions() : [];
+                [generation, function_calls] = await this.chat_model.sendRequest(messages, prompt, tools);
                 if (typeof generation !== 'string') {
                     console.error('Error: Generated response is not a string', generation);
                     throw new Error('Generated response is not a string');
@@ -254,10 +273,27 @@ export class Prompter {
                 generation = afterThink
             }
 
-            return generation;
+            // analyze if functions were called as !command("string",5) or !command without args- check specifically if
+            try {
+                let result = JSON.parse(generation);
+                if (result.chat_response && result.chat_response.includes('!') && containsToolCall(result.chat_response)) {
+                    function_calls = [];
+                    const tool_call_regex = /!(\w+)(\((.*?)\))?/g;
+                    let match;
+                    while ((match = tool_call_regex.exec(result.chat_response)) !== null) {
+                        const tool_name = match[1];
+                        const tool_args = match[3] ? match[3].split(',').map(arg => arg.trim().replace(/^"|"$/g, '')) : [];
+                        function_calls.push({ name: tool_name, arguments: tool_args });
+                    }
+                }
+            } catch (e) {
+                // not JSON, ignore
+            }
+
+            return [generation, function_calls];
         }
 
-        return '';
+        return ['', []]; // return empty response after 3 failed attempts
     }
 
     async promptCoding(messages) {
@@ -270,7 +306,7 @@ export class Prompter {
         let prompt = this.profile.coding;
         prompt = await this.replaceStrings(prompt, messages, this.coding_examples);
 
-        let resp = await this.code_model.sendRequest(messages, prompt);
+        let [resp, function_calls] = await this.code_model.sendRequest(messages, prompt, getToolDefinitions());
         this.awaiting_coding = false;
         await this._saveLog(prompt, messages, resp, 'coding');
         return resp;
@@ -280,7 +316,7 @@ export class Prompter {
         await this.checkCooldown();
         let prompt = this.profile.saving_memory;
         prompt = await this.replaceStrings(prompt, null, null, to_summarize);
-        let resp = await this.chat_model.sendRequest([], prompt);
+        let [resp, function_calls] = await this.chat_model.sendRequest([], prompt, getToolDefinitions());
         await this._saveLog(prompt, to_summarize, resp, 'memSaving');
         if (resp?.includes('</think>')) {
             const [_, afterThink] = resp.split('</think>')
@@ -295,7 +331,7 @@ export class Prompter {
         let messages = this.agent.history.getHistory();
         messages.push({role: 'user', content: new_message});
         prompt = await this.replaceStrings(prompt, null, null, messages);
-        let res = await this.chat_model.sendRequest([], prompt);
+        let [res, function_calls] = await this.chat_model.sendRequest([], prompt, getToolDefinitions());
         return res.trim().toLowerCase() === 'respond';
     }
 
@@ -303,7 +339,7 @@ export class Prompter {
         await this.checkCooldown();
         let prompt = this.profile.image_analysis;
         prompt = await this.replaceStrings(prompt, messages, null, null, null);
-        return await this.vision_model.sendVisionRequest(messages, prompt, imageBuffer);
+        return await this.vision_model.sendVisionRequest(messages, prompt, imageBuffer, getToolDefinitions());
     }
 
     async promptGoalSetting(messages, last_goals) {
@@ -316,7 +352,7 @@ export class Prompter {
         user_message = await this.replaceStrings(user_message, messages, null, null, last_goals);
         let user_messages = [{role: 'user', content: user_message}];
 
-        let res = await this.chat_model.sendRequest(user_messages, system_message);
+        let [res, function_calls] = await this.chat_model.sendRequest(user_messages, system_message, getToolDefinitions());
 
         let goal = null;
         try {

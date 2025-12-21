@@ -17,7 +17,7 @@ export class HuggingFace {
     this.huggingface = new HfInference(getKey('HUGGINGFACE_API_KEY'));
   }
 
-  async sendRequest(turns, systemMessage) {
+  async sendRequest(turns, systemMessage, tools = []) {
     const stop_seq = '***';
     // Build a single prompt from the conversation turns
     const prompt = toSinglePrompt(turns, null, stop_seq);
@@ -31,6 +31,8 @@ export class HuggingFace {
     let attempt = 0;
     let finalRes = null;
 
+    let function_calls = [];
+
     while (attempt < maxAttempts) {
       attempt++;
       console.log(`Awaiting Hugging Face API response... (model: ${model_name}, attempt: ${attempt})`);
@@ -43,6 +45,12 @@ export class HuggingFace {
           ...(this.params || {})
         })) {
           res += (chunk.choices[0]?.delta?.content || "");
+        }
+        for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
+          function_calls.push({
+              name: tool_call.function.name,
+              arguments: tool_call.function.arguments
+          });
         }
       } catch (err) {
         console.log(err);
@@ -77,7 +85,7 @@ export class HuggingFace {
     }
     console.log('Received.');
     console.log(finalRes);
-    return finalRes;
+    return [finalRes, function_calls];
   }
 
   async embed(text) {

@@ -1,5 +1,5 @@
 import { readFileSync , writeFileSync, existsSync} from 'fs';
-import { executeCommand } from '../commands/index.js';
+import { executeTool } from '../commands/index.js';
 import { getPosition } from '../library/world.js';
 import { ConstructionTaskValidator, Blueprint } from './construction_tasks.js';
 import { CookingTaskInitiator } from './cooking_tasks.js';
@@ -270,7 +270,7 @@ export class Task {
             // if (agentGoal) {
             //     agentGoal += "You have to collaborate with other agents/bots, namely " + this.available_agents.filter(n => n !== this.name).join(', ') + " to complete the task as soon as possible by dividing the work among yourselves.";
             //     console.log(`Setting goal for agent ${this.agent.count_id}: ${agentGoal}`);
-            //     await executeCommand(this.agent, `!goal("${agentGoal}")`);
+            //     await executeTool(this.agent, `!goal("${agentGoal}")`);
             // }
 
             if (this.task_type === 'construction') {
@@ -402,7 +402,7 @@ export class Task {
             agentGoal += "You have to collaborate with other agents/bots, namely " + this.available_agents.filter(n => n !== this.name).join(', ') + " to complete the task as soon as possible by dividing the work among yourselves.";
             console.log(`Setting goal for agent ${this.agent.count_id}: ${agentGoal}`);
         }
-        await executeCommand(this.agent, `!goal("${agentGoal}")`);
+        await executeTool(this.agent, `!goal("${agentGoal}")`);
     }
 
     async initBotTask() {
@@ -503,7 +503,7 @@ export class Task {
                 console.log('No other agents found. Task unsuccessful.');
                 this.agent.killAll();
             }
-            await executeCommand(this.agent, `!startConversation("${other_name}", "${this.data.conversation}")`);
+            await executeTool(this.agent, `!startConversation("${other_name}", "${this.data.conversation}")`);
         }
         await this.setAgentGoal();
     }

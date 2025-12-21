@@ -15,7 +15,8 @@ export class GLHF {
         });
     }
 
-    async sendRequest(turns, systemMessage, stop_seq = '***') {
+    async sendRequest(turns, systemMessage, tools = []) {
+        let stop_seq = '***';
         // Construct the message array for the API request.
         let messages = [{ role: 'system', content: systemMessage }].concat(turns);
         const pack = {
@@ -27,6 +28,8 @@ export class GLHF {
         const maxAttempts = 5;
         let attempt = 0;
         let finalRes = null;
+
+        let function_calls = [];
 
         while (attempt < maxAttempts) {
             attempt++;
@@ -47,6 +50,12 @@ export class GLHF {
                     res = "<think>" + res;
                 }
                 finalRes = res.replace(/<\|separator\|>/g, '*no response*');
+                for (const tool_call of completion.choices[0].message.tool_calls || []) {
+                    function_calls.push({
+                        name: tool_call.function.name,
+                        arguments: tool_call.function.arguments
+                    });
+                }
                 break; // Valid response obtained.
             } catch (err) {
                 if ((err.message === 'Context length exceeded' || err.code === 'context_length_exceeded') && turns.length > 1) {
@@ -62,7 +71,7 @@ export class GLHF {
         if (finalRes === null) {
             finalRes = "I thought too hard, sorry, try again";
         }
-        return finalRes;
+        return [finalRes, function_calls];
     }
 
     async embed(text) {

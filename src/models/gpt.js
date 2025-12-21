@@ -20,7 +20,8 @@ export class GPT {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, stop_seq='***') {
+    async sendRequest(turns, systemMessage, tools = []) {
+        let stop_seq='***';
         let messages = strictFormat(turns);
         messages = messages.map(message => {
             message.content += stop_seq;
@@ -29,6 +30,7 @@ export class GPT {
         let model = this.model_name || "gpt-4o-mini";
 
         let res = null;
+        let function_calls = [];
 
         try {
             console.log('Awaiting openai api response from model', model)
@@ -36,12 +38,19 @@ export class GPT {
                 model: model,
                 instructions: systemMessage,
                 input: messages,
+                tools: tools,
                 ...(this.params || {})
             });
             console.log('Received.')
             res = response.output_text;
             let stop_seq_index = res.indexOf(stop_seq);
             res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
+            for (const tool_call of response.tool_calls || []) {
+                function_calls.push({
+                    name: tool_call.function.name,
+                    arguments: tool_call.function.arguments
+                });
+            }
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -55,10 +64,10 @@ export class GPT {
                 res = 'My brain disconnected, try again.';
             }
         }
-        return res;
+        return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -71,7 +80,7 @@ export class GPT {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage);
+        return this.sendRequest(imageMessages, systemMessage, tools);
     }
 
     async embed(text) {

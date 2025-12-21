@@ -1313,18 +1313,27 @@ export async function goToPlayer(bot, username, distance=3) {
 
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
-    let player = bot.players[username].entity
-    if (!player) {
-        log(bot, `Could not find ${username}.`);
+
+    try {
+        let player = bot.players[username].entity
+        if (!player) {
+            log(bot, `Could not find ${username}.`);
+            return false;
+        }
+
+        distance = Math.max(distance, 0.5);
+        const goal = new pf.goals.GoalFollow(player, distance);
+
+        await goToGoal(bot, goal, true);
+
+        log(bot, `You have reached ${username}.`);
+    } catch (err) {
+        console.log('username: ', username);
+        console.log('closeness distance: ', distance);
+        console.log('bot.players: ', bot.players[username]);
+        log(bot, `Pathfinding stopped: ${err.message}.`);
         return false;
     }
-
-    distance = Math.max(distance, 0.5);
-    const goal = new pf.goals.GoalFollow(player, distance);
-
-    await goToGoal(bot, goal, true);
-
-    log(bot, `You have reached ${username}.`);
 }
 
 

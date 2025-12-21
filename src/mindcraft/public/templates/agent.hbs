@@ -1,0 +1,54 @@
+<div class="agent" id="agent-{{ agent.name }}">
+    <div class="agent-grid">
+        <div class="cell title"
+            style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between;">
+            <span><span class="status-icon {{ternary agent.in_game 'online' 'offline'}}">●</span>{{ agent.name
+                }}{{#ifAnd agent.socket_connected true agent.in_game false}}<span style="margin-left:6px;color:#f0ad4e;">joining...</span>{{/ifAnd}}
+                <button class="gear-btn" title="Settings" onclick="openAgentSettings('{{ agent.name }}')">⚙</button>
+                <button class="gear-btn" title="Inventory"
+                    onclick="toggleDetails('{{ agent.name }}')">Inventory</button>
+            </span>
+        </div>
+        {{#if showViewer}}
+        <div class="cell" style="grid-row: span 3; padding:0;">
+            <div class="agent-view-container">
+                <iframe class="agent-viewer" id="viewer-{{ agent.name }}" src="http://localhost:{{ viewerPort }}"></iframe>
+            </div>
+        </div>
+        {{/if}}
+        <div class="cell" id="action-{{ agent.name }}">action: -</div>
+        <div class="cell" id="mode-{{ agent.name }}">gamemode: -</div>
+        <div class="cell" id="health-{{ agent.name }}">health: -</div>
+        <div class="cell" id="hunger-{{ agent.name }}">hunger: -</div>
+        <div class="cell" id="pos-{{ agent.name }}">pos: -</div>
+        <div class="cell" id="biome-{{ agent.name }}">biome: -</div>
+        <div class="cell" id="items-{{ agent.name }}">inventory slots: -</div>
+        <div class="cell" id="equipped-{{ agent.name }}">equipped: -</div>
+        <div class="agent-inventory" id="inventorySection-{{ agent.name }}" style="{{invStyle}} grid-column: 1 / -1;">
+            <h3>Inventory</h3>
+            <div class="cell" id="armor-{{ agent.name }}" style="margin-bottom: 8px;">armor: -</div>
+            <div class="inventory-grid" id="inventory-{{ agent.name }}"></div>
+        </div>
+        <div id="lastMessage-{{ agent.name }}" class="last-message" style="grid-column: 1 / -1;"><strong>Last
+                Message:</strong> {{ lastMessage }}</div>
+    </div>
+    <div class="controls-row">
+        <button class="start-btn" id="sendBtn-{{ agent.name }}" disabled
+            onclick="sendMessage('{{ agent.name }}', document.getElementById('messageInput-{{ agent.name }}').value)">Send</button>
+        <input class="msg-input" type="text" id="messageInput-{{ agent.name }}" placeholder="Enter message..."
+            oninput="onMsgInputChange('{{ agent.name }}')"
+            onkeydown="if(event.key === 'Enter') document.getElementById('sendBtn-{{ agent.name }}').click()"
+            {{ternary agent.in_game '' 'disabled'}}>
+        <button class="neutral-btn" onclick="sendMessage('{{ agent.name }}', '!stop')" {{ternary agent.in_game '' 'disabled'}}>Stop Action</button>
+        <button class="neutral-btn" onclick="sendMessage('{{ agent.name }}', '!stay(-1)')" {{ternary agent.in_game '' 'disabled'}}>Stay Still</button>
+        <button class="neutral-btn" onclick="restartAgent('{{ agent.name }}')" {{ternary agent.in_game '' 'disabled'}}>Restart</button>
+        {{#if agent.in_game}}
+        <button class="neutral-btn" onclick="disconnectAgent('{{ agent.name }}')">Disconnect</button>
+        {{else if agent.socket_connected}}
+        <button class="neutral-btn" onclick="startAgent('{{ agent.name }}')" disabled>Connecting...</button>
+        {{else}}
+        <button class="neutral-btn" onclick="startAgent('{{ agent.name }}')">Connect</button>
+        {{/if}}
+        <button class="stop-btn" onclick="destroyAgent('{{ agent.name }}')">Remove</button>
+    </div>
+</div>

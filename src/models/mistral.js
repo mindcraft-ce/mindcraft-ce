@@ -36,7 +36,7 @@ export class Mistral {
         }
     }
 
-    async sendRequest(turns, systemMessage) {
+    async sendRequest(turns, systemMessage, tools = []) {
 
         let result;
 
@@ -56,6 +56,13 @@ export class Mistral {
             });
 
             result = response.choices[0].message.content;
+            let function_calls = [];
+            for (const tool_call of response.choices[0].message.tool_calls || []) {
+                function_calls.push({
+                    name: tool_call.function.name,
+                    arguments: tool_call.function.arguments
+                });
+            }
         } catch (err) {
             if (err.message.includes("A request containing images has been given to a model which does not have the 'vision' capability.")) {
                 result = "Vision is only supported by certain models.";
@@ -65,10 +72,10 @@ export class Mistral {
             console.log(err);
         }
 
-        return result;
+        return [result, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -81,7 +88,7 @@ export class Mistral {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage);
+        return this.sendRequest(imageMessages, systemMessage, undefined, tools);
     }
 
     async embed(text) {

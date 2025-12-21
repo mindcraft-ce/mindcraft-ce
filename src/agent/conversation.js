@@ -1,5 +1,4 @@
 import settings from './settings.js';
-import { containsCommand } from './commands/index.js';
 import { sendBotChatToServer } from './mindserver_proxy.js';
 
 let agent;
@@ -165,7 +164,7 @@ class ConversationManager {
         sendBotChatToServer(send_to, json);
     }
 
-    async receiveFromBot(sender, received) {
+    async receiveFromBot(sender, received, called_tools=false) {
         const convo = this._getConvo(sender);
 
         if (convo.ignore_until_start && !received.start)
@@ -190,8 +189,8 @@ class ConversationManager {
         if (agent.self_prompter.isActive()){
             await agent.self_prompter.pause();
         }
-    
-        _scheduleProcessInMessage(sender, received, convo);
+        log.warn("CALLED TOOLS IS NOT IMPLEMENTED CORRECTLY");
+        _scheduleProcessInMessage(sender, received, convo, called_tools);
     }
 
     responseScheduledFor(sender) {
@@ -270,10 +269,10 @@ The logic is as follows:
 const talkOverActions = ['stay', 'followPlayer', 'mode:']; // all mode actions
 const fastDelay = 200;
 const longDelay = 5000;
-async function _scheduleProcessInMessage(sender, received, convo) {
+async function _scheduleProcessInMessage(sender, received, convo, called_tools=false) {
     if (convo.inMessageTimer)
         clearTimeout(convo.inMessageTimer);
-    let otherAgentBusy = containsCommand(received.message);
+    let otherAgentBusy = called_tools;
 
     const scheduleResponse = (delay) => convo.inMessageTimer = setTimeout(() => _processInMessageQueue(sender), delay);
 

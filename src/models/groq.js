@@ -28,11 +28,13 @@ export class GroqCloudAPI {
 
     }
 
-    async sendRequest(turns, systemMessage, stop_seq = null) {
+    async sendRequest(turns, systemMessage, tools = []) {
+        let stop_seq=null;
         // Construct messages array
         let messages = [{"role": "system", "content": systemMessage}].concat(turns);
 
         let res = null;
+        let function_calls = [];
 
         try {
             console.log("Awaiting Groq response...");
@@ -52,11 +54,18 @@ export class GroqCloudAPI {
                 "messages": messages,
                 "model": this.model_name || "qwen/qwen3-32b",
                 "stream": false,
+                "tools": tools,
                 "stop": stop_seq,
                 ...(this.params || {})
             });
 
             res = completion.choices[0].message.content;
+            for (const tool_call of completion.choices[0].message.tool_calls || []) {
+                function_calls.push({
+                    name: tool_call.function.name,
+                    arguments: tool_call.function.arguments
+                });
+            }
 
             res = res.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         }
@@ -68,10 +77,10 @@ export class GroqCloudAPI {
             }
             console.log(err);
         }
-        return res;
+        return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
         const imageMessages = messages.filter(message => message.role !== 'system');
         imageMessages.push({
             role: "user",
@@ -86,7 +95,7 @@ export class GroqCloudAPI {
             ]
         });
         
-        return this.sendRequest(imageMessages);
+        return this.sendRequest(imageMessages, systemMessage, tools);
     }
 
     async embed(_) {

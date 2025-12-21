@@ -15,19 +15,22 @@ export class Qwen {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, stop_seq='***') {
+    async sendRequest(turns, systemMessage, tools = []) {
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
+        let stop_seq='***';
 
         messages = strictFormat(messages);
 
         const pack = {
             model: this.model_name || "qwen-plus",
             messages,
+            tools: tools,
             stop: stop_seq,
             ...(this.params || {})
         };
 
         let res = null;
+        let function_calls = [];
         try {
             console.log('Awaiting Qwen api response...');
             // console.log('Messages:', messages);
@@ -36,6 +39,12 @@ export class Qwen {
                 throw new Error('Context length exceeded');
             console.log('Received.');
             res = completion.choices[0].message.content;
+            for (const tool_call of completion.choices[0].message.tool_calls || []) {
+                function_calls.push({
+                    name: tool_call.function.name,
+                    arguments: tool_call.function.arguments
+                });
+            }
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -46,7 +55,7 @@ export class Qwen {
                 res = 'My brain disconnected, try again.';
             }
         }
-        return res;
+        return [res, function_calls];
     }
 
     // Why random backoff?

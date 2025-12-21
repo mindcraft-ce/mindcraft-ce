@@ -17,9 +17,10 @@ export class Claude {
         this.anthropic = new Anthropic(config);
     }
 
-    async sendRequest(turns, systemMessage) {
+    async sendRequest(turns, systemMessage, tools = []) {
         const messages = strictFormat(turns);
         let res = null;
+        let function_calls = [];
         try {
             console.log(`Awaiting anthropic response from ${this.model_name}...`)
             if (!this.params.max_tokens) {
@@ -34,6 +35,7 @@ export class Claude {
                 model: this.model_name || "claude-sonnet-4-20250514",
                 system: systemMessage,
                 messages: messages,
+                tools: tools,
                 ...(this.params || {})
             });
 
@@ -46,6 +48,17 @@ export class Claude {
                 console.warn('No text content found in the response.');
                 res = 'No response from Claude.';
             }
+            
+            // search the content for tool calls
+            for (const content of resp.content) {
+                if (content.type === 'tool_call') {
+                    function_calls.push({
+                        name: content.name,
+                        args: content.input
+                    });
+                }
+            }
+            
         }
         catch (err) {
             if (err.message.includes("does not support image input")) {
@@ -55,10 +68,10 @@ export class Claude {
             }
             console.log(err);
         }
-        return res;
+        return [res, function_calls];
     }
 
-    async sendVisionRequest(turns, systemMessage, imageBuffer) {
+    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = []) {
         const imageMessages = [...turns];
         imageMessages.push({
             role: "user",
@@ -78,7 +91,7 @@ export class Claude {
             ]
         });
 
-        return this.sendRequest(imageMessages, systemMessage);
+        return this.sendRequest(imageMessages, systemMessage, tools);
     }
 
     async embed(text) {

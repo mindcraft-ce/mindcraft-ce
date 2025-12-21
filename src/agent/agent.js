@@ -4,7 +4,7 @@ import { VisionInterpreter } from './vision/vision_interpreter.js';
 import { Prompter } from '../models/prompter.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
-import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
+import { containsToolCall, isAction, blacklistTools, isTool, executeTool } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
 import { NPCContoller } from './npc/controller.js';
 import { MemoryBank } from './memory_bank.js';
@@ -16,16 +16,18 @@ import { serverProxy, sendOutputToServer } from './mindserver_proxy.js';
 import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
+import { RAGManager } from './rag/rag_manager.js';
 
 export class Agent {
-    async start(load_mem=false, init_message=null, count_id=0) {
+    async start(load_mem = false, init_message = null, count_id = 0) {
         this.last_sender = null;
         this.count_id = count_id;
-        
+
         // Initialize components with more detailed error handling
         this.actions = new ActionManager(this);
         this.prompter = new Prompter(this, settings.profile);
         this.name = this.prompter.getName();
+        this.rag = new RAGManager(this);
         console.log(`Initializing agent ${this.name}...`);
         this.history = new History(this);
         this.coder = new Coder(this);
@@ -48,7 +50,7 @@ export class Agent {
         }
         this.task = new Task(this, settings.task, taskStart);
         this.blocked_actions = settings.blocked_actions.concat(this.task.blocked_actions || []);
-        blacklistCommands(this.blocked_actions);
+        blacklistTools(this.blocked_actions);
 
         console.log(this.name, 'logging into minecraft...');
         this.bot = initBot(this.name);
@@ -58,14 +60,14 @@ export class Agent {
         this.bot.on('login', () => {
             console.log(this.name, 'logged in!');
             serverProxy.login();
-            
+
             // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
             if (this.prompter.profile.skin)
                 this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
             else
                 this.bot.chat(`/skin clear`);
         });
-		const spawnTimeoutDuration = settings.spawn_timeout;
+        const spawnTimeoutDuration = settings.spawn_timeout;
         const spawnTimeout = setTimeout(() => {
             console.error(`Bot has not spawned after ${spawnTimeoutDuration} seconds. Exiting.`);
             process.exit(0);
@@ -79,13 +81,13 @@ export class Agent {
 
                 // wait for a bit so stats are not undefined
                 await new Promise((resolve) => setTimeout(resolve, 1000));
-                
+
                 console.log(`${this.name} spawned.`);
                 this.clearBotLogs();
-              
+
                 this._setupEventHandlers(save_data, init_message);
                 this.startEvents();
-              
+
                 if (!load_mem) {
                     if (settings.task) {
                         this.task.initBotTask();
@@ -117,7 +119,7 @@ export class Agent {
             "Set the weather to",
             "Gamerule "
         ];
-        
+
         const respondFunc = async (username, message) => {
             if (message === "") return;
             if (username === this.name) return;
@@ -141,10 +143,10 @@ export class Agent {
             }
         }
 
-		this.respondFunc = respondFunc;
+        this.respondFunc = respondFunc;
 
         this.bot.on('whisper', respondFunc);
-        
+
         this.bot.on('chat', (username, message) => {
             if (serverProxy.getNumOtherAgents() > 0) return;
             // only respond to open chat messages when there are no other agents
@@ -178,13 +180,13 @@ export class Agent {
             await this.handleMessage('system', init_message, 2);
         }
         else {
-            this.openChat("Hello world! I am "+this.name);
+            this.openChat("Hello world! I am " + this.name);
         }
     }
 
     checkAllPlayersPresent() {
         if (!this.task || !this.task.agent_names) {
-          return;
+            return;
         }
 
         const missingPlayers = this.task.agent_names.filter(name => !this.bot.players[name]);
@@ -215,7 +217,19 @@ export class Agent {
         convoManager.endAllConversations();
     }
 
-    async handleMessage(source, message, max_responses=null) {
+    async handleMessage(source, message, max_responses = null) {
+
+        /*
+        tools_called: list of tool names that were called in this message
+        How it looks:
+        [
+            {
+                name: 'tool_name',
+                args: { arg1: value1, arg2: value2 }
+                }
+                ]
+                */
+
         await this.checkTaskDone();
         if (!source || !message) {
             console.warn('Received empty message from', source);
@@ -230,24 +244,26 @@ export class Agent {
             max_responses = Infinity;
         }
 
+
         const self_prompt = source === 'system' || source === this.name;
         const from_other_bot = convoManager.isOtherAgent(source);
 
         if (!self_prompt && !from_other_bot) { // from user, check for forced commands
-            const user_command_name = containsCommand(message);
+            const user_command_name = containsToolCall(message);
             if (user_command_name) {
-                if (!commandExists(user_command_name)) {
+                if (!isTool(user_command_name)) {
                     this.routeResponse(source, `Command '${user_command_name}' does not exist.`);
                     return false;
                 }
                 this.routeResponse(source, `*${source} used ${user_command_name.substring(1)}*`);
+
                 if (user_command_name === '!newAction') {
                     // all user-initiated commands are ignored by the bot except for this one
                     // add the preceding message to the history to give context for newAction
                     this.history.add(source, message);
                 }
-                let execute_res = await executeCommand(this, message);
-                if (execute_res) 
+                let execute_res = await executeTool(this, message);
+                if (execute_res)
                     this.routeResponse(source, execute_res);
                 return true;
             }
@@ -261,7 +277,7 @@ export class Agent {
         console.log('received message from', source, ':', message);
 
         const checkInterrupt = () => this.self_prompter.shouldInterrupt(self_prompt) || this.shut_up || convoManager.responseScheduledFor(source);
-        
+
         let behavior_log = this.bot.modes.flushBehaviorLog().trim();
         if (behavior_log.length > 0) {
             const MAX_LOG = 500;
@@ -276,57 +292,98 @@ export class Agent {
         await this.history.add(source, message);
         this.history.save();
 
+
+
         if (!self_prompt && this.self_prompter.isActive()) // message is from user during self-prompting
             max_responses = 1; // force only respond to this message, then let self-prompting take over
-        for (let i=0; i<max_responses; i++) {
+
+        let res = null;
+        let tools_called = null;
+
+        for (let i = 0; i < max_responses; i++) {
             if (checkInterrupt()) break;
             let history = this.history.getHistory();
-            let res = await this.prompter.promptConvo(history);
 
-            console.log(`${this.name} full response to ${source}: ""${res}""`);
+            [res, tools_called] = await this.prompter.promptConvo(history);
 
-            if (res.trim().length === 0) {
-                console.warn('no response')
-                break; // empty response ends loop
+            // if res is not valid JSON, ignore it completely and let chat_response be ''
+            let chat_response = '';
+            try {
+                let parsed = JSON.parse(res);
+                if (parsed.chat_response)
+                    chat_response = parsed.chat_response;
+            } catch (e) {
+                console.log('Response was not valid JSON, ignoring chat response.');
+                console.log('Full response:', res);
+                res = null;
             }
 
-            let command_name = containsCommand(res);
+            console.log(`${this.name} full response to ${source}: ""${res}""`);
+            console.log(`${this.name} tools called: `, tools_called);
 
-            if (command_name) { // contains query or command
-                res = truncCommandMessage(res); // everything after the command is ignored
-                this.history.add(this.name, res);
-                
-                if (!commandExists(command_name)) {
-                    this.history.add('system', `Command ${command_name} does not exist.`);
-                    console.warn('Agent hallucinated command:', command_name)
-                    continue;
+            if (!res || res.length === 0) {
+                console.warn('no response')
+                if (tools_called === null || tools_called === undefined || tools_called.length === 0)
+                    break; // empty response ends loop
+            }
+
+            if (tools_called.length > 0) {
+                let real_tools = [];
+                for (const tool_call of tools_called) {
+                    if (isAction(tool_call.name)) {
+                        console.log('Agent decided to use action:', tool_call.name);
+                        real_tools.push(tool_call);
+                    }
+                    else if (isTool(tool_call.name) && !isAction(tool_call.name)) {
+                        console.log('Agent tried to use non-action tool:', tool_call.name);
+                    }
+                    else {
+                        this.history.add('system', `Command ${tool_call.name} does not exist.`);
+                        console.warn('Agent hallucinated command:', tool_call.name)
+                    }
                 }
+
+                let one_of_them_is_action = real_tools.some(tool_call => isAction(tool_call.name));
+
 
                 if (checkInterrupt()) break;
-                this.self_prompter.handleUserPromptedCmd(self_prompt, isAction(command_name));
+                this.self_prompter.handleUserPromptedCmd(self_prompt, one_of_them_is_action);
+                let execute_res = "";
+                let chat_message = chat_response;
+                for (const tool_call of real_tools) {
 
-                if (settings.show_command_syntax === "full") {
-                    this.routeResponse(source, res);
+                    if (settings.show_command_syntax === "full") {
+                        chat_message = chat_message.replace(new RegExp(`!${tool_call.name}(\\([^)]*\\))?`, 'g'), '');
+
+                        let args_list = [];
+                        for (const param of Object.values(tool_call.arguments)) {
+                            args_list.push(JSON.stringify(param));
+                        }
+                        let args_str = args_list.join(',');
+                        chat_message += ` *used ${tool_call.name}(${args_str})* `;
+
+                    }
+                    else if (settings.show_command_syntax === "shortened") {
+                        chat_message = `*used ${tool_call.name}* `;
+                    }
+
+                    if (real_tools.length == 1)
+                        this.routeResponse(source, chat_message);
+
+                    let _execute_res = await executeTool(this, tool_call.name, tool_call.arguments);
+
+                    if (_execute_res)
+                        execute_res += _execute_res + "\n\n";
+
+                    console.log('Agent executed:', tool_call.name, 'and got:', execute_res);
+                    used_command = true;
                 }
-                else if (settings.show_command_syntax === "shortened") {
-                    // show only "used !commandname"
-                    let pre_message = res.substring(0, res.indexOf(command_name)).trim();
-                    let chat_message = `*used ${command_name.substring(1)}*`;
-                    if (pre_message.length > 0)
-                        chat_message = `${pre_message}  ${chat_message}`;
+
+                if (real_tools.length > 1) {
                     this.routeResponse(source, chat_message);
                 }
-                else {
-                    // no command at all
-                    let pre_message = res.substring(0, res.indexOf(command_name)).trim();
-                    if (pre_message.trim().length > 0)
-                        this.routeResponse(source, pre_message);
-                }
 
-                let execute_res = await executeCommand(this, res);
 
-                console.log('Agent executed:', command_name, 'and got:', execute_res);
-                used_command = true;
 
                 if (execute_res)
                     this.history.add('system', execute_res);
@@ -335,13 +392,27 @@ export class Agent {
             }
             else { // conversation response
                 this.history.add(this.name, res);
-                this.routeResponse(source, res);
+                if (chat_response !== null && chat_response.length > 0) {
+                    this.routeResponse(source, chat_response);
+                }
                 break;
             }
-            
+
             this.history.save();
         }
-
+        try {
+            let response = JSON.parse(res);
+            if (!response.work_done && this.prompter.tool_type == "tools") {
+                let new_response = "You told yourself you are not done yet. Continue your work.";
+                new_response += "\n\n Please be sure to use tools as needed to accomplish your goals.";
+                new_response += "\n\n You told yourself this: " + (response.next_steps_explained ? response.next_steps_explained : "");
+                this.handleMessage('system', new_response)
+            }
+        } catch (e) {
+            console.log('No follow-up self-prompting needed.');
+            console.log(e);
+            // ignore parsing errors here
+        }
         return used_command;
     }
 
@@ -368,7 +439,7 @@ export class Agent {
     async openChat(message) {
         let to_translate = message;
         let remaining = '';
-        let command_name = containsCommand(message);
+        let command_name = containsToolCall(message);
         let translate_up_to = command_name ? message.indexOf(command_name) : -1;
         if (translate_up_to != -1) { // don't translate the command
             to_translate = to_translate.substring(0, translate_up_to);
@@ -387,7 +458,7 @@ export class Agent {
             if (settings.speak) {
                 speak(to_translate, this.prompter.profile.speak_model);
             }
-            if (settings.chat_ingame) {this.bot.chat(message);}
+            if (settings.chat_ingame) { this.bot.chat(message); }
             sendOutputToServer(this.name, message);
         }
     }
@@ -396,13 +467,13 @@ export class Agent {
         // Custom events
         this.bot.on('time', () => {
             if (this.bot.time.timeOfDay == 0)
-            this.bot.emit('sunrise');
+                this.bot.emit('sunrise');
             else if (this.bot.time.timeOfDay == 6000)
-            this.bot.emit('noon');
+                this.bot.emit('noon');
             else if (this.bot.time.timeOfDay == 12000)
-            this.bot.emit('sunset');
+                this.bot.emit('sunset');
             else if (this.bot.time.timeOfDay == 18000)
-            this.bot.emit('midnight');
+                this.bot.emit('midnight');
         });
 
         let prev_health = this.bot.health;
@@ -416,7 +487,7 @@ export class Agent {
             prev_health = this.bot.health;
         });
         // Logging callbacks
-        this.bot.on('error' , (err) => {
+        this.bot.on('error', (err) => {
             console.error('Error event!', err);
         });
         this.bot.on('end', (reason) => {
@@ -485,11 +556,11 @@ export class Agent {
     isIdle() {
         return !this.actions.executing;
     }
-    
 
-    cleanKill(msg='Killing agent process...', code=1) {
+
+    cleanKill(msg = 'Killing agent process...', code = 1) {
         this.history.add('system', msg);
-        this.bot.chat(code > 1 ? 'Restarting.': 'Exiting.');
+        this.bot.chat(code > 1 ? 'Restarting.' : 'Exiting.');
         this.history.save();
         process.exit(code);
     }
