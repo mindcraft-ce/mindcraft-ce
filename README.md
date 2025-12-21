@@ -18,6 +18,43 @@ Do not connect this bot to public servers with coding enabled. This project allo
 
 # New Experimental Features
 
+Mindcraft CE is the experimental fork of Mindcraft, featuring cutting-edge capabilities:
+
+### 🔧 **Function Calling (Experimental)**
+- **`use_function_calling`** — New tool-based AI interaction system in `settings.js`
+- Enables structured tool calls instead of text-based commands
+- Supported across Claude, GPT, Gemini, Grok, DeepSeek, and Mistral models
+
+### 🧠 **RAG System (Retrieval-Augmented Generation)**
+- **LanceDB Integration** — Vector database for intelligent context retrieval
+- **RAGManager** — New class for handling memory and knowledge retrieval
+
+
+### 🛠️ **Tool-Based Prompting**
+- Modular prompt system with separate XML templates:
+  - `conversing.xml`, `coding.xml`, `bot_responder.xml`
+  - `image_analysis.xml`, `saving_memory.xml`
+- `_default.tools.json` — New tool-based profile configuration
+- `_default.commands.json` — Legacy command-based system (still supported)
+
+### 👁️ **Enhanced Vision & Models**
+- Improved vision request handling across all model providers
+- Andy API TTS implementation
+
+### 🎯 **Other Improvements**
+- 🐳 Docker support with improved container configuration
+- 📊 Multi-agent MineCollab framework
+- 🌐 OpenRouter integration for 100+ models
+- 🖥️ LM Studio support for local models
+- 🎮 Default Minecraft version updated to 1.21.6
+
+> [!Warning]
+> The `use_function_calling` feature is experimental and may cause unexpected behavior. 
+
+### 🚧 **Coming Soon**
+- **Model Provider Repositories** — Install and update model providers from external repositories via `model_provider_repositories` in `settings.js`
+- **Tools Repositories** — Extend bot capabilities with community-created tools via `tools_provider_repositories` in `settings.js`
+- Both support auto-install/update and manual management through the Mindserver UI
 
 # Getting Started
 ## Requirements
@@ -53,7 +90,7 @@ If you encounter issues, check the [FAQ](https://github.com/mindcraft-bots/mindc
 
 You can configure project details in `settings.js`. [See file.](settings.js)
 
-You can configure the agent's name, model, and prompts in their profile like `andy.json`. The model can be specified with the `model` field, with values like `model: "gemini-2.5-pro"`. You will need the correct API key for the API provider you choose. See all supported APIs below.
+You can configure the agent's name, model, and prompts in their profile like `andy.json`. The model can be specified with the `model` field, with values like `model: "gemini-3-pro"`. You will need the correct API key for the API provider you choose. See all supported APIs below.
 
 <details>
 <summary><strong>⭐ VIEW SUPPORTED APIs ⭐</strong></summary>
@@ -172,14 +209,14 @@ Bot profiles are json files (such as `andy.json`) that define:
 
 ## Model Specifications
 
-LLM models can be specified simply as `"model": "gpt-4o"`, or more specifically with `"{api}/{model}"`, like `"openrouter/google/gemini-2.5-pro"`. See all supported APIs [here](#model-customization).
+LLM models can be specified simply as `"model": "gpt-5.2"`, or more specifically with `"{api}/{model}"`, like `"openrouter/google/gemini-3-pro"`. See all supported APIs [here](#model-customization).
 
 The `model` field can be a string or an object. A model object must specify an `api`, and optionally a `model`, `url`, and additional `params`. You can also use different models/providers for chatting, coding, vision, embedding, and voice synthesis. See the example below.
 
 ```json
 "model": {
   "api": "openai",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "url": "https://api.openai.com/v1/",
   "params": {
     "max_tokens": 1000,
@@ -188,18 +225,18 @@ The `model` field can be a string or an object. A model object must specify an `
 },
 "code_model": {
   "api": "openai",
-  "model": "gpt-4",
+  "model": "gpt-4.1",
   "url": "https://api.openai.com/v1/"
 },
 "vision_model": {
   "api": "openai",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "url": "https://api.openai.com/v1/"
 },
 "embedding": {
   "api": "openai",
   "url": "https://api.openai.com/v1/",
-  "model": "text-embedding-ada-002"
+  "model": "text-embedding-3-large"
 },
 "speak_model": "openai/tts-1/echo"
 ```
@@ -236,7 +273,7 @@ While AI generated code is allowed, please vet it carefully. Submitting tons of 
 Some of the node modules that we depend on have bugs in them. To add a patch, change your local node module file and run `npx patch-package [package-name]`
 
 ## Development Team
-[@Sweaterdog](https://github.com/Sweaterdog) | [@Ninot1Quyi](https://github.com/Ninot1Quyi) | [@riqvip](https://github.com/riqvip) | [@uukelele-scratch](https://github.com/uukelele-scratch) | [@mrelmida](https://github.com/mrelmida)
+[@Sweaterdog](https://github.com/Sweaterdog) | [@riqvip](https://github.com/riqvip) | [@uukelele-scratch](https://github.com/uukelele-scratch) | [@mrelmida](https://github.com/mrelmida)
 
 
 Also thanks to all the other developers of the Mindcraft project: [@MaxRobinsonTheGreat](https://github.com/MaxRobinsonTheGreat), [@kolbytn](https://github.com/kolbytn), [@icwhite](https://github.com/icwhite), [@Ninot1Quyi](https://github.com/Ninot1Quyi)
