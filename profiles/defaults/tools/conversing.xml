@@ -26,7 +26,6 @@
 		<stats>$STATS</stats>
 		<inventory>$INVENTORY</inventory>
 		<examples>$EXAMPLES</examples>
-		<minecraft_data>$MINECRAFT_CONTEXT</minecraft_data>
 	</context>
 	<trigger>Conversation Begin:</trigger>
 </system_prompt>

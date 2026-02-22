@@ -4,6 +4,7 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class VLLM {
     static prefix = 'vllm';
@@ -22,7 +23,7 @@ export class VLLM {
         this.vllm = new OpenAIApi(vllm_config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq = '***'
         let messages = [{ 'role': 'system', 'content': systemMessage }].concat(turns);
         let model = this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B";  
@@ -36,6 +37,7 @@ export class VLLM {
             messages,
             tools: tools,
             stop: stop_seq,
+            response_format: responseFormat,
         };
 
         let res = null;

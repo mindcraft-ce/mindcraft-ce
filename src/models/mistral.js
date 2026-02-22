@@ -1,6 +1,7 @@
 import { Mistral as MistralClient } from '@mistralai/mistralai';
 import { getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class Mistral {
     static prefix = 'mistral';
@@ -36,7 +37,7 @@ export class Mistral {
         }
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
 
         let result;
 
@@ -52,6 +53,7 @@ export class Mistral {
             const response  = await this.#client.chat.complete({
                 model,
                 messages,
+                responseFormat: responseFormat,
                 ...(this.params || {})
             });
 
@@ -75,7 +77,7 @@ export class Mistral {
         return [result, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -88,7 +90,7 @@ export class Mistral {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, undefined, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 
     async embed(text) {

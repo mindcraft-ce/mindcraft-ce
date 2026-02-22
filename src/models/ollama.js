@@ -1,4 +1,5 @@
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class Ollama {
     static prefix = 'ollama';
@@ -10,7 +11,7 @@ export class Ollama {
         this.embedding_endpoint = '/api/embeddings';
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let model = this.model_name || 'sweaterdog/andy-4:micro-q8_0';
         let messages = strictFormat(turns);
         messages.unshift({ role: 'system', content: systemMessage });
@@ -29,6 +30,7 @@ export class Ollama {
                     messages: messages,
                     tools: tools,
                     stream: false,
+                    format: responseFormat,
                     ...(this.params || {})
                 });
                 if (apiResponse) {
@@ -103,7 +105,7 @@ export class Ollama {
         return data;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -118,6 +120,6 @@ export class Ollama {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 }

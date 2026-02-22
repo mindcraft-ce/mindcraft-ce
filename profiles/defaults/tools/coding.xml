@@ -21,7 +21,6 @@
 		<inventory>$INVENTORY</inventory>
 		<documentation>$CODE_DOCS</documentation>
 		<examples>$EXAMPLES</examples>
-		<minecraft_data>$MINECRAFT_CONTEXT</minecraft_data>
 	</context>
 	<trigger>Conversation:</trigger>
 </system_prompt>

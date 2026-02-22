@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class Claude {
     static prefix = 'anthropic';
@@ -17,7 +18,7 @@ export class Claude {
         this.anthropic = new Anthropic(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         const messages = strictFormat(turns);
         let res = null;
         let function_calls = [];
@@ -49,12 +50,12 @@ export class Claude {
                 res = 'No response from Claude.';
             }
             
-            // search the content for tool calls
+            // search the content for tool use blocks
             for (const content of resp.content) {
-                if (content.type === 'tool_call') {
+                if (content.type === 'tool_use') {
                     function_calls.push({
                         name: content.name,
-                        args: content.input
+                        arguments: content.input
                     });
                 }
             }
@@ -71,7 +72,7 @@ export class Claude {
         return [res, function_calls];
     }
 
-    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...turns];
         imageMessages.push({
             role: "user",
@@ -91,7 +92,7 @@ export class Claude {
             ]
         });
 
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 
     async embed(text) {

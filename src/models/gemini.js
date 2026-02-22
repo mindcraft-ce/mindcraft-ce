@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 
 export class Gemini {
@@ -34,7 +35,7 @@ export class Gemini {
         this.genAI = new GoogleGenAI({apiKey: getKey('GEMINI_API_KEY')});
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         console.log('Awaiting Google API response...');
 
         turns = strictFormat(turns);
@@ -70,7 +71,7 @@ export class Gemini {
         return [response, function_calls];
     }
 
-    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imagePart = {
             inlineData: {
                 data: imageBuffer.toString('base64'),

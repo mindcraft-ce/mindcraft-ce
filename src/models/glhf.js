@@ -1,5 +1,6 @@
 import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class GLHF {
     static prefix = 'glhf';
@@ -15,14 +16,15 @@ export class GLHF {
         });
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq = '***';
         // Construct the message array for the API request.
         let messages = [{ role: 'system', content: systemMessage }].concat(turns);
         const pack = {
             model: this.model_name || "hf:meta-llama/Llama-3.1-405B-Instruct",
             messages,
-            stop: [stop_seq]
+            stop: [stop_seq],
+            response_format: responseFormat
         };
 
         const maxAttempts = 5;

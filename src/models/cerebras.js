@@ -1,6 +1,7 @@
 import CerebrasSDK from '@cerebras/cerebras_cloud_sdk';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class Cerebras {
     static prefix = 'cerebras';
@@ -13,7 +14,7 @@ export class Cerebras {
         this.client = new CerebrasSDK({ apiKey: getKey('CEREBRAS_API_KEY') });
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq = '***';
         // Format messages array
         const messages = strictFormat(turns);
@@ -62,6 +63,7 @@ export class Cerebras {
             messages,
             tools: converted_tools,
             stream: false,
+            response_format: responseFormat,
             ...(this.params || {}),
         };
 
@@ -84,7 +86,7 @@ export class Cerebras {
         return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -99,7 +101,7 @@ export class Cerebras {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
     
     async embed(text) {

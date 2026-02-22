@@ -26,7 +26,7 @@ const settings = {
         // individual profiles override values from the base profile
     ],
 
-    "use_function_calling": false, // THIS IS EXPERIMENTAL AND MAY CAUSE ISSUES. USE AT YOUR OWN RISK.
+    "use_function_calling": true, // THIS IS EXPERIMENTAL AND MAY CAUSE ISSUES. USE AT YOUR OWN RISK.
 
     "load_memory": false, // load memory from previous session
     "init_message": "Respond with hello world and your name", // sends to all on spawn
@@ -42,6 +42,7 @@ const settings = {
     "language": "en", // translate to/from this language. Supports these language names: https://cloud.google.com/translate/docs/languages
     "render_bot_view": true, // show bot's view in browser at localhost:3000, 3001...
 
+    "use_brain_agent": true, // enables BrainAgent orchestrator that delegates to TaskAgent/CodeAgent
     "allow_insecure_coding": true, // allows newAction command and model can write/run code on your computer. enable at own risk
     "allow_vision": true, // allows vision model to interpret screenshots as inputs
     "blocked_actions" : ["checkBlueprint", "checkBlueprintLevel", "getBlueprint", "getBlueprintLevel"] , // commands to disable and remove from docs. Ex: ["!setMode"]
@@ -58,6 +59,9 @@ const settings = {
     "spawn_timeout": 30, // num seconds allowed for the bot to spawn before throwing error. Increase when spawning takes a while.
     "block_place_delay": 0, // delay between placing blocks (ms) if using newAction. helps avoid bot being kicked by anti-cheat mechanisms on servers.
   
+    "log_level": "info", // DEBUG, INFO, WARN, ERROR, NONE
+    "log_module_levels": {}, // per-module overrides, e.g. {"BrainAgent": "debug"}
+
     "log_all_prompts": false, // log ALL prompts to file
 
 

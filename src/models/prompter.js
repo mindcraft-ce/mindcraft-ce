@@ -11,6 +11,10 @@ import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
 import { getToolDefinitions, containsToolCall } from '../agent/commands/index.js';
 import { encode } from '@toon-format/toon';
+import { createLogger } from '../utils/logger.js';
+import { listAugments } from '../agent/agents/code.js';
+
+const log = createLogger('Prompter');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +35,26 @@ export class Prompter {
         default_profile.saving_memory = readFileSync(`./profiles/defaults/${this.tool_type}/saving_memory.xml`, 'utf8');
         default_profile.bot_responder = readFileSync(`./profiles/defaults/${this.tool_type}/bot_responder.xml`, 'utf8');
         default_profile.image_analysis = readFileSync(`./profiles/defaults/${this.tool_type}/image_analysis.xml`, 'utf8');
+        try {
+            default_profile.brain_agent = readFileSync(`./profiles/defaults/${this.tool_type}/brain_agent.xml`, 'utf8');
+        } catch (e) {
+            default_profile.brain_agent = '';
+        }
+        try {
+            default_profile.rp_agent = readFileSync(`./profiles/defaults/${this.tool_type}/rp_agent.xml`, 'utf8');
+        } catch (e) {
+            default_profile.rp_agent = '';
+        }
+        try {
+            default_profile.task_agent = readFileSync(`./profiles/defaults/${this.tool_type}/task_agent.xml`, 'utf8');
+        } catch (e) {
+            default_profile.task_agent = '';
+        }
+        try {
+            default_profile.executor_agent = readFileSync(`./profiles/defaults/${this.tool_type}/executor_agent.xml`, 'utf8');
+        } catch (e) {
+            default_profile.executor_agent = '';
+        }
         let base_fp = '';
         if (settings.base_profile.includes('survival')) {
             base_fp = './profiles/defaults/survival.json';
@@ -43,17 +67,15 @@ export class Prompter {
         }
         let base_profile = JSON.parse(readFileSync(base_fp, 'utf8'));
 
-        // first use defaults to fill in missing values in the base profile
+        // inheritance: default -> base -> individual
         for (let key in default_profile) {
             if (base_profile[key] === undefined)
                 base_profile[key] = default_profile[key];
         }
-        // then use base profile to fill in missing values in the individual profile
         for (let key in base_profile) {
             if (this.profile[key] === undefined)
                 this.profile[key] = base_profile[key];
         }
-        // base overrides default, individual overrides base
 
         this.convo_examples = null;
         this.coding_examples = null;
@@ -109,7 +131,7 @@ export class Prompter {
             if (err) {
                 throw new Error('Failed to save profile:', err);
             }
-            console.log("Copy profile saved.");
+            log.info("Copy profile saved.");
         });
     }
 
@@ -125,34 +147,20 @@ export class Prompter {
         try {
             this.convo_examples = new Examples(this.embedding_model, settings.num_examples);
             this.coding_examples = new Examples(this.embedding_model, settings.num_examples);
-            
-            // Wait for both examples to load before proceeding
             await Promise.all([
                 this.convo_examples.load(this.profile.conversation_examples),
                 this.coding_examples.load(this.profile.coding_examples),
                 this.skill_libary.initSkillLibrary()
-            ]).catch(error => {
-                // Preserve error details
-                console.error('Failed to initialize examples. Error details:', error);
-                console.error('Stack trace:', error.stack);
-                throw error;
-            });
-
-            console.log('Examples initialized.');
+            ]);
+            log.info('Examples initialized.');
         } catch (error) {
-            console.error('Failed to initialize examples:', error);
-            console.error('Stack trace:', error.stack);
-            throw error; // Re-throw with preserved details
+            log.error('Failed to init examples:', error);
+            throw error;
         }
     }
 
     async replaceStrings(prompt, messages, examples=null, to_summarize=[], last_goals=null) {
         prompt = prompt.replaceAll('$NAME', this.agent.name);
-
-        if (prompt.includes('$MINECRAFT_CONTEXT')) {
-            let context = await this.agent.rag.getMinecraftContext(messages[messages.length - 1].content);
-            prompt = prompt.replaceAll('$MINECRAFT_CONTEXT', context);
-        }
 
         if (prompt.includes('$STATS')) {
             let stats = await executeTool(this.agent, '!stats', {}) + '\n';
@@ -169,6 +177,13 @@ export class Prompter {
         }
         if (prompt.includes('$COMMAND_DOCS'))
             prompt = prompt.replaceAll('$COMMAND_DOCS', encode(getToolDocs(this.agent)));
+        if (prompt.includes('$AUGMENT_DOCS')) {
+            const augments = listAugments();
+            const augmentDocs = augments.length > 0
+                ? augments.map(a => `- ${a.name}: ${a.description}`).join('\n')
+                : 'No augments registered yet.';
+            prompt = prompt.replaceAll('$AUGMENT_DOCS', augmentDocs);
+        }
         if (prompt.includes('$CODE_DOCS')) {
             const code_task_content = messages.slice().reverse().find(msg =>
                 msg.role !== 'system' && msg.content.includes('!newAction(')
@@ -212,10 +227,9 @@ export class Prompter {
             }
         }
 
-        // check if there are any remaining placeholders with syntax $<word>
         let remaining = prompt.match(/\$[A-Z_]+/g);
         if (remaining !== null) {
-            console.warn('Unknown prompt placeholders:', remaining.join(', '));
+            log.warn('Unknown prompt placeholders:', remaining.join(', '));
         }
         return prompt;
     }
@@ -227,6 +241,55 @@ export class Prompter {
         }
         this.last_prompt_time = Date.now();
     }
+
+
+    async handleRequest(source, messages = null, tools = null, response_format) {
+        await this.checkCooldown();
+
+        let systemPrompt = '';
+        switch (source) {
+            case 'brain': systemPrompt = this.profile.brain_agent || ''; break;
+            case 'rp':    systemPrompt = this.profile.rp_agent || '';    break;
+            default:       log.warn(`Unknown request source: ${source}`); break;
+        }
+
+        const contextMessages = messages || [];
+        if (systemPrompt)
+            systemPrompt = await this.replaceStrings(systemPrompt, contextMessages, this.convo_examples);
+        if (!messages)
+            messages = [];
+
+        let generation, function_calls;
+        try {
+            [generation, function_calls] = await this.chat_model.sendRequest(
+                messages, systemPrompt, tools, response_format
+            );
+        } catch (error) {
+            log.error('Generation failed:', error);
+            return [undefined, []];
+        }
+
+        if (generation?.includes('</think>'))
+            generation = generation.split('</think>').pop();
+
+        // parse inline !command calls from chat_response
+        try {
+            let result = JSON.parse(generation);
+            if (result.chat_response && result.chat_response.includes('!') && containsToolCall(result.chat_response)) {
+                function_calls = [];
+                const tool_call_regex = /!(\w+)(\((.*?)\))?/g;
+                let match;
+                while ((match = tool_call_regex.exec(result.chat_response)) !== null) {
+                    const tool_name = match[1];
+                    const tool_args = match[3] ? match[3].split(',').map(arg => arg.trim().replace(/^"|"$/g, '')) : [];
+                    function_calls.push({ name: tool_name, arguments: tool_args });
+                }
+            }
+        } catch (e) { /* not JSON */ }
+
+        return [generation, function_calls];
+    }
+
 
     async promptConvo(messages) {
         this.most_recent_msg_time = Date.now();
@@ -246,48 +309,31 @@ export class Prompter {
                 let tools = this.tool_type === 'tools' ? getToolDefinitions() : [];
                 [generation, function_calls] = await this.chat_model.sendRequest(messages, prompt, tools);
                 if (typeof generation !== 'string') {
-                    console.error('Error: Generated response is not a string', generation);
+                    log.error('Error: Generated response is not a string', generation);
                     throw new Error('Generated response is not a string');
                 }
-                console.log("Generated response:", generation);
+                log.debug("Generated response:", generation);
                 await this._saveLog(prompt, messages, generation, 'conversation');
 
             } catch (error) {
-                console.error('Error during message generation or file writing:', error);
+                log.error('Error during message generation or file writing:', error);
                 continue;
             }
 
             // Check for hallucination or invalid output
             if (generation?.includes('(FROM OTHER BOT)')) {
-                console.warn('LLM hallucinated message as another bot. Trying again...');
+                log.warn('LLM hallucinated message as another bot. Trying again...');
                 continue;
             }
 
             if (current_msg_time !== this.most_recent_msg_time) {
-                console.warn(`${this.agent.name} received new message while generating, discarding old response.`);
+                log.warn(`${this.agent.name} received new message while generating, discarding old response.`);
                 return '';
             }
 
             if (generation?.includes('</think>')) {
                 const [_, afterThink] = generation.split('</think>')
                 generation = afterThink
-            }
-
-            // analyze if functions were called as !command("string",5) or !command without args- check specifically if
-            try {
-                let result = JSON.parse(generation);
-                if (result.chat_response && result.chat_response.includes('!') && containsToolCall(result.chat_response)) {
-                    function_calls = [];
-                    const tool_call_regex = /!(\w+)(\((.*?)\))?/g;
-                    let match;
-                    while ((match = tool_call_regex.exec(result.chat_response)) !== null) {
-                        const tool_name = match[1];
-                        const tool_args = match[3] ? match[3].split(',').map(arg => arg.trim().replace(/^"|"$/g, '')) : [];
-                        function_calls.push({ name: tool_name, arguments: tool_args });
-                    }
-                }
-            } catch (e) {
-                // not JSON, ignore
             }
 
             return [generation, function_calls];
@@ -298,7 +344,7 @@ export class Prompter {
 
     async promptCoding(messages) {
         if (this.awaiting_coding) {
-            console.warn('Already awaiting coding response, returning no response.');
+            log.warn('Already awaiting coding response, returning no response.');
             return '```//no response```';
         }
         this.awaiting_coding = true;
@@ -359,10 +405,10 @@ export class Prompter {
             let data = res.split('```')[1].replace('json', '').trim();
             goal = JSON.parse(data);
         } catch (err) {
-            console.log('Failed to parse goal:', res, err);
+            log.warn('Failed to parse goal:', res, err);
         }
         if (!goal || !goal.name || !goal.quantity || isNaN(parseInt(goal.quantity))) {
-            console.log('Failed to set goal:', res);
+            log.warn('Failed to set goal:', res);
             return null;
         }
         goal.quantity = parseInt(goal.quantity);

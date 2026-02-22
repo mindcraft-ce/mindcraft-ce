@@ -1,5 +1,6 @@
 import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 // xAI doesn't supply a SDK for their models, but fully supports OpenAI and Anthropic SDKs
 export class Grok {
@@ -20,7 +21,7 @@ export class Grok {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stopSeq = '***';
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
@@ -28,6 +29,7 @@ export class Grok {
             model: this.model_name || "grok-3-mini-latest",
             messages,
             tools: tools,
+            response_format: responseFormat,
             ...(this.params || {})
         };
 
@@ -64,7 +66,7 @@ export class Grok {
         return [res.replace(/<\|separator\|>/g, '*no response*'), function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -79,7 +81,7 @@ export class Grok {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
     
     async embed(text) {

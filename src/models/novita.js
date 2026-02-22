@@ -1,6 +1,7 @@
 import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 // llama, mistral
 export class Novita {
@@ -19,7 +20,7 @@ export class Novita {
     this.openai = new OpenAIApi(config);
   }
 
-	async sendRequest(turns, systemMessage, tools = []) {
+	async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
     let stop_seq='***';
       let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
@@ -31,6 +32,7 @@ export class Novita {
           messages,
           tools: tools,
           stop: [stop_seq],
+          response_format: responseFormat,
           ...(this.params || {})
       };
 

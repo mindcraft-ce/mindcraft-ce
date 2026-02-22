@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk'
 import { getKey } from '../utils/keys.js';
+import { responseFormatSchema } from './_response_format.js';
 
 // THIS API IS NOT TO BE CONFUSED WITH GROK!
 // Go to grok.js for that. :)
@@ -28,7 +29,7 @@ export class GroqCloudAPI {
 
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq=null;
         // Construct messages array
         let messages = [{"role": "system", "content": systemMessage}].concat(turns);
@@ -56,6 +57,7 @@ export class GroqCloudAPI {
                 "stream": false,
                 "tools": tools,
                 "stop": stop_seq,
+                "response_format": responseFormat,
                 ...(this.params || {})
             });
 
@@ -80,7 +82,7 @@ export class GroqCloudAPI {
         return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = messages.filter(message => message.role !== 'system');
         imageMessages.push({
             role: "user",
@@ -95,7 +97,7 @@ export class GroqCloudAPI {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 
     async embed(_) {

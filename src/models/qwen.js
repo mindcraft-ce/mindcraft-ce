@@ -1,6 +1,7 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class Qwen {
     static prefix = 'qwen';
@@ -15,7 +16,7 @@ export class Qwen {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
         let stop_seq='***';
 
@@ -26,6 +27,7 @@ export class Qwen {
             messages,
             tools: tools,
             stop: stop_seq,
+            response_format: responseFormat,
             ...(this.params || {})
         };
 

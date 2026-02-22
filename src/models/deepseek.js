@@ -1,6 +1,7 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class DeepSeek {
     static prefix = 'deepseek';
@@ -16,7 +17,7 @@ export class DeepSeek {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq='***';
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
@@ -27,6 +28,7 @@ export class DeepSeek {
             messages,
             tools : tools,
             stop: stop_seq,
+            response_format: responseFormat,
             ...(this.params || {})
         };
 

@@ -68,12 +68,10 @@ export class RAGManager {
     }   
 
 
-    async getMinecraftContext(query, topK=3) {
+    async getMinecraftContext(query, topK=1) {
         let vector = await this.agent.prompter.embedding_model.embed(query);
         const results = await this.minecraft_wiki_table.search(vector).limit(topK).toArray();
 
-        // I want everything except the vector itself
-        // drop the 'vector' fields from results
         const filteredResults = results.map(result => {
             const { vector, ...rest } = result;
             return rest;

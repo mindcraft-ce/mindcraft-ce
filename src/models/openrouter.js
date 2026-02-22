@@ -27,20 +27,28 @@ export class OpenRouter {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq = '*';
-        let messages = [{ role: 'system', content: systemMessage }, ...turns];
+        let messages = systemMessage
+            ? [{ role: 'system', content: systemMessage }, ...turns]
+            : [...turns];
         messages = strictFormat(messages);
 
         // Choose a valid model from openrouter.ai (for example, "openai/gpt-4o")
         const pack = {
             model: this.model_name,
-            tools: tools,
             messages,
             stop: stop_seq,
-            tool_choice: "auto",
-            response_format: responseFormatSchema
         };
+        if (tools && tools.length > 0) {
+            pack.tools = tools;
+            pack.tool_choice = "auto";
+        }
+        if (responseFormat) {
+            pack.response_format = responseFormat;
+        }
+
+        console.log("Sent:", messages)
         
         let res = null;
         let function_calls = [];
@@ -54,8 +62,8 @@ export class OpenRouter {
             if (completion.choices[0].finish_reason === 'length') {
                 throw new Error('Context length exceeded');
             }
-            console.log('Received.', JSON.stringify(completion));
             res = completion.choices[0].message.content;
+            console.log('Received.', JSON.stringify(res));
             for (const tool_call of completion.choices[0].message.tool_calls || []) {
                 function_calls.push({
                     name: tool_call.function.name,
@@ -72,7 +80,7 @@ export class OpenRouter {
         return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -87,7 +95,7 @@ export class OpenRouter {
             ]
         });
 
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 
     async embed(text) {

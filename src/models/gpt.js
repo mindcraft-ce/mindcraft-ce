@@ -1,6 +1,7 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import { responseFormatSchema } from './_response_format.js';
 
 export class GPT {
     static prefix = 'openai';
@@ -20,7 +21,7 @@ export class GPT {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = []) {
+    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
         let stop_seq='***';
         let messages = strictFormat(turns);
         messages = messages.map(message => {
@@ -39,6 +40,7 @@ export class GPT {
                 instructions: systemMessage,
                 input: messages,
                 tools: tools,
+                text: { format: responseFormat },
                 ...(this.params || {})
             });
             console.log('Received.')
@@ -67,7 +69,7 @@ export class GPT {
         return [res, function_calls];
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = []) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -80,7 +82,7 @@ export class GPT {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools);
+        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
     }
 
     async embed(text) {
