@@ -84,17 +84,16 @@ async function processQueue() {
     }
 
 	if (model === 'system') {
-		let bin, args;
+		let bin, args, options = {};
 
 		if (isWin) {
-			// PowerShell with txt passed as a separate -Command argument via array
-			const escaped = txt.replace(/'/g, "''").replace(/`/g, '``');
 			bin = 'powershell';
 			args = [
 				'-NoProfile',
 				'-Command',
-				`Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; $s.Speak('${escaped}'); $s.Dispose()`
+				'Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; $s.Speak($env:TTS_TEXT); $s.Dispose()'
 			];
+			options = { env: { ...process.env, TTS_TEXT: txt } };
 		} else if (isMac) {
 			bin = 'say';
 			args = [txt]; // execFile passes this as a direct argv element — no shell expansion
