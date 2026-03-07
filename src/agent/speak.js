@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { TTSConfig as gptTTSConfig } from '../models/gpt.js';
 import { TTSConfig as geminiTTSConfig } from '../models/gemini.js';
+import { execFile } from 'child_process';
 
 let speakingQueue = []; // each item: {text, model, audioData, ready}
 let isSpeaking = false;
@@ -82,21 +83,30 @@ async function processQueue() {
         return;
     }
 
-    if (model === 'system') {
-        // system TTS
-        const cmd = isWin
-            ? `powershell -NoProfile -Command "Add-Type -AssemblyName System.Speech; \
-            $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; \
-            $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
-            : isMac
-            ? `say "${txt.replace(/"/g,'\\"')}"`
-            : `espeak "${txt.replace(/"/g,'\\"')}"`;
+	if (model === 'system') {
+		let bin, args, options = {};
 
-        exec(cmd, err => {
-            if (err) console.error('TTS error', err);
-            isSpeaking = false;
-            processQueue();
-        });
+		if (isWin) {
+			bin = 'powershell';
+			args = [
+				'-NoProfile',
+				'-Command',
+				'Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; $s.Speak($env:TTS_TEXT); $s.Dispose()'
+			];
+			options = { env: { ...process.env, TTS_TEXT: txt } };
+		} else if (isMac) {
+			bin = 'say';
+			args = [txt]; // execFile passes this as a direct argv element — no shell expansion
+		} else {
+			bin = 'espeak';
+			args = [txt];
+		}
+
+		execFile(bin, args, err => {
+			if (err) console.error('TTS error', err);
+			isSpeaking = false;
+			processQueue();
+		});
 
     } 
     else {
