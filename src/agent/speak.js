@@ -4,7 +4,6 @@ import os from 'os';
 import path from 'path';
 import { TTSConfig as gptTTSConfig } from '../models/gpt.js';
 import { TTSConfig as geminiTTSConfig } from '../models/gemini.js';
-import { execFile } from 'child_process';
 
 let speakingQueue = []; // each item: {text, model, audioData, ready}
 let isSpeaking = false;
@@ -83,32 +82,45 @@ async function processQueue() {
         return;
     }
 
-	if (model === 'system') {
-		let bin, args, options = {};
+  
+if (model === 'system') {
+    // Strip markdown formatting and collapse newlines to a single space
+    const txtClean = txt
+        .replace(/\*\*/g, '')
+        .replace(/\*/g, '')
+        .replace(/`/g, '')
+        .replace(/#{1,6}\s*/g, '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
 
-		if (isWin) {
-			bin = 'powershell';
-			args = [
-				'-NoProfile',
-				'-Command',
-				'Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; $s.Speak($env:TTS_TEXT); $s.Dispose()'
-			];
-			options = { env: { ...process.env, TTS_TEXT: txt } };
-		} else if (isMac) {
-			bin = 'say';
-			args = [txt]; // execFile passes this as a direct argv element — no shell expansion
-		} else {
-			bin = 'espeak';
-			args = [txt];
-		}
+    let cmd;
 
-		execFile(bin, args, err => {
-			if (err) console.error('TTS error', err);
-			isSpeaking = false;
-			processQueue();
-		});
+    if (isWin) {
+        // Build the PS script as a plain string, escape only PS single-quotes
+        const ps = [
+            'Add-Type -AssemblyName System.Speech;',
+            '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer;',
+            '$s.Rate = 2;',
+            `$s.Speak('${txtClean.replace(/'/g, "''")}');`,
+            '$s.Dispose()'
+        ].join(' ');
 
-    } 
+        // Encode as UTF-16LE Base64 — bypasses ALL cmd.exe quoting entirely
+        const b64 = Buffer.from(ps, 'utf16le').toString('base64');
+        cmd = `powershell -NoProfile -EncodedCommand ${b64}`;
+
+    } else if (isMac) {
+        cmd = `say "${txtClean.replace(/"/g, '\\"')}"`;
+    } else {
+        cmd = `espeak "${txtClean.replace(/"/g, '\\"')}"`;
+    }
+
+    exec(cmd, err => {
+        if (err) console.error('TTS error', err);
+        isSpeaking = false;
+        processQueue();
+    });
+}
     else {
         // audioData was already fetched in speak()
         const audioData = item.audioData;
