@@ -67,8 +67,8 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `cerebras` | `CEREBRAS_API_KEY` | `cerebras/llama-3.3-70b` | [docs](https://inference-docs.cerebras.ai/introduction) |
 | `mercury` | `MERCURY_API_KEY` | `mercury-coder-small` | [docs](https://www.inceptionlabs.ai/) |
 
-If you use Ollama, to install the models used by default (generation and embedding), execute the following terminal command:
-`ollama pull sweaterdog/andy-4:micro-q8_0 && ollama pull embeddinggemma`
+For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
+Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
 
 To use Azure, you can reuse the `OPENAI_API_KEY` environment variable. You can get the key from the Azure portal. See [azure.json](profiles/azure.json) for an example.
 
