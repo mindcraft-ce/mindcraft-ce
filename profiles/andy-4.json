@@ -1,7 +1,9 @@
 {
-    "name": "andy-4",
+    "name": "andy_4.2",
 
-    "model": "ollama/sweaterdog/andy-4:micro-q8_0",
-    
-    "embedding": "ollama"
+    "model": {
+    "api": "openai",
+    "model": "andy-4.2",
+    "url": "http://127.0.0.1:1234/v1"
+    }
 }
