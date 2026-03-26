@@ -1,9 +1,12 @@
 import * as skills from '../library/skills.js';
 import settings from '../settings.js';
 import convoManager from '../conversation.js';
+// --- CUSTOMIZATION SYSTEM ---
+// Server-specific commands are loaded via the customization framework.
+import { getCustomization } from '../../customization/loader.js';
 
 
-function runAsAction (actionFn, resume = false, timeout = -1) {
+export function runAsAction (actionFn, resume = false, timeout = -1) {
     let actionLabel = null;  // Will be set on first use
     
     const wrappedAction = async function (agent, ...args) {
@@ -159,12 +162,16 @@ export const actionsList = [
     },
     {
         name: '!rememberHere',
-        description: 'Save the current location with a given name.',
-        params: {'name': { type: 'string', description: 'The name to remember the location as.' }},
-        perform: async function (agent, name) {
+        description: 'Save the current location with a given name and optional type (chest, furnace, base, build, poi).',
+        params: {
+            'name': { type: 'string', description: 'The name to remember the location as.' },
+            'type': { type: 'string', description: 'Optional type tag: chest, furnace, base, build, poi, etc.', optional: true }
+        },
+        perform: async function (agent, name, type) {
             const pos = agent.bot.entity.position;
-            agent.memory_bank.rememberPlace(name, pos.x, pos.y, pos.z);
-            return `Location saved as "${name}".`;
+            agent.memory_bank.rememberPlace(name, pos.x, pos.y, pos.z, type || '');
+            const typeStr = type ? ` [${type}]` : '';
+            return `Location "${name}"${typeStr} saved at x:${Math.floor(pos.x)}, y:${Math.floor(pos.y)}, z:${Math.floor(pos.z)}.`;
         }
     },
     {
@@ -179,6 +186,16 @@ export const actionsList = [
             }
             await skills.goToPosition(agent.bot, pos[0], pos[1], pos[2], 1);
         })
+    },
+    {
+        name: '!forgetPlace',
+        description: 'Remove a saved location by name.',
+        params: {'name': { type: 'string', description: 'The name of the location to forget.' }},
+        perform: async function (agent, name) {
+            if (agent.memory_bank.forgetPlace(name))
+                return `Forgot location "${name}".`;
+            return `No location named "${name}" found.`;
+        }
     },
     {
         name: '!givePlayer',
@@ -500,3 +517,16 @@ export const actionsList = [
         })
     },
 ];
+
+// --- LOAD CUSTOM SERVER COMMANDS ---
+// Appends commands from the configured server customization (if any).
+// See src/customization/base.js for the hook interface.
+getCustomization().then(custom => {
+    const extraCmds = custom.getExtraCommands(runAsAction);
+    if (extraCmds.length > 0) {
+        actionsList.push(...extraCmds);
+        console.log(`[Customization] Added ${extraCmds.length} custom commands`);
+    }
+}).catch(err => {
+    console.error('[Customization] Failed to load custom commands:', err.message);
+});

@@ -4,7 +4,7 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as mindcraft from './mindcraft.js';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Mindserver is:
@@ -28,6 +28,10 @@ class AgentConnection {
         this.viewer_port = viewer_port;
     }
     setSettings(settings) {
+        // --- IN-MEMORY ONLY ---
+        // Settings changes from the web UI are applied to the running agent
+        // but NOT written to disk. Edit settings.js directly for persistent changes.
+        // TODO: Implement safe persistence that merges changes without losing custom fields.
         this.settings = settings;
     }
 }

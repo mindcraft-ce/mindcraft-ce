@@ -200,13 +200,20 @@ export class Coder {
 
     _sanitizeCode(code) {
         code = code.trim();
+        // Strip language identifier from code blocks (e.g. ```javascript ... ```)
         const remove_strs = ['Javascript', 'javascript', 'js']
         for (let r of remove_strs) {
             if (code.startsWith(r)) {
                 code = code.slice(r.length);
-                return code;
+                break;
             }
         }
+        // --- STRIP IMPORT/EXPORT STATEMENTS ---
+        // The AI model sometimes generates ES module syntax (import/export)
+        // which can't run in the sandboxed eval compartment. Remove them.
+        // skills, world, Vec3, bot, and log are already available in the compartment.
+        code = code.replace(/^\s*import\s+.*?[;\n]/gm, '// (import removed)\n');
+        code = code.replace(/^\s*export\s+/gm, '');
         return code;
     }
 

@@ -1313,9 +1313,20 @@ export async function goToPlayer(bot, username, distance=3) {
 
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
-    let player = bot.players[username].entity
+    let playerInfo = bot.players[username];
+    if (!playerInfo) {
+        log(bot, `${username} is not on the server.`);
+        return false;
+    }
+    let player = playerInfo.entity;
     if (!player) {
-        log(bot, `Could not find ${username}.`);
+        // Player is online but out of render distance — try /tp if in creative
+        if (bot.game.gameMode === 1) { // creative mode
+            bot.chat('/tp @s ' + username);
+            log(bot, `${username} is too far to walk to. Teleported in creative mode.`);
+            return true;
+        }
+        log(bot, `${username} is too far away (not in render distance). Try getting closer or use creative mode.`);
         return false;
     }
 
@@ -2091,3 +2102,144 @@ export async function useToolOn(bot, toolName, targetName) {
     log(bot, `Used ${toolName} on ${block.name}.`);
     return true;
  }
+
+
+// ==================== Quest / NPC Interaction ====================
+
+/**
+ * Find a Citizens NPC by display name and right-click it to start a conversation.
+ * Citizens NPCs appear as player-type entities with custom display names.
+ */
+export async function interactWithNpc(bot, npcName, maxDistance = 64) {
+    const npcNameLower = npcName.toLowerCase();
+    const npc = bot.nearestEntity(entity => {
+        if (!entity) return false;
+        const name = entity.username || entity.displayName || entity.name || '';
+        return name.toLowerCase().includes(npcNameLower) &&
+               bot.entity.position.distanceTo(entity.position) < maxDistance;
+    });
+
+    if (!npc) {
+        log(bot, `Could not find NPC "${npcName}" within ${maxDistance} blocks.`);
+        return false;
+    }
+
+    const dist = bot.entity.position.distanceTo(npc.position);
+    if (dist > 4) {
+        await goToPosition(bot, npc.position.x, npc.position.y, npc.position.z, 2);
+    }
+
+    await bot.lookAt(npc.position.offset(0, 1.6, 0));
+    await bot.unequip('hand');
+    await bot.useOn(npc);
+
+    log(bot, `Interacted with NPC "${npcName}". Waiting for quest menu...`);
+
+    // Wait for a window (chest GUI) to open — BetonQuest menu IO
+    const window = await waitForWindow(bot, 5000);
+    if (window) {
+        const options = describeWindowContents(window);
+        log(bot, `Quest menu opened: "${window.title}"\n${options}`);
+        return true;
+    }
+
+    // No window — might be tellraw/chat-based conversation
+    log(bot, `No menu window opened. The NPC may have sent a chat message instead. Check chat for clickable options.`);
+    return true;
+}
+
+/**
+ * Wait for a window (inventory GUI) to open on the bot.
+ */
+function waitForWindow(bot, timeoutMs = 5000) {
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+            bot.removeListener('windowOpen', onWindow);
+            resolve(null);
+        }, timeoutMs);
+
+        function onWindow(window) {
+            clearTimeout(timeout);
+            resolve(window);
+        }
+
+        bot.once('windowOpen', onWindow);
+    });
+}
+
+/**
+ * Describe the contents of an open window/chest GUI for the AI to read.
+ */
+function describeWindowContents(window) {
+    const lines = [];
+    for (let i = 0; i < window.slots.length; i++) {
+        const slot = window.slots[i];
+        if (slot && slot.name !== 'air') {
+            const displayName = slot.customName || slot.displayName || slot.name;
+            const lore = slot.customLore ? ` (${slot.customLore.join(', ')})` : '';
+            lines.push(`  Slot ${i}: ${displayName}${lore}`);
+        }
+    }
+    return lines.length > 0 ? lines.join('\n') : '  (empty menu)';
+}
+
+/**
+ * Click a slot in an open quest menu window to select an option.
+ */
+export async function selectQuestOption(bot, slotIndex) {
+    const window = bot.currentWindow;
+    if (!window) {
+        log(bot, `No menu is currently open. Try interacting with an NPC first.`);
+        return false;
+    }
+
+    if (slotIndex < 0 || slotIndex >= window.slots.length) {
+        log(bot, `Invalid slot ${slotIndex}. Menu has ${window.slots.length} slots.`);
+        return false;
+    }
+
+    const slot = window.slots[slotIndex];
+    const slotName = slot ? (slot.customName || slot.displayName || slot.name) : 'empty';
+    await bot.clickWindow(slotIndex, 0, 0); // left click
+
+    log(bot, `Clicked slot ${slotIndex} (${slotName}) in quest menu.`);
+
+    // Wait a moment then check if menu changed or closed
+    await new Promise(r => setTimeout(r, 500));
+
+    if (bot.currentWindow) {
+        const options = describeWindowContents(bot.currentWindow);
+        log(bot, `Menu still open: "${bot.currentWindow.title}"\n${options}`);
+    } else {
+        log(bot, `Menu closed after selecting "${slotName}".`);
+    }
+    return true;
+}
+
+/**
+ * Read the contents of the currently open menu without clicking anything.
+ */
+export async function readQuestMenu(bot) {
+    const window = bot.currentWindow;
+    if (!window) {
+        log(bot, `No menu is currently open.`);
+        return false;
+    }
+
+    const options = describeWindowContents(window);
+    log(bot, `Current menu: "${window.title}"\n${options}`);
+    return true;
+}
+
+/**
+ * Close the currently open menu/window.
+ */
+export async function closeQuestMenu(bot) {
+    if (bot.currentWindow) {
+        bot.closeWindow(bot.currentWindow);
+        log(bot, `Closed the menu.`);
+        return true;
+    }
+    log(bot, `No menu is currently open.`);
+    return false;
+}

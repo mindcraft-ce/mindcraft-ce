@@ -46,12 +46,22 @@ export class Gemini {
             });
         }
 
+        // --- GOOGLE SEARCH GROUNDING ---
+        // When enabled, Gemini can search the web to find information it needs.
+        // This lets the bot look up building designs, wiki info, crafting recipes, etc.
+        // Controlled by the "google_search" param in the profile or settings.
+        const tools = [];
+        if (this.params?.google_search) {
+            tools.push({ googleSearch: {} });
+        }
+
         const result = await this.genAI.models.generateContent({
             model: this.model_name || "gemini-2.5-flash",
             contents: contents,
             safetySettings: this.safetySettings,
             config: {
                 systemInstruction: systemMessage,
+                tools: tools.length > 0 ? tools : undefined,
                 ...(this.params || {})
             }
         });

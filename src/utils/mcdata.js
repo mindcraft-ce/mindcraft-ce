@@ -52,13 +52,16 @@ export const WOOL_COLORS = [
 ]
 
 
-export function initBot(username) {
+export function initBot(username, customization = null) {
+    // --- BUILD BOT OPTIONS ---
+    // Core options from settings, with customization overrides (e.g. onMsaCode handler)
     const options = {
         username: username,
         host: settings.host,
         port: settings.port,
         auth: settings.auth,
         version: mc_version,
+        ...(customization ? customization.getBotOptions() : {})
     }
     if (!mc_version || mc_version === "auto") {
         delete options.version;
@@ -70,9 +73,12 @@ export function initBot(username) {
     bot.loadPlugin(collectblock);
     bot.loadPlugin(autoEat);
     bot.loadPlugin(armorManager); // auto equip armor
-    bot.once('resourcePack', () => {
-        bot.acceptResourcePack();
-    });
+
+    // --- CUSTOMIZATION HOOK ---
+    // Let server customizations patch the bot (resource packs, chat patterns, etc.)
+    if (customization) {
+        customization.onBotCreated(bot, settings);
+    }
 
     bot.once('login', () => {
         mc_version = bot.version;

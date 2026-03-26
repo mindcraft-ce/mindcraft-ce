@@ -18,15 +18,29 @@ export class Prompter {
         this.agent = agent;
         this.profile = profile;
         let default_profile = JSON.parse(readFileSync('./profiles/defaults/_default.json', 'utf8'));
+        // --- BASE PROFILE RESOLUTION ---
+        // Maps the base_profile setting to a profile JSON file.
+        // Falls back to assistant.json if the profile name is unrecognized.
         let base_fp = '';
         if (settings.base_profile.includes('survival')) {
             base_fp = './profiles/defaults/survival.json';
+        } else if (settings.base_profile.includes('builder')) {
+            base_fp = './profiles/defaults/builder.json';
         } else if (settings.base_profile.includes('assistant')) {
             base_fp = './profiles/defaults/assistant.json';
         } else if (settings.base_profile.includes('creative')) {
             base_fp = './profiles/defaults/creative.json';
         } else if (settings.base_profile.includes('god_mode')) {
             base_fp = './profiles/defaults/god_mode.json';
+        } else {
+            // Fallback: try loading from profiles/defaults/{name}.json directly
+            const fallback = `./profiles/defaults/${settings.base_profile}.json`;
+            if (require('fs').existsSync(fallback)) {
+                base_fp = fallback;
+            } else {
+                console.warn(`[Prompter] Unknown base_profile "${settings.base_profile}", falling back to assistant`);
+                base_fp = './profiles/defaults/assistant.json';
+            }
         }
         let base_profile = JSON.parse(readFileSync(base_fp, 'utf8'));
 
@@ -173,6 +187,20 @@ export class Prompter {
             // if active or paused, show the current goal
             let self_prompt = !this.agent.self_prompter.isStopped() ? `YOUR CURRENT ASSIGNED GOAL: "${this.agent.self_prompter.prompt}"\n` : '';
             prompt = prompt.replaceAll('$SELF_PROMPT', self_prompt);
+        }
+        // --- SAVED LOCATIONS ---
+        // Injects all saved place names and coordinates so the bot always knows
+        // where things are (chests, furnaces, home base, build sites, etc.)
+        if (prompt.includes('$PLACES')) {
+            const places = this.agent.memory_bank ? this.agent.memory_bank.getSummary() : 'No saved locations.';
+            prompt = prompt.replaceAll('$PLACES', places);
+        }
+        // --- CUSTOMIZATION PROMPT VARS ---
+        // Server customizations can inject additional prompt variables (e.g. $TASKS).
+        const { getCustomizationSync } = await import('../customization/loader.js');
+        const custom = getCustomizationSync();
+        if (custom) {
+            prompt = custom.expandPromptVars(prompt, this.agent);
         }
         if (prompt.includes('$LAST_GOALS')) {
             let goal_text = '';

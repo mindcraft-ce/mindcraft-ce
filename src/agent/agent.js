@@ -10,6 +10,11 @@ import { NPCContoller } from './npc/controller.js';
 import { MemoryBank } from './memory_bank.js';
 import { SelfPrompter } from './self_prompter.js';
 import convoManager from './conversation.js';
+// --- CUSTOMIZATION SYSTEM ---
+// Loads server-specific behavior via the customization framework.
+// Configure "customization" in settings.js to point to your server module.
+// See src/customization/base.js for the hook interface.
+import { getCustomization, getCustomizationSync } from '../customization/loader.js';
 import { handleTranslation, handleEnglishTranslation } from '../utils/translator.js';
 import { addBrowserViewer } from './vision/browser_viewer.js';
 import { serverProxy, sendOutputToServer } from './mindserver_proxy.js';
@@ -30,8 +35,11 @@ export class Agent {
         this.history = new History(this);
         this.coder = new Coder(this);
         this.npc = new NPCContoller(this);
-        this.memory_bank = new MemoryBank();
+        this.memory_bank = new MemoryBank(this.name);
         this.self_prompter = new SelfPrompter(this);
+        // Load server customization once — used for agent init and bot creation
+        this._customization = await getCustomization();
+        this._customization.onAgentInit(this);
         convoManager.initAgent(this);
         await this.prompter.initExamples();
 
@@ -51,7 +59,7 @@ export class Agent {
         blacklistCommands(this.blocked_actions);
 
         console.log(this.name, 'logging into minecraft...');
-        this.bot = initBot(this.name);
+        this.bot = initBot(this.name, this._customization);
 
         initModes(this);
 
@@ -66,10 +74,11 @@ export class Agent {
                 this.bot.chat(`/skin clear`);
         });
 
+        const spawnTimeoutSecs = settings.spawn_timeout || 120;
         const spawnTimeout = setTimeout(() => {
-            console.error('Bot has not spawned after 30 seconds. Exiting.');
+            console.error(`Bot has not spawned after ${spawnTimeoutSecs} seconds. Exiting.`);
             process.exit(0);
-        }, 30000);
+        }, spawnTimeoutSecs * 1000);
         this.bot.once('spawn', async () => {
             try {
                 clearTimeout(spawnTimeout);
@@ -118,11 +127,52 @@ export class Agent {
             "Gamerule "
         ];
         
+        // --- DEDUP GUARD ---
+        // Mineflayer can fire both the built-in 'chat' event AND our custom chat pattern
+        // for the same message, causing respondFunc to be called twice. We track the last
+        // message signature (username + text + timestamp) and skip duplicates within 500ms.
+        let lastMsgKey = '';
+        let lastMsgTime = 0;
+
         const respondFunc = async (username, message) => {
             if (message === "") return;
-            if (username === this.name) return;
+
+            // --- Self-message filter ---
+            // Skip messages from ourselves (exact match or case-insensitive match)
+            if (username === this.name || username.toLowerCase() === this.name.toLowerCase()) return;
+
+            // --- Nickname filter ---
+            // Skip messages from the bot's server nickname(s) to prevent self-reply loops.
+            // Some servers display a different name than the bot's username in chat.
+            // Customizations can override shouldIgnoreMessage() for server-specific logic.
+            const custom = getCustomizationSync();
+            if (custom && custom.shouldIgnoreMessage(username, settings)) return;
+
+            // --- Allowlist filter ---
+            // If only_chat_with is set, only process messages from those players
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
+
+            // --- Dedup check ---
+            // Prevent processing the same message twice when both chat + whisper events fire
+            const msgKey = `${username}:${message}`;
+            const now = Date.now();
+            if (msgKey === lastMsgKey && (now - lastMsgTime) < 500) {
+                return;
+            }
+            lastMsgKey = msgKey;
+            lastMsgTime = now;
+
+            // --- Echo-back filter ---
+            // Some servers echo whispers back in a format that looks like another
+            // player said it. Customizations can override isEchoBack() for server-specific logic.
+            if (custom && custom.isEchoBack(message, this._recentBotMessages || [])) {
+                console.log('Filtered echo-back:', message.substring(0, 50));
+                return;
+            }
+
             try {
+                // --- Server command filter ---
+                // Skip messages that are server-generated (teleport notices, gamerule changes, etc.)
                 if (ignore_messages.some((m) => message.startsWith(m))) return;
 
                 this.shut_up = false;
@@ -143,12 +193,52 @@ export class Agent {
 
 		this.respondFunc = respondFunc;
 
+        // --- WHISPER HANDLER ---
+        // Always respond to whispers from allowed players
         this.bot.on('whisper', respondFunc);
-        
+
+        // --- PUBLIC CHAT HANDLER ---
+        // Only respond to public chat if the bot's name is mentioned.
+        // This prevents the bot from reacting to every message in chat
+        // while still allowing players to call it by name.
         this.bot.on('chat', (username, message) => {
             if (serverProxy.getNumOtherAgents() > 0) return;
-            // only respond to open chat messages when there are no other agents
-            respondFunc(username, message);
+            // Check if the message mentions the bot's name (case-insensitive)
+            const nameLower = this.name.toLowerCase();
+            if (message.toLowerCase().includes(nameLower) ||
+                message.toLowerCase().includes(nameLower.replace(/\d+$/, ''))) {
+                // Name mentioned — process the message
+                respondFunc(username, message);
+            }
+            // Otherwise ignore public chat — bot only responds to whispers or name mentions
+        });
+
+        // --- AUTO-SAVE NOTABLE BLOCK LOCATIONS ---
+        // When the bot places or interacts with important blocks (chests, furnaces,
+        // beds, crafting tables, etc.), automatically save their location to the
+        // persistent memory bank so it can find them later without being told.
+        const notableBlocks = {
+            'chest': 'chest', 'trapped_chest': 'chest', 'barrel': 'chest',
+            'ender_chest': 'chest', 'shulker_box': 'chest',
+            'furnace': 'furnace', 'blast_furnace': 'furnace', 'smoker': 'furnace',
+            'crafting_table': 'crafting',
+            'anvil': 'crafting', 'smithing_table': 'crafting',
+            'enchanting_table': 'crafting',
+            'bed': 'bed', // all bed colors match via includes check below
+        };
+        // Track when bot places a notable block
+        this.bot.on('blockPlaced', (oldBlock, newBlock) => {
+            if (!newBlock) return;
+            const blockName = newBlock.name;
+            for (const [key, type] of Object.entries(notableBlocks)) {
+                if (blockName.includes(key)) {
+                    const pos = newBlock.position;
+                    const name = `my_${key}_${Math.floor(pos.x)}_${Math.floor(pos.z)}`;
+                    this.memory_bank.rememberPlace(name, pos.x, pos.y, pos.z, type);
+                    console.log(`[AutoSave] Saved ${type} at ${pos.x}, ${pos.y}, ${pos.z}`);
+                    break;
+                }
+            }
         });
 
         // Set up auto-eat
@@ -240,15 +330,16 @@ export class Agent {
                     this.routeResponse(source, `Command '${user_command_name}' does not exist.`);
                     return false;
                 }
-                this.routeResponse(source, `*${source} used ${user_command_name.substring(1)}*`);
+                this.routeResponse(source, `*used ${user_command_name.substring(1)}*`);
                 if (user_command_name === '!newAction') {
                     // all user-initiated commands are ignored by the bot except for this one
                     // add the preceding message to the history to give context for newAction
                     this.history.add(source, message);
                 }
                 let execute_res = await executeCommand(this, message);
-                if (execute_res) 
-                    this.routeResponse(source, execute_res);
+                // Action output goes to log only, not chat — prevents spam bans
+                if (execute_res)
+                    console.log('Command result:', execute_res.substring(0, 200));
                 return true;
             }
         }
@@ -285,9 +376,14 @@ export class Agent {
 
             console.log(`${this.name} full response to ${source}: ""${res}""`);
 
+            // --- EMPTY RESPONSE RECOVERY ---
+            // When the AI model returns an empty response (API error, rate limit, etc.),
+            // instead of silently breaking the loop and leaving the bot idle, we log it
+            // and continue the loop to give it another chance. This prevents the bot from
+            // going permanently idle after a single failed API call.
             if (res.trim().length === 0) {
-                console.warn('no response')
-                break; // empty response ends loop
+                console.warn('Empty response from model — will retry on next message');
+                break; // still break to avoid infinite loop, but log clearly
             }
 
             let command_name = containsCommand(res);
@@ -366,6 +462,20 @@ export class Agent {
     }
 
     async openChat(message) {
+        // --- RATE LIMITER ---
+        // GriefPrevention's anti-spam bans players who send too many messages
+        // too quickly. We enforce a hard limit: max 2 messages per 10 seconds.
+        // If we'd exceed the limit, the message is logged but NOT sent to chat.
+        if (!this._chatTimestamps) this._chatTimestamps = [];
+        const now = Date.now();
+        // Remove timestamps older than 10 seconds
+        this._chatTimestamps = this._chatTimestamps.filter(t => now - t < 10000);
+        if (this._chatTimestamps.length >= 2) {
+            console.log('[RateLimit] Suppressed message (2/10s limit):', message.substring(0, 80));
+            return; // don't send, prevents spam ban
+        }
+        this._chatTimestamps.push(now);
+
         let to_translate = message;
         let remaining = '';
         let command_name = containsCommand(message);
@@ -375,20 +485,61 @@ export class Agent {
             remaining = message.substring(translate_up_to);
         }
         message = (await handleTranslation(to_translate)).trim() + " " + remaining;
-        // newlines are interpreted as separate chats, which triggers spam filters. replace them with spaces
+        // newlines are interpreted as separate chats, which triggers spam filters
         message = message.replaceAll('\n', ' ');
 
-        if (settings.only_chat_with.length > 0) {
-            for (let username of settings.only_chat_with) {
-                this.bot.whisper(username, message);
-            }
+        // --- TRACK BOT'S OWN MESSAGES ---
+        // Store recent messages so the echo-back filter in respondFunc can
+        // recognize when the server echoes our whisper back to us.
+        if (!this._recentBotMessages) this._recentBotMessages = [];
+        // Store first 80 chars of the message (enough to match echo-backs)
+        const msgSnippet = message.trim().substring(0, 80);
+        if (msgSnippet.length > 3) {
+            this._recentBotMessages.push(msgSnippet);
+            // Keep only last 10 messages to avoid memory bloat
+            if (this._recentBotMessages.length > 10) this._recentBotMessages.shift();
         }
-        else {
-            if (settings.speak) {
-                speak(to_translate, this.prompter.profile.speak_model);
+
+        // --- MESSAGE CHUNKING ---
+        // Minecraft chat has a 256 character limit per message. Split long messages
+        // into chunks so they don't get silently truncated by the server.
+        // Add a small delay between chunks to avoid spam detection.
+        const MAX_CHAT_LENGTH = 240; // leave some room for formatting
+        const chunks = [];
+        while (message.length > 0) {
+            if (message.length <= MAX_CHAT_LENGTH) {
+                chunks.push(message);
+                break;
             }
-            if (settings.chat_ingame) {this.bot.chat(message);}
-            sendOutputToServer(this.name, message);
+            // Try to split at a space near the limit
+            let splitAt = message.lastIndexOf(' ', MAX_CHAT_LENGTH);
+            if (splitAt <= 0) splitAt = MAX_CHAT_LENGTH;
+            chunks.push(message.substring(0, splitAt));
+            message = message.substring(splitAt).trimStart();
+        }
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const customChat = getCustomizationSync();
+            if (customChat && customChat.routeChat(this.bot, chunk, settings, sendOutputToServer, this.name)) {
+                // handled by server customization
+            }
+            else if (settings.only_chat_with.length > 0) {
+                for (let username of settings.only_chat_with) {
+                    this.bot.whisper(username, chunk);
+                }
+            }
+            else {
+                if (i === 0 && settings.speak) {
+                    speak(to_translate, this.prompter.profile.speak_model);
+                }
+                if (settings.chat_ingame) { this.bot.chat(chunk); }
+                sendOutputToServer(this.name, chunk);
+            }
+            // Small delay between chunks to avoid spam filter
+            if (i < chunks.length - 1) {
+                await new Promise(r => setTimeout(r, 500));
+            }
         }
     }
 
@@ -419,17 +570,44 @@ export class Agent {
         this.bot.on('error' , (err) => {
             console.error('Error event!', err);
         });
+        // --- AUTO-RECONNECT ---
+        // On disconnect or kick, wait 30 seconds then restart.
+        // The long delay prevents the server's anti-spam from banning the bot.
+        // Max 3 attempts — after that, exit cleanly (code 0) so the parent
+        // process doesn't keep restarting and getting banned.
         this.bot.on('end', (reason) => {
-            console.warn('Bot disconnected! Killing agent process.', reason)
-            this.cleanKill('Bot disconnected! Killing agent process.');
+            console.warn('Bot disconnected! Reason:', reason);
+            this._reconnectAttempts = (this._reconnectAttempts || 0) + 1;
+            if (this._reconnectAttempts > 3) {
+                console.error('Max reconnect attempts (3) reached. Stopping.');
+                this.cleanKill('Bot disconnected after 3 reconnect attempts.', 0);
+                return;
+            }
+            console.log(`Will reconnect in 30 seconds... (attempt ${this._reconnectAttempts}/3)`);
+            setTimeout(() => {
+                process.exit(1); // code 1 = parent auto-restarts
+            }, 30000);
         });
         this.bot.on('death', () => {
+            // Reset reconnect counter — death is normal gameplay, not a disconnect
+            this._reconnectAttempts = 0;
             this.actions.cancelResume();
             this.actions.stop();
         });
         this.bot.on('kicked', (reason) => {
-            console.warn('Bot kicked!', reason);
-            this.cleanKill('Bot kicked! Killing agent process.');
+            console.warn('Bot kicked! Reason:', reason);
+            // On kick, wait even longer (60s) since kicks often mean the server
+            // is upset about something — rapid reconnects will just get re-banned.
+            this._reconnectAttempts = (this._reconnectAttempts || 0) + 1;
+            if (this._reconnectAttempts > 3) {
+                console.error('Max reconnect attempts (3) reached after kicks. Stopping.');
+                this.cleanKill('Bot kicked too many times. Stopping.', 0);
+                return;
+            }
+            console.log(`Will reconnect in 60 seconds after kick... (attempt ${this._reconnectAttempts}/3)`);
+            setTimeout(() => {
+                process.exit(1);
+            }, 60000);
         });
         this.bot.on('messagestr', async (message, _, jsonMsg) => {
             if (jsonMsg.translate && jsonMsg.translate.startsWith('death') && message.startsWith(this.name)) {
@@ -488,8 +666,15 @@ export class Agent {
     
 
     cleanKill(msg='Killing agent process...', code=1) {
+        // --- SAFE SHUTDOWN ---
+        // Save state and exit. Guard bot.chat() since the bot may already be
+        // disconnected when this is called (e.g. after a kick or network drop).
         this.history.add('system', msg);
-        this.bot.chat(code > 1 ? 'Restarting.': 'Exiting.');
+        try {
+            if (this.bot && this.bot._client && typeof this.bot._client.chat === 'function') {
+                this.bot.chat(code > 1 ? 'Restarting.' : 'Exiting.');
+            }
+        } catch (_) {}
         this.history.save();
         process.exit(code);
     }

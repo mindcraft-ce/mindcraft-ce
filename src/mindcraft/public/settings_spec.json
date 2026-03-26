@@ -29,7 +29,7 @@
         "type": "string",
         "description": "Allowed values: survival, assistant, creative, god_mode. Each has fine tuned settings for different game modes.",
         "default": "survival",
-        "options": ["survival", "assistant", "creative", "god_mode"]
+        "options": ["survival", "assistant", "builder", "creative", "god_mode"]
     },
     "load_memory": {
         "type": "boolean",

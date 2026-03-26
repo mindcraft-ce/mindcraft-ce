@@ -28,3 +28,12 @@ tasks/construction_tasks/train/**
 server_data*
 **/.DS_Store
 src/mindcraft-py/__pycache__/
+
+# Session files
+logs/
+auth_cache/
+auth_test.js
+debug_connect.js
+
+# Session files
+# Server-specific customization directories stay local

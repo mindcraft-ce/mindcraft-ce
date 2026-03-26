@@ -25,8 +25,14 @@ export class ActionManager {
 
     async stop() {
         if (!this.executing) return;
+        // --- GRACEFUL STOP ---
+        // Wait up to 10 seconds for code to finish. If it doesn't stop,
+        // force-clear the executing flag instead of killing the whole process.
+        // This prevents a hung code block from crashing the bot entirely.
         const timeout = setTimeout(() => {
-            this.agent.cleanKill('Code execution refused stop after 10 seconds. Killing process.');
+            console.error('Code execution refused stop after 10 seconds. Force-clearing execution state.');
+            this.executing = false;
+            // Don't kill the process — just reset so the bot can continue
         }, 10000);
         while (this.executing) {
             this.agent.requestInterrupt();
@@ -34,7 +40,7 @@ export class ActionManager {
             await new Promise(resolve => setTimeout(resolve, 300));
         }
         clearTimeout(timeout);
-    } 
+    }
 
     cancelResume() {
         this.resume_func = null;

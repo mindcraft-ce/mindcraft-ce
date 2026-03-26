@@ -94,7 +94,8 @@
             white-space: nowrap;
         }
         .setting-wrapper input[type="text"],
-        .setting-wrapper input[type="number"] {
+        .setting-wrapper input[type="number"],
+        .setting-wrapper select {
             flex: 1 1 0;
             background: #262626;
             border: 1px solid #555;
@@ -440,7 +441,16 @@
                 label.textContent = key;
                 label.title = cfg.description || '';
                 let input;
-                switch (cfg.type) {
+                if (cfg.options && Array.isArray(cfg.options)) {
+                    input = document.createElement('select');
+                    cfg.options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === cfg.default) option.selected = true;
+                        input.appendChild(option);
+                    });
+                } else switch (cfg.type) {
                     case 'boolean':
                         input = document.createElement('input');
                         input.type = 'checkbox';
