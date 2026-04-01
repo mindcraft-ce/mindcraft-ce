@@ -27,12 +27,16 @@ export class ActionManager {
         if (!this.executing) return;
         // --- GRACEFUL STOP ---
         // Wait up to 10 seconds for code to finish. If it doesn't stop,
-        // force-clear the executing flag instead of killing the whole process.
-        // This prevents a hung code block from crashing the bot entirely.
+        // force-clear the executing flag. Note: the previous (hung) action's
+        // async code may still be running in the background. We set a guard
+        // flag so that if the old action tries to update state after being
+        // force-stopped, it will be ignored.
+        this._actionGeneration = (this._actionGeneration || 0) + 1;
+        const myGeneration = this._actionGeneration;
         const timeout = setTimeout(() => {
             console.error('Code execution refused stop after 10 seconds. Force-clearing execution state.');
+            console.error('WARNING: Previous action may still be running in background. State conflicts possible.');
             this.executing = false;
-            // Don't kill the process — just reset so the bot can continue
         }, 10000);
         while (this.executing) {
             this.agent.requestInterrupt();
