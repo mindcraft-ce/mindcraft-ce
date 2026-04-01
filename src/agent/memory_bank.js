@@ -1,6 +1,16 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 
 /**
+ * Sanitize a bot name to prevent path traversal.
+ * Strips path separators, dots, and other dangerous characters.
+ * @param {string} name - Raw bot name from profile
+ * @returns {string} Safe name for use in file paths
+ */
+function sanitizeBotName(name) {
+	return String(name).replace(/[\/\\:*?"<>|.]+/g, '_').replace(/^_+|_+$/g, '') || 'unnamed';
+}
+
+/**
  * Persistent location memory for the bot.
  * Stores named places (chests, furnaces, home base, build sites, etc.) with coordinates.
  * Data is saved to disk so it survives restarts and context trimming.
@@ -10,10 +20,11 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 export class MemoryBank {
 	constructor(botName) {
 		this.memory = {};
-		this.botName = botName;
-		if (botName) {
-			this.fp = `./bots/${botName}/places.json`;
-			mkdirSync(`./bots/${botName}`, { recursive: true });
+		this.botName = sanitizeBotName(botName);
+		this._saveTimer = null;
+		if (this.botName) {
+			this.fp = `./bots/${this.botName}/places.json`;
+			mkdirSync(`./bots/${this.botName}`, { recursive: true });
 			this.load();
 		}
 	}
@@ -32,7 +43,7 @@ export class MemoryBank {
 			type: type || '',
 			savedAt: new Date().toISOString()
 		};
-		this.save();
+		this._debouncedSave();
 	}
 
 	/**
@@ -54,7 +65,7 @@ export class MemoryBank {
 	forgetPlace(name) {
 		if (this.memory[name]) {
 			delete this.memory[name];
-			this.save();
+			this._debouncedSave();
 			return true;
 		}
 		return false;
@@ -88,6 +99,18 @@ export class MemoryBank {
 			return `  "${name}"${typeStr}: x:${val.coords[0]}, y:${val.coords[1]}, z:${val.coords[2]}`;
 		});
 		return 'SAVED LOCATIONS:\n' + lines.join('\n');
+	}
+
+	/**
+	 * Debounced save — coalesces rapid writes into a single disk write after 2 seconds.
+	 * Prevents main-thread stalls from frequent block placement events.
+	 */
+	_debouncedSave() {
+		if (this._saveTimer) clearTimeout(this._saveTimer);
+		this._saveTimer = setTimeout(() => {
+			this.save();
+			this._saveTimer = null;
+		}, 2000);
 	}
 
 	/**

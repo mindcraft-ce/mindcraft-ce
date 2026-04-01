@@ -63,6 +63,14 @@ export class Agent {
 
         initModes(this);
 
+        // Default resource pack handler — auto-accept server resource packs
+        // Without this, the bot may get stuck on servers that require a resource pack.
+        this.bot._client.on('resource_pack_send', (packet) => {
+            const uuid = packet.uuid || '';
+            this.bot._client.write('resource_pack_receive', { uuid, result: 3 }); // 3 = accepted
+            this.bot._client.write('resource_pack_receive', { uuid, result: 0 }); // 0 = loaded
+        });
+
         this.bot.on('login', () => {
             console.log(this.name, 'logged in!');
             serverProxy.login();
@@ -233,7 +241,7 @@ export class Agent {
             for (const [key, type] of Object.entries(notableBlocks)) {
                 if (blockName.includes(key)) {
                     const pos = newBlock.position;
-                    const name = `my_${key}_${Math.floor(pos.x)}_${Math.floor(pos.z)}`;
+                    const name = `my_${key}_${Math.floor(pos.x)}_${Math.floor(pos.y)}_${Math.floor(pos.z)}`;
                     this.memory_bank.rememberPlace(name, pos.x, pos.y, pos.z, type);
                     console.log(`[AutoSave] Saved ${type} at ${pos.x}, ${pos.y}, ${pos.z}`);
                     break;
@@ -671,7 +679,7 @@ export class Agent {
         // disconnected when this is called (e.g. after a kick or network drop).
         this.history.add('system', msg);
         try {
-            if (this.bot && this.bot._client && typeof this.bot._client.chat === 'function') {
+            if (this.bot && typeof this.bot.chat === 'function') {
                 this.bot.chat(code > 1 ? 'Restarting.' : 'Exiting.');
             }
         } catch (_) {}

@@ -519,8 +519,12 @@ export const actionsList = [
 ];
 
 // --- LOAD CUSTOM SERVER COMMANDS ---
-// Appends commands from the configured server customization (if any).
-// See src/customization/base.js for the hook interface.
+// NOTE: Custom commands are loaded asynchronously after module initialization.
+// The commandMap in commands/index.js is built from actionsList at import time,
+// so custom commands will NOT appear in the initial commandMap. This is acceptable
+// because the bot does not process commands until after spawn (which happens after
+// this promise resolves). If timing issues arise, index.js should rebuild commandMap
+// after this completes, or export a refreshCommandMap() function.
 getCustomization().then(custom => {
     const extraCmds = custom.getExtraCommands(runAsAction);
     if (extraCmds.length > 0) {

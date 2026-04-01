@@ -30,7 +30,13 @@ const origWarn = console.warn;
 const origError = console.error;
 
 function formatArgs(args) {
-    return args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    return args.map(a => {
+        if (typeof a === 'object') {
+            try { return JSON.stringify(a); }
+            catch (_) { return '[object Circular]'; }
+        }
+        return String(a);
+    }).join(' ');
 }
 
 console.log = (...args) => {

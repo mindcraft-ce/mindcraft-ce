@@ -2105,6 +2105,11 @@ export async function useToolOn(bot, toolName, targetName) {
 
 
 // ==================== Quest / NPC Interaction ====================
+// NOTE: These NPC/quest helpers are intentionally defined here in the core skill library
+// (not in a customization module) because they need direct access to bot internals
+// (entities, pathfinding, chat hooks) that the skill sandbox provides. The NPC controller
+// in src/agent/npc/ imports these same modules (skills, world) for its own low-level
+// operations — that is intentional, not duplication.
 
 /**
  * Find a Citizens NPC by display name and right-click it to start a conversation.

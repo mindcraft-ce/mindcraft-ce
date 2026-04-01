@@ -1,4 +1,4 @@
-import { readFileSync, mkdirSync, writeFileSync} from 'fs';
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'fs';
 import { Examples } from '../utils/examples.js';
 import { getCommandDocs } from '../agent/commands/index.js';
 import { SkillLibrary } from "../agent/library/skill_library.js";
@@ -35,7 +35,7 @@ export class Prompter {
         } else {
             // Fallback: try loading from profiles/defaults/{name}.json directly
             const fallback = `./profiles/defaults/${settings.base_profile}.json`;
-            if (require('fs').existsSync(fallback)) {
+            if (existsSync(fallback)) {
                 base_fp = fallback;
             } else {
                 console.warn(`[Prompter] Unknown base_profile "${settings.base_profile}", falling back to assistant`);

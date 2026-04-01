@@ -212,7 +212,9 @@ export class Coder {
         // The AI model sometimes generates ES module syntax (import/export)
         // which can't run in the sandboxed eval compartment. Remove them.
         // skills, world, Vec3, bot, and log are already available in the compartment.
-        code = code.replace(/^\s*import\s+.*?[;\n]/gm, '// (import removed)\n');
+        // Handles single-line and multi-line imports (e.g. import {\n  foo\n} from 'x';)
+        code = code.replace(/^\s*import\s[\s\S]*?from\s+['"][^'"]*['"];?\s*$/gm, '// (import removed)');
+        code = code.replace(/^\s*import\s+['"][^'"]*['"];?\s*$/gm, '// (import removed)');
         code = code.replace(/^\s*export\s+/gm, '');
         return code;
     }

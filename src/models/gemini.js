@@ -62,7 +62,8 @@ export class Gemini {
             config: {
                 systemInstruction: systemMessage,
                 tools: tools.length > 0 ? tools : undefined,
-                ...(this.params || {})
+                // Sanitize params — strip non-SDK keys like google_search to avoid rejection
+                ...((() => { const { google_search, ...safe } = (this.params || {}); return safe; })())
             }
         });
         const response = await result.text;
@@ -103,7 +104,7 @@ export class Gemini {
                 model: this.model,
                 config: {
                     systemInstruction: systemMessage,
-                    ...(this.params || {})
+                    ...((() => { const { google_search, ...safe } = (this.params || {}); return safe; })())
                 }
             });
             res = await result.text;
