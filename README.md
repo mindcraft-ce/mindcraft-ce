@@ -1,3 +1,4 @@
+<div>
 <h1 align="center">🧠Mindcraft CE⛏️</h1>
 
 
@@ -15,6 +16,7 @@
   <a href="https://mindcraft-minecollab.github.io/index.html">Paper Website</a> | 
   <a href="https://github.com/mindcraft-bots/mindcraft/blob/main/minecollab.md">MineCollab</a>
 </p>
+</div>
 
 > [!Caution]
 Do not connect this bot to public servers with coding enabled. This project allows an LLM to write/execute code on your computer. The code is sandboxed, but still vulnerable to injection attacks. Code writing is disabled by default, you can enable it by setting `allow_insecure_coding` to `true` in `settings.js`. Ye be warned.
