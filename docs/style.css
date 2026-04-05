@@ -1,0 +1,37 @@
+/* ============================================================
+   Mindcraft CE — MkDocs Material overrides
+   Targeted tweaks only; Material handles base layout/theme.
+   ============================================================ */
+
+/* ── Inline code: give it a subtle blue tint ─────────────── */
+.md-typeset code:not(.highlight code) {
+  background-color: rgba(66, 133, 244, 0.12);
+  color: #90caf9;
+  border-radius: 4px;
+}
+
+/* ── Blockquote: left accent bar in blue ─────────────────── */
+.md-typeset blockquote {
+  border-left-color: var(--md-primary-fg-color);
+  background-color: rgba(66, 133, 244, 0.06);
+}
+
+/* ── Table header: slightly bolder accent ────────────────── */
+.md-typeset table:not([class]) th {
+  background-color: rgba(66, 133, 244, 0.15);
+}
+
+/* ── Badges / shields.io images inline ───────────────────── */
+.md-typeset p > a > img,
+.md-typeset p > img {
+  display: inline;
+  vertical-align: middle;
+  margin: 0 2px;
+  border-radius: 3px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar              { width: 8px; height: 8px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: #30363d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover  { background: #58a6ff; }

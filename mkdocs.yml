@@ -1,0 +1,56 @@
+site_name: Mindcraft CE
+site_description: Crafting minds for Minecraft with LLMs and Mineflayer.
+site_url: https://mindcraft-ce.github.io/mindcraft-ce/
+repo_url: https://github.com/mindcraft-ce/mindcraft-ce
+repo_name: mindcraft-ce/mindcraft-ce
+edit_uri: blob/develop/
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - style.css
+
+nav:
+  - Home: index.md
+  - FAQ: faq.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mindcraft-ce/mindcraft-ce
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
