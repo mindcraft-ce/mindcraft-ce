@@ -5,8 +5,7 @@ on:
     branches: [develop]
     paths:
       - README.md
-      - FAQ.md
-      - docs/style.css
+      - docs/**
       - mkdocs.yml
   workflow_dispatch:
 
@@ -31,14 +30,8 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install MkDocs Material
-        run: pip install mkdocs-material
-
-      - name: Prepare docs sources
-        run: |
-          # MkDocs expects pages inside docs/; copy root markdown files there
-          cp README.md docs/index.md
-          cp FAQ.md    docs/faq.md
+      - name: Install MkDocs dependencies
+        run: pip install mkdocs-material mkdocs-click
 
       - name: Build site
         run: mkdocs build --strict --site-dir _site
