@@ -74,11 +74,12 @@ markdown_extensions:
       base_path: .
   - tables
   - mkdocs-click
+  - markdown_gfm_admonition
 
 nav:
   - Home: index.md
   - FAQ: FAQ.md
   - MineCollab: minecollab.md
 
-# extra_css:
-#   - stylesheets/extra.css
+extra_css:
+  - stylesheets/extra_admonitions.css
