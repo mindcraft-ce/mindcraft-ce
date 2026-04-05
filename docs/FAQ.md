@@ -1,4 +1,10 @@
-# Common Issues
+---
+hide:
+  - navigation
+---
+
+<h1 align="center">Common Issues</h1>
+
 - `Error: connect ECONNREFUSED`: Minecraft refused to connect with mindcraft program. Most likely due to:
   - you have not opened your game to LAN in game settings
   - your LAN port is incorrect, make sure the one you enter in game is the same as specified in `settings.js`
@@ -30,7 +36,7 @@
   - Possible reason 2: If you use vscode to edit, you need to `ctrl+s` to save the file for the changes to take effect.
   - Possible reason 3: Not setting the code path correctly in setting.js, use andy.js by default. 
 
-# Common Questions
+<h1 align="center">Common Questions</h1>
 - Mod Support? Mindcraft only supports client-side mods like optifine and sodium, though they can be tricky to set up. Mods that change minecraft game mechanics are not supported.
   
 - Texture Packs? Apparently these cause issues and refuse to connect. Not sure why

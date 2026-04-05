@@ -101,7 +101,7 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 
 6. Run `node main.js` from the installed directory
 
-If you encounter issues, check the [FAQ](https://github.com/mindcraft-ce/mindcraft-ce/blob/main/FAQ.md) or find support on [discord](https://discord.gg/mindcraft-ce). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](docs/minecollab.md#installation)
+If you encounter issues, check the [FAQ](docs/FAQ.md#common-issues) or find support on [discord](https://discord.gg/mindcraft-ce). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](docs/minecollab.md#installation)
 
 
 # Configuration
@@ -226,7 +226,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
 
 For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
-Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
+Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE) For a full breakdown of all Andy models, specs, and VRAM requirements, see the [Andy Models](docs/andy.md) page.
 
 ## Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:

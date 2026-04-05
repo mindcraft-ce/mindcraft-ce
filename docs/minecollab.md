@@ -1,4 +1,9 @@
-# MineCollab & Running tasks
+---
+hide:
+  - navigation
+---
+
+<h1 align="center">MineCollab & Running tasks</h1>
 
 ## Getting started with basic tasks
 

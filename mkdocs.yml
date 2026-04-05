@@ -12,20 +12,9 @@ theme:
   logo: https://avatars.githubusercontent.com/u/215349210
   favicon: https://avatars.githubusercontent.com/u/215349210?s=64
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: custom
-      accent: teal
-      toggle:
-        icon: material/weather-night
-        name: Dark Mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: custom
-      accent: teal
-      toggle:
-        icon: material/weather-sunny
-        name: Light Mode
+    scheme: slate
+    primary: custom
+    accent: teal
   
   icon:
     repo: fontawesome/brands/github
@@ -77,11 +66,15 @@ markdown_extensions:
   - tables
   - mkdocs-click
   - markdown_gfm_admonition
+  - mdx_truly_sane_lists:
+      nested_indent: 2
+      truly_sane: true
 
 nav:
   - Home: index.md
   - FAQ: FAQ.md
+  - Andy Models: andy.md
   - MineCollab: minecollab.md
 
 extra_css:
-  - stylesheets/extra_admonitions.css
+  - style.css
