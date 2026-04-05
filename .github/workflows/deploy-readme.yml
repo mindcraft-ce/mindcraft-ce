@@ -16,3 +16,5 @@ permissions:
 jobs:
   deploy:
     uses: uukelele/repo2static/.github/workflows/deploy.yml@main
+    with:
+      branch: develop
