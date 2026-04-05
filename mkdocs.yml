@@ -4,6 +4,8 @@ site_url: https://mindcraft-ce.com/
 repo_url: https://github.com/mindcraft-ce/mindcraft-ce
 repo_name: mindcraft-ce/mindcraft-ce
 
+hooks:
+  - hooks.py
 
 theme:
   name: material

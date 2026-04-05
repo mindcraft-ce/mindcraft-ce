@@ -6,7 +6,7 @@
 <p align="center">The experimental version of <a href="https://github.com/mindcraft-bots/mindcraft">Mindcraft!</a>
 
 <p align="center">
-  <a href="https://github.com/mindcraft-ce/mindcraft-ce/blob/main/FAQ.md">FAQ</a> | 
+  <a href="docs/FAQ.md#common-issues">FAQ</a> | 
   <a href="https://discord.gg/mindcraft-ce">Discord Support</a> | 
   <a href="https://mindcraft-ce.com">Website</a> | 
   <a href="https://andy.mindcraft-ce.com">Andy API</a>
@@ -85,7 +85,7 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 > [!Important]
 > If installing node on windows, ensure you check `Automatically install the necessary tools`
 >
-> If you encounter `npm install` errors on macOS, see the [FAQ](FAQ.md#common-issues) for troubleshooting native module build issues
+> If you encounter `npm install` errors on macOS, see the [FAQ](docs/FAQ.md#common-issues) for troubleshooting native module build issues
 
 ## Install and Run
 
@@ -101,7 +101,7 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 
 6. Run `node main.js` from the installed directory
 
-If you encounter issues, check the [FAQ](https://github.com/mindcraft-ce/mindcraft-ce/blob/main/FAQ.md) or find support on [discord](https://discord.gg/mindcraft-ce). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](minecollab.md#installation)
+If you encounter issues, check the [FAQ](https://github.com/mindcraft-ce/mindcraft-ce/blob/main/FAQ.md) or find support on [discord](https://discord.gg/mindcraft-ce). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](docs/minecollab.md#installation)
 
 
 # Configuration
@@ -278,7 +278,7 @@ Here is an example task json format:
 
 The `initial_inventory` is what the bot will have at the start of the episode, `target` refers to the target item and `number_of_target` refers to the number of target items the agent needs to collect to successfully complete the task. 
 
-If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](minecollab.md#installation)
+If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](docs/minecollab.md#installation)
 
 ## Docker Container
 
