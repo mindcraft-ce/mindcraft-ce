@@ -114,27 +114,112 @@ You can configure the agent's name, model, and prompts in their profile like `an
 <details>
 <summary><strong>⭐ VIEW SUPPORTED APIs ⭐</strong></summary>
 
-| API Name | Config Variable| Docs |
-|------|------|------|
-| `openai` | `OPENAI_API_KEY` | [docs](https://platform.openai.com/docs/models) |
-| `google` | `GEMINI_API_KEY` | [docs](https://ai.google.dev/gemini-api/docs/models/gemini) |
-| `anthropic` | `ANTHROPIC_API_KEY` | [docs](https://docs.anthropic.com/claude/docs/models-overview) |
-| `xai` | `XAI_API_KEY` | [docs](https://docs.x.ai/docs) |
-| `deepseek` | `DEEPSEEK_API_KEY` | [docs](https://api-docs.deepseek.com/) |
-| `ollama` (local) | n/a | [docs](https://ollama.com/library) |
-| `qwen` | `QWEN_API_KEY` | [Intl.](https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api)/[cn](https://help.aliyun.com/zh/model-studio/getting-started/models) |
-| `mistral` | `MISTRAL_API_KEY` | [docs](https://docs.mistral.ai/getting-started/models/models_overview/) |
-| `replicate` | `REPLICATE_API_KEY` | [docs](https://replicate.com/collections/language-models) |
-| `groq` (not grok) | `GROQCLOUD_API_KEY` | [docs](https://console.groq.com/docs/models) |
-| `huggingface` | `HUGGINGFACE_API_KEY` | [docs](https://huggingface.co/models) |
-| `novita` | `NOVITA_API_KEY` | [docs](https://novita.ai/model-api/product/llm-api?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link) |
-| `openrouter` | `OPENROUTER_API_KEY` | [docs](https://openrouter.ai/models) |
-| `glhf` | `GHLF_API_KEY` | [docs](https://glhf.chat/user-settings/api) |
-| `hyperbolic` | `HYPERBOLIC_API_KEY` | [docs](https://docs.hyperbolic.xyz/docs/getting-started) |
-| `vllm` | n/a | n/a |
-| `cerebras` | `CEREBRAS_API_KEY` | [docs](https://inference-docs.cerebras.ai/introduction) |
-| `mercury` | `MERCURY_API_KEY` | [docs](https://www.inceptionlabs.ai/) |
-| `lmstudio` | n/a | [docs](https://www.lmstudio.ai/) |
+<table>
+  <thead>
+    <tr>
+      <th>API Name</th>
+      <th>Config Variable</th>
+      <th>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><pre>openai</pre></td>
+      <td><pre>OPENAI_API_KEY</pre></td>
+      <td><a href="https://platform.openai.com/docs/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>google</pre></td>
+      <td><pre>GEMINI_API_KEY</pre></td>
+      <td><a href="https://ai.google.dev/gemini-api/docs/models/gemini">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>anthropic</pre></td>
+      <td><pre>ANTHROPIC_API_KEY</pre></td>
+      <td><a href="https://docs.anthropic.com/claude/docs/models-overview">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>xai</pre></td>
+      <td><pre>XAI_API_KEY</pre></td>
+      <td><a href="https://docs.x.ai/docs">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>deepseek</pre></td>
+      <td><pre>DEEPSEEK_API_KEY</pre></td>
+      <td><a href="https://api-docs.deepseek.com/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>ollama (local)</pre></td>
+      <td>n/a</td>
+      <td><a href="https://ollama.com/library">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>qwen</pre></td>
+      <td><pre>QWEN_API_KEY</pre></td>
+      <td><a href="https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api">Intl.</a>/<a href="https://help.aliyun.com/zh/model-studio/getting-started/models">cn</a></td>
+    </tr>
+    <tr>
+      <td><pre>mistral</pre></td>
+      <td><pre>MISTRAL_API_KEY</pre></td>
+      <td><a href="https://docs.mistral.ai/getting-started/models/models_overview/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>replicate</pre></td>
+      <td><pre>REPLICATE_API_KEY</pre></td>
+      <td><a href="https://replicate.com/collections/language-models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>groq (not grok)</pre></td>
+      <td><pre>GROQCLOUD_API_KEY</pre></td>
+      <td><a href="https://console.groq.com/docs/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>huggingface</pre></td>
+      <td><pre>HUGGINGFACE_API_KEY</pre></td>
+      <td><a href="https://huggingface.co/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>novita</pre></td>
+      <td><pre>NOVITA_API_KEY</pre></td>
+      <td><a href="https://novita.ai/model-api/product/llm-api?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>openrouter</pre></td>
+      <td><pre>OPENROUTER_API_KEY</pre></td>
+      <td><a href="https://openrouter.ai/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>glhf</pre></td>
+      <td><pre>GHLF_API_KEY</pre></td>
+      <td><a href="https://glhf.chat/user-settings/api">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>hyperbolic</pre></td>
+      <td><pre>HYPERBOLIC_API_KEY</pre></td>
+      <td><a href="https://docs.hyperbolic.xyz/docs/getting-started">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>vllm</pre></td>
+      <td>n/a</td>
+      <td>n/a</td>
+    </tr>
+    <tr>
+      <td><pre>cerebras</pre></td>
+      <td><pre>CEREBRAS_API_KEY</pre></td>
+      <td><a href="https://inference-docs.cerebras.ai/introduction">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>mercury</pre></td>
+      <td><pre>MERCURY_API_KEY</pre></td>
+      <td><a href="https://www.inceptionlabs.ai/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>lmstudio</pre></td>
+      <td>n/a</td>
+      <td><a href="https://www.lmstudio.ai/">docs</a></td>
+    </tr>
+  </tbody>
+</table>
 
 </details>
 
