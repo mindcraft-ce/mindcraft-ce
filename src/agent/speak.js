@@ -82,23 +82,45 @@ async function processQueue() {
         return;
     }
 
-    if (model === 'system') {
-        // system TTS
-        const cmd = isWin
-            ? `powershell -NoProfile -Command "Add-Type -AssemblyName System.Speech; \
-            $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate=2; \
-            $s.Speak('${txt.replace(/'/g,"''")}'); $s.Dispose()"`
-            : isMac
-            ? `say "${txt.replace(/"/g,'\\"')}"`
-            : `espeak "${txt.replace(/"/g,'\\"')}"`;
+  
+if (model === 'system') {
+    // Strip markdown formatting and collapse newlines to a single space
+    const txtClean = txt
+        .replace(/\*\*/g, '')
+        .replace(/\*/g, '')
+        .replace(/`/g, '')
+        .replace(/#{1,6}\s*/g, '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
 
-        exec(cmd, err => {
-            if (err) console.error('TTS error', err);
-            isSpeaking = false;
-            processQueue();
-        });
+    let cmd;
 
-    } 
+    if (isWin) {
+        // Build the PS script as a plain string, escape only PS single-quotes
+        const ps = [
+            'Add-Type -AssemblyName System.Speech;',
+            '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer;',
+            '$s.Rate = 2;',
+            `$s.Speak('${txtClean.replace(/'/g, "''")}');`,
+            '$s.Dispose()'
+        ].join(' ');
+
+        // Encode as UTF-16LE Base64 — bypasses ALL cmd.exe quoting entirely
+        const b64 = Buffer.from(ps, 'utf16le').toString('base64');
+        cmd = `powershell -NoProfile -EncodedCommand ${b64}`;
+
+    } else if (isMac) {
+        cmd = `say "${txtClean.replace(/"/g, '\\"')}"`;
+    } else {
+        cmd = `espeak "${txtClean.replace(/"/g, '\\"')}"`;
+    }
+
+    exec(cmd, err => {
+        if (err) console.error('TTS error', err);
+        isSpeaking = false;
+        processQueue();
+    });
+}
     else {
         // audioData was already fetched in speak()
         const audioData = item.audioData;
