@@ -15,4 +15,4 @@ permissions:
 
 jobs:
   deploy:
-    uses: uukelele-scratch/repo2static/.github/workflows/deploy.yml@main
+    uses: uukelele/repo2static/.github/workflows/deploy.yml@main
