@@ -28,18 +28,37 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementat
 | Branch | Focus | Status | Key Features |
 |--------|-------|--------|--------------|
 | `stable` | Production ready | Stable | Confirmed working snapshot |
-| `develop` | Active development | Beta | Upstream + extra/unique content |
+| [`develop`](#develop) | Active development | Beta | Upstream + extra/unique content |
 | [`r0.1`](#revamp-01) | Complete revamp | Experimental | Ground-up redesign |
 | [`agent-system`](#agent-system) | AI tooling | Experimental | Function calling, RAG, tool-based prompting |
 
 > [!Warning]
 > Some of the new features may not work right, proceed at your own risk. If you encounter problems, consider contributing by submitting a pull request to the corresponding branch.
 
+## Develop
+
+This is the default branch, but you can still access it [here](https://github.com/mindcraft-ce/mindcraft-ce/tree/develop).
+
+### 🦙 Andy API
+The [Andy API](https://andy.mindcraft-ce.com/) is a distributed framework that allows people to donate their resources to a **public pool** for anyone to access AI models donors wish to contribute. It is used by default in the `andy.json` profile on mindcraft-ce.
+
+The Andy API works **completely free** without an API key:
+- 5 concurrent requests
+- 1000 requests per day
+- No authentication required
+
+Get an optional API key from [Developer Console](https://andy.mindcraft-ce.com/api-keys) for higher limits:
+- 10 concurrent requests
+- Unlimited daily requests
+
+> [!Note]
+> The Andy API does not currently support embeddings through Mindcraft due to a server-side bug. It will be added at a later date.
+
 ## Revamp 0.1
 
 You can access this on the [r0.1](https://github.com/mindcraft-ce/mindcraft-ce/tree/r0.1) branch.
 
-An entire rework of mindcraft in its entirety. This will inevitably become the new core architecture of mindcraft-ce, separating all the current additions.
+A possible plan (not set in stone) to rework mindcraft in its entirety. This could potentially become the new core architecture of mindcraft-ce, separating all the current additions. If completed, v0.1 will be released.
 
 ## Agent System
 
@@ -123,6 +142,11 @@ You can configure the agent's name, model, and prompts in their profile like `an
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td><pre>andy</pre></td>
+      <td><pre>ANDY_API_KEY</pre> (optional)</td>
+      <td><a href="https://andy.mindcraft-ce.com/andy-docs">docs</a></td>
+    </tr>
     <tr>
       <td><pre>openai</pre></td>
       <td><pre>OPENAI_API_KEY</pre></td>
