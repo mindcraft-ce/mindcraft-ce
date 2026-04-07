@@ -1,0 +1,5 @@
+zensical
+mkdocs-material
+mkdocs-click
+markdown-gfm-admonition
+mdx-truly-sane-lists
