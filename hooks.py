@@ -48,3 +48,6 @@ def on_pre_build(config, **kwargs):
     frontmatter = "---\nhide:\n  - navigation\n---\n\n"
     with open("docs/index.md", "w", encoding="utf-8") as f:
         f.write(frontmatter + content)
+
+if __name__ == "__main__":
+    on_pre_build()

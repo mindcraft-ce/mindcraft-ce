@@ -238,6 +238,7 @@ body::after {
 /* ── Admonitions ──────────────────────────────────────────── */
 .md-typeset .admonition,
 .md-typeset details {
+  border: 0.075rem solid #448aff;
   background: rgba(10, 10, 28, 0.75);
   border-radius: 12px;
   backdrop-filter: blur(20px);
