@@ -274,7 +274,7 @@ Tasks automatically start the bot with a prompt and a goal item to acquire or bl
 
 Here is an example task json format: 
 
-```
+```json
 {
     "gather_oak_logs": {
       "goal": "Collect at least four logs",
