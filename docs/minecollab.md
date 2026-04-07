@@ -17,7 +17,7 @@ To run a task you will first need to follow the setup instructions on the main R
 
 Here is an example task json format: 
 
-```
+```json
 {
     "gather_oak_logs": {
       "goal": "Collect at least four logs",
@@ -100,10 +100,10 @@ Download the relevant task files and server data files, you can find the link [h
 
 Then, set up your conda environment: 
 
-```
-conda create --name mindcraft python=3.11
-conda activate mindcraft
-pip install -r requirements.txt
+```sh
+$ conda create --name mindcraft python=3.11
+$ conda activate mindcraft
+$ pip install -r requirements.txt
 ```
 
 Then, you can run the evaluation_script **from the project root** using `python tasks/evaluation_script.py --task_path {your-task-path} --model {model you want to use}`. 
@@ -131,18 +131,18 @@ Similarly, match the default prompt profile to the type of task. If you are runn
 
 In summary, to run two and three agent tasks on crafting  on gpt-4o-mini you would run 
 
-```
-python tasks/evaluation_script.py --task_path tasks/crafting_tasks/test_tasks/2_agent.json --model gpt-4o-mini --template_profile profiles/tasks/crafting_profile.json
+```sh
+$ python tasks/evaluation_script.py --task_path tasks/crafting_tasks/test_tasks/2_agent.json --model gpt-4o-mini --template_profile profiles/tasks/crafting_profile.json
 
-python tasks/evaluation_script.py --task_path tasks/crafting_tasks/test_tasks/filtered_tasks_3_agents.json --model gpt-4o-mini --template_profile profiles/tasks/crafting_profile --num_agents 3
+$ python tasks/evaluation_script.py --task_path tasks/crafting_tasks/test_tasks/filtered_tasks_3_agents.json --model gpt-4o-mini --template_profile profiles/tasks/crafting_profile --num_agents 3
 ```
 
 For cooking and construction 
 
-```
-python tasks/evaluation_script.py --task_path {path_to_two_agent_cooking_tasks} --model gpt-4o-mini --template_profile profiles/tasks/cooking_profile.json 
+```sh
+$ python tasks/evaluation_script.py --task_path {path_to_two_agent_cooking_tasks} --model gpt-4o-mini --template_profile profiles/tasks/cooking_profile.json 
 
-python tasks/evaluation_script.py --task_path {path_to_two_agent_construction_tasks} --model gpt-4o-mini --template_profile profiles/tasks/construction_profile.json --insecure_coding
+$ python tasks/evaluation_script.py --task_path {path_to_two_agent_construction_tasks} --model gpt-4o-mini --template_profile profiles/tasks/construction_profile.json --insecure_coding
 ```
 
 When you launch the evaluation script, you will see the minecraft server being launched. If you want to join this world, you can connect to it on the port localhost:55916 the way you would a standard Minecraft world (go to single player -> direct connection -> type in localhost:55916) It may take a few minutes for everything to be properly loaded - as first the agents need to be added to the world and given the correct permissions to use cheats and add inventory. After about 5 minutes everything should be loaded and working. If you wish to kill the experiment run `tmux kill-server`. Sometimes there will be issues copying the files, if this happens you can run the python file twice. 
@@ -174,8 +174,9 @@ To use S3 set the --s3 flag and the --bucket_name to use an s3 bucket to log all
 
 This is an example task json from the crafting tasks file. 
 
-```
-"multiagent_crafting_pink_wool_full_plan__depth_0": {
+```json
+[
+    "multiagent_crafting_pink_wool_full_plan__depth_0": {
       "goal": "Collaborate with other agents to craft an pink_wool",
       "conversation": "Let's work together to craft an pink_wool.",
       "initial_inventory": {
@@ -199,7 +200,8 @@ This is an example task json from the crafting tasks file.
       },
       "missing_items": [],
       "requires_ctable": false
-    },
+    }
+]
 ```
 
 The "initial inventory" specifies what items will be given to the agents when they spawn in the world. The "target" indicates what the goal item is, while the "type" indicates that this a techtree or crafting task. Blocked actions specifies what actions are blocked and the timeout specifies the number of seconds until the agents run out of time to complete the task. 
