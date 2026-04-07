@@ -30,3 +30,4 @@ server_data*
 src/mindcraft-py/__pycache__/
 __pycache__/
 _site/
+site/

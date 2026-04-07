@@ -50,4 +50,4 @@ def on_pre_build(config, **kwargs):
         f.write(frontmatter + content)
 
 if __name__ == "__main__":
-    on_pre_build()
+    on_pre_build({})
