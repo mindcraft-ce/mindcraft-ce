@@ -213,11 +213,6 @@ You can configure the agent's name, model, and prompts in their profile like `an
       <td><a href="https://openrouter.ai/models">docs</a></td>
     </tr>
     <tr>
-      <td><pre>glhf</pre></td>
-      <td><pre>GHLF_API_KEY</pre></td>
-      <td><a href="https://glhf.chat/user-settings/api">docs</a></td>
-    </tr>
-    <tr>
       <td><pre>hyperbolic</pre></td>
       <td><pre>HYPERBOLIC_API_KEY</pre></td>
       <td><a href="https://docs.hyperbolic.xyz/docs/getting-started">docs</a></td>
