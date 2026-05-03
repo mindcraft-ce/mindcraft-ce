@@ -250,7 +250,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
 
 For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
-Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE) For a full breakdown of all Andy models, specs, and VRAM requirements, see the [Andy Models](docs/andy.md) page.
+Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
 
 ## Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:

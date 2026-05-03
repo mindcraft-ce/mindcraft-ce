@@ -1,9 +1,11 @@
 {
     "name": "andy_4_2",
-
     "model": {
-    "api": "openai",
-    "model": "andy-4.2",
-    "url": "http://127.0.0.1:1234/v1"
+        "api": "lmstudio",
+        "model": "andy-4.2"
+    },
+    "embedding": {
+        "api": "lmstudio",
+        "model": "text-embedding-nomic-embed-text-v1.5"
     }
 }
