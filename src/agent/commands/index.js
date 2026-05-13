@@ -72,13 +72,13 @@ function convertToolToSchema(tool) {
 
 
 function convertToolToSchema(tool) {
+    // Responses API expects flat shape (vs Chat Completions' nested {function: {...}}).
     return {
         "type": "function",
-        function: {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": convertParameterToSchema(tool.parameters)
-        }
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": convertParameterToSchema(tool.parameters),
+        "strict": false
     }
 }
 

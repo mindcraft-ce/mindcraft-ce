@@ -9,7 +9,10 @@ export class SelfPrompter {
         this.interrupt = false;
         this.prompt = '';
         this.idle_time = 0;
-        this.cooldown = 2000;
+        // Cooldown 2000-4000ms with per-bot random offset. Heartbeats now route
+        // through the local idle_model (free), so we can tick fast without burning
+        // Codex quota. User-driven chat still uses gpt-5.4-mini through Brain/Task path.
+        this.cooldown = 2000 + Math.floor(Math.random() * 2000);
 
         this.next_step_explanation = null;
     }
@@ -73,25 +76,33 @@ export class SelfPrompter {
         console.log('starting self-prompt loop')
         this.loop_active = true;
         let no_command_count = 0;
-        const MAX_NO_COMMAND = 3;
+        // Don't permanently stop — transient failures (Ollama 500s, model not following format)
+        // shouldn't kill autonomy. Reset count after a long miss streak instead of breaking.
+        const MAX_NO_COMMAND = 60;
         while (!this.interrupt) {
-            const msg = `You are self-prompting with the goal: '${this.prompt}'. Your next response MUST contain a command with this syntax: !commandName. Respond:`;
+            const msg = `Self-prompt tick. Goal: '${this.prompt}'. Use the function-calling interface to call ONE tool that advances a real project (gathering, crafting, building, exploring). PREFER productive tools: collectBlocks, craftRecipe, placeHere, goToCoordinates, goToPlayer, executeCode (for multi-block placements), smeltItem, equip, consume. AVOID rapid repetition of lookAtPlayer or rememberHere — you've already done those plenty. If you have nothing better to do, START a wood-gathering project: collectBlocks(type="oak_log", num=4). Tool call in your reply, no plain "!" chat text. Respond:`;
             
             let used_command = await this.agent.handleMessage('system', msg, -1);
             if (!used_command) {
                 no_command_count++;
                 if (no_command_count >= MAX_NO_COMMAND) {
-                    let out = `Agent did not use command in the last ${MAX_NO_COMMAND} auto-prompts. Stopping auto-prompting.`;
-                    this.agent.openChat(out);
-                    console.warn(out);
-                    this.state = STOPPED;
-                    break;
+                    // Don't permanently STOP — transient Ollama failures and "model said
+                    // nothing useful" both end up here. Just reset the counter and back off
+                    // with a longer sleep, then keep trying. Real bug = many failed ticks
+                    // visible in logs, but autonomy resurrects on the next opportunity.
+                    console.warn(`No command in ${MAX_NO_COMMAND} ticks; backing off for 30s and retrying.`);
+                    no_command_count = 0;
+                    await new Promise(r => setTimeout(r, 30000));
+                    continue;
                 }
             }
             else {
                 no_command_count = 0;
-                await new Promise(r => setTimeout(r, this.cooldown));
             }
+            // Always cooldown between ticks, success or not. Previously the sleep was only
+            // in the success branch, so chat-only/no-command responses re-fired at API speed
+            // (causing the rate-limit avalanche we saw — 75 calls/min from one bot).
+            await new Promise(r => setTimeout(r, this.cooldown));
         }
         console.log('self prompt loop stopped')
         this.loop_active = false;

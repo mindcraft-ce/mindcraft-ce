@@ -88,6 +88,71 @@ const modes_list = [
         }
     },
     {
+        name: 'sleep_at_night',
+        description: 'At night, return to my own bed and sleep. Sleeping binds my respawn point.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        cooldown: 30,
+        last_attempt: 0,
+        first_fail_at: 0,         // ms timestamp of first failed attempt in this run-of-failures
+        rescue_after_ms: 5 * 60 * 1000,   // 5 minutes of failed attempts → force-TP rescue
+        update: async function (agent) {
+            const bot = agent.bot;
+            if (bot.isSleeping) {
+                // Sleep succeeded; reset the failure window for next night.
+                this.first_fail_at = 0;
+                return;
+            }
+            if (this.active) return;
+            if (Date.now() - this.last_attempt < this.cooldown * 1000) return;
+            // Only fire at night. timeOfDay 12541-23458 is night in vanilla.
+            const t = bot.time && bot.time.timeOfDay;
+            // 12541 is sunset tick but server only accepts sleep ~13000+. Use 13000.
+            if (typeof t !== 'number' || t < 13000 || t > 23458) {
+                this.first_fail_at = 0;   // reset when day comes
+                return;
+            }
+            // Don't interrupt eating, building, or named-task work mid-step.
+            if (!agent.isIdle() && agent.actions.currentActionLabel &&
+                !['mode:hunting','mode:item_collecting','mode:torch_placing','mode:elbow_room','mode:idle_staring'].includes(agent.actions.currentActionLabel)) {
+                return;
+            }
+            this.last_attempt = Date.now();
+            const self = this;
+            execute(this, agent, async () => {
+                // Rescue: if we've been failing for >5 minutes AND we have a known bed,
+                // hard-teleport to the bed. Bots are op'd so /tp works without cheat mode.
+                // This breaks the "stuck-bot blocks night for everyone" deadlock.
+                const myBed = agent.memory_bank?.recallPlace('my_bed');
+                if (myBed && self.first_fail_at && (Date.now() - self.first_fail_at > self.rescue_after_ms)) {
+                    const [bx, by, bz] = myBed;
+                    bot.chat(`/tp @s ${bx} ${by + 1} ${bz}`);
+                    skills.log(bot, `Sleep rescue: /tp'd to my bed at ${bx},${by},${bz} after ${Math.round((Date.now() - self.first_fail_at) / 60000)} min of failures.`);
+                    await new Promise(r => setTimeout(r, 1500));
+                    self.first_fail_at = 0;   // reset window after the rescue
+                }
+
+                const ok = await skills.ensureBedAndSleep(bot, agent);
+                if (ok) {
+                    self.first_fail_at = 0;
+                    // Kick the self_prompter immediately so the bot acts on the next
+                    // tick instead of waiting 2-4s for the idle cooldown to detect them.
+                    // execute() stops the loop before running mode actions; without
+                    // this nudge there's a noticeable "standing around" gap after wake.
+                    const sp = agent.self_prompter;
+                    if (sp && sp.state === 1 /* ACTIVE */ && !sp.loop_active && !sp.interrupt) {
+                        sp.startLoop();
+                    }
+                } else {
+                    if (!self.first_fail_at) self.first_fail_at = Date.now();
+                    // Fallback: stand still under whatever cover is at hand.
+                    await skills.stay(bot, 30);
+                }
+            });
+        }
+    },
+    {
         name: 'unstuck',
         description: 'Attempt to get unstuck when in the same place for a while. Interrupts some actions.',
         interrupts: ['all'],

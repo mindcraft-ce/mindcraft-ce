@@ -7,6 +7,7 @@ RUN apt-get update && \
     # git \
     # unzip \
     python3 \
+    python-is-python3 \
     python3-pip \
     # tmux \
     xvfb \

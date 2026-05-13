@@ -130,10 +130,10 @@ export class CodeAgent {
         const paramNames = parameters.map(p => p.name).join(', ');
         const argsObj = parameters.map(p => p.name).join(', ');
 
-        return `import BaseTool from "../base_tool.js";
-import CommandProperty from "../property.js";
-import * as skills from "../../library/skills.js";
-import * as world from "../../library/world.js";
+        return `import BaseTool from "../../base_tool.js";
+import CommandProperty from "../../property.js";
+import * as skills from "../../../library/skills.js";
+import * as world from "../../../library/world.js";
 import { Vec3 } from "vec3";
 
 class ${className} extends BaseTool {

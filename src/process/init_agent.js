@@ -2,6 +2,41 @@ import { Agent } from '../agent/agent.js';
 import { serverProxy } from '../agent/mindserver_proxy.js';
 import yargs from 'yargs';
 
+// Suppress mineflayer's PartialReadError protocol-parser noise. Doesn't affect
+// gameplay — just floods logs (76k occurrences in one session) and makes real
+// errors hard to find with grep. The error is THROWN by mineflayer's protocol
+// parser and reaches the runtime via three paths: console.error, stderr.write
+// (Node's default uncaughtException printer), and unhandledRejection. Wrap
+// all three.
+{
+    const isPartialRead = (s) => typeof s === 'string' && s.includes('PartialReadError');
+
+    const origErr = console.error;
+    console.error = (...args) => {
+        const first = args[0];
+        const s = first && first.toString ? first.toString() : '';
+        if (isPartialRead(s)) return;
+        origErr(...args);
+    };
+
+    // Node prints uncaught throws via process.stderr.write — intercept that too.
+    const origStderrWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk, ...rest) => {
+        const s = typeof chunk === 'string' ? chunk : (chunk?.toString?.() || '');
+        if (isPartialRead(s)) return true;
+        return origStderrWrite(chunk, ...rest);
+    };
+
+    process.on('uncaughtException', (err) => {
+        if (err && (err.name === 'PartialReadError' || isPartialRead(err.message))) return;
+        origErr('uncaughtException:', err);
+    });
+    process.on('unhandledRejection', (reason) => {
+        if (reason && (reason.name === 'PartialReadError' || isPartialRead(reason?.message))) return;
+        origErr('unhandledRejection:', reason);
+    });
+}
+
 const args = process.argv.slice(2);
 if (args.length < 1) {
     console.log('Usage: node init_agent.js -n <agent_name> -p <port> -l <load_memory> -m <init_message> -c <count_id>');

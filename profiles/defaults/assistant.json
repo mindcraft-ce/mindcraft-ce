@@ -1,6 +1,7 @@
 {
     "modes": {
         "self_preservation": true,
+        "sleep_at_night": true,
         "unstuck": true,
         "cowardice": false,
         "self_defense": true,

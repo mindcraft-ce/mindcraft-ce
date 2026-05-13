@@ -109,6 +109,17 @@ export class Prompter {
             this.vision_model = this.chat_model;
         }
 
+        // idle_model handles cheap heartbeat/self-prompt ticks. Routed here from
+        // agent.handleMessage when source='system' + Self-prompt tick. Falls back
+        // to chat_model if not configured.
+        if (this.profile.idle_model) {
+            let idle_model_profile = selectAPI(this.profile.idle_model);
+            this.idle_model = createModel(idle_model_profile);
+        }
+        else {
+            this.idle_model = this.chat_model;
+        }
+
         
         let embedding_model_profile = null;
         if (this.profile.embedding) {

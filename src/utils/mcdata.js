@@ -7,6 +7,7 @@ import { plugin as pvp } from 'mineflayer-pvp';
 import { plugin as collectblock } from 'mineflayer-collectblock';
 import { plugin as autoEat } from 'mineflayer-auto-eat';
 import plugin from 'mineflayer-armor-manager';
+import { plugin as toolPlugin } from 'mineflayer-tool';
 const armorManager = plugin;
 let mc_version = settings.minecraft_version;
 let mcdata = null;
@@ -70,6 +71,7 @@ export function initBot(username) {
     bot.loadPlugin(collectblock);
     bot.loadPlugin(autoEat);
     bot.loadPlugin(armorManager); // auto equip armor
+    bot.loadPlugin(toolPlugin); // auto equip best tool for block; bot.tool.equipForBlock(block)
     bot.once('resourcePack', () => {
         bot.acceptResourcePack();
     });

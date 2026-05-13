@@ -27,7 +27,9 @@ export function toSinglePrompt(turns, system=null, stop_seq='***', model_nicknam
 }
 
 function _getWords(text) {
-    return text.replace(/[^a-zA-Z ]/g, '').toLowerCase().split(' ');
+    // Defensive: cast to string so non-string inputs (rate-limit error objects, undefined,
+    // numbers) don't crash with "text.replace is not a function".
+    return String(text ?? '').replace(/[^a-zA-Z ]/g, '').toLowerCase().split(' ');
 }
 
 export function wordOverlapScore(text1, text2) {

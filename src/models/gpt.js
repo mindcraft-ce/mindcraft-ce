@@ -35,23 +35,29 @@ export class GPT {
 
         try {
             console.log('Awaiting openai api response from model', model)
-            const response = await this.openai.responses.create({
+            const requestBody = {
                 model: model,
-                instructions: systemMessage,
                 input: messages,
                 tools: tools,
-                text: { format: responseFormat },
                 ...(this.params || {})
-            });
+            };
+            if (systemMessage) requestBody.instructions = systemMessage;
+            if (responseFormat) requestBody.text = { format: responseFormat };
+            const response = await this.openai.responses.create(requestBody);
             console.log('Received.')
-            res = response.output_text;
+            res = response.output_text || '';
             let stop_seq_index = res.indexOf(stop_seq);
             res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
-            for (const tool_call of response.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
-                });
+            // Responses API returns function calls inside response.output[] entries
+            // with type === "function_call" (flat shape: name, arguments, call_id).
+            // (Chat Completions used response.tool_calls — different shape.)
+            for (const item of response.output || []) {
+                if (item.type === 'function_call') {
+                    function_calls.push({
+                        name: item.name,
+                        arguments: item.arguments
+                    });
+                }
             }
         }
         catch (err) {

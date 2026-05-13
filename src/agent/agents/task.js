@@ -4,7 +4,7 @@ import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('TaskAgent');
 
-const MAX_STEPS = 50;
+const MAX_STEPS = 15;
 const MAX_NO_TOOL_STREAK = 3;
 
 export class TaskAgent {
@@ -36,6 +36,8 @@ export class TaskAgent {
         const toolDocs = getToolDocs();
         const fullPrompt = `${taskHeader}${systemPrompt}\n\nTask: ${taskDescription}\n\n${toolDocs}\n\n` +
             `IMPORTANT: You MUST use the function calling interface to call tools. Do NOT just mention tools in your text response.\n` +
+            `EFFICIENCY: For any structure that needs more than 3 blocks placed (walls, roofs, floors, towers, paths), use executeCode with a for-loop to place all blocks in a single call. Do NOT call placeBlockAt one block at a time — that wastes steps. Example: \`for (let x = 0; x < 5; x++) { for (let z = 0; z < 5; z++) { await skills.placeBlock(bot, 'cobblestone', baseX+x, baseY, baseZ+z); } }\`. Same for collecting many blocks: prefer collectBlocks(type, count) over many individual digs.\n` +
+            `FOLLOW THROUGH: keep going until the structure is actually complete. Don't declare work_done until walls, roof, and door are all placed. Re-check the world (nearbyBlocks/stats) before claiming done.\n` +
             `After calling tools, respond with a brief JSON: {"thought": "...", "step_report": "...", "work_done": true/false}\n` +
             `Set work_done to true ONLY when the task is fully complete. Include "chat_response" when done to report back.`;
 
@@ -162,9 +164,18 @@ export class TaskAgent {
             }
 
             log.info(`Calling tool: ${call.name}`);
+            log.info(`  raw args (${typeof call.arguments}): ${JSON.stringify(call.arguments)?.slice(0,300)}`);
+
+            // Responses API returns arguments as a JSON-encoded string. Parse so
+            // executeTool's positional-arg mapping can read each parameter.
+            let parsedArgs = call.arguments || {};
+            if (typeof parsedArgs === 'string') {
+                try { parsedArgs = JSON.parse(parsedArgs); } catch { parsedArgs = {}; }
+            }
+            log.info(`  parsed args: ${JSON.stringify(parsedArgs)?.slice(0,300)}`);
 
             try {
-                const result = await executeTool(this.agent, call.name, call.arguments || {});
+                const result = await executeTool(this.agent, call.name, parsedArgs);
                 results.push(`${call.name}: ${result || 'Success (no output)'}`);
                 log.info(`${call.name} -> ${result}`);
             } catch (error) {
@@ -189,7 +200,10 @@ export class TaskAgent {
 
         log.info(`Using augment: ${call.name}`);
         try {
-            const args = call.arguments || {};
+            let args = call.arguments || {};
+            if (typeof args === 'string') {
+                try { args = JSON.parse(args); } catch { args = {}; }
+            }
             const positionalArgs = Array.isArray(augment.parameters)
                 ? augment.parameters.map(p => args[p.name])
                 : [];

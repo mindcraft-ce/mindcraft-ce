@@ -5,6 +5,7 @@ import { Prompter } from '../models/prompter.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { containsToolCall, isAction, blacklistTools, isTool, executeTool } from './commands/index.js';
+import { isInProtectedZone } from './library/skills.js';
 import { ActionManager } from './action_manager.js';
 import { NPCContoller } from './npc/controller.js';
 import { MemoryBank } from './memory_bank.js';
@@ -22,6 +23,7 @@ import { RPAgent } from './agents/rp.js';
 import { TaskAgent } from './agents/task.js';
 import { MessageQueue } from './message_queue.js';
 import { createLogger } from '../utils/logger.js';
+import { getHeartbeatResourcePivot } from './heartbeat_resource_hint.js';
 
 const log = createLogger('Agent');
 
@@ -38,7 +40,8 @@ export class Agent {
         this.history = new History(this);
         this.coder = new Coder(this);
         this.npc = new NPCContoller(this);
-        this.memory_bank = new MemoryBank();
+        this.memory_bank = new MemoryBank(this.name);
+        this.memory_bank.load();
         this.self_prompter = new SelfPrompter(this);
         convoManager.initAgent(this);
         if (settings.use_brain_agent) {
@@ -75,11 +78,13 @@ export class Agent {
             log.info(this.name, 'logged in!');
             serverProxy.login();
 
-            // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
-            if (this.prompter.profile.skin)
-                this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
-            else
-                this.bot.chat(`/skin clear`);
+            // Skin handling: leave to server-side plugins (SkinsRestorer auto-applies stored
+            // skins by UUID via its join listener). The bot-side /skin commands raced with SR
+            // and made Bedrock displays flaky. Fabric Tailor URL form kept for that mod's users.
+            const skin = this.prompter.profile.skin;
+            if (skin && skin.path && !skin.name) {
+                this.bot.chat(`/skin set URL ${skin.model} ${skin.path}`);
+            }
         });
         const spawnTimeoutDuration = settings.spawn_timeout;
         const spawnTimeout = setTimeout(() => {
@@ -99,6 +104,22 @@ export class Agent {
                 log.info(`${this.name} spawned.`);
                 this.clearBotLogs();
 
+                // Hard-fence protected zones at the bot.dig level. mineflayer-pathfinder
+                // calls bot.dig() directly when its Movements config has canDig=true,
+                // which BYPASSES skills.breakBlockAt's zone check. Without this wrap,
+                // bots get stuck just outside the base, can't path through, and dig
+                // straight down through "protected" blocks because pathfinder picks
+                // the dig fallback. Wrapping bot.dig forces pathfinder to find a
+                // surface route around the protected zone instead.
+                const _origDig = this.bot.dig.bind(this.bot);
+                this.bot.dig = async (block, ...args) => {
+                    if (block?.position && isInProtectedZone(block.position.x, block.position.y, block.position.z)) {
+                        log.info(`${this.name}: pathfinder dig refused at ${block.position.x},${block.position.y},${block.position.z} (protected zone).`);
+                        throw new Error('protected zone');
+                    }
+                    return _origDig(block, ...args);
+                };
+
                 this._setupEventHandlers(save_data, init_message);
                 this.startEvents();
 
@@ -116,6 +137,22 @@ export class Agent {
 
                 await new Promise((resolve) => setTimeout(resolve, 10000));
                 this.checkAllPlayersPresent();
+
+                // Auto-start the self_prompter so the bot acts on its own when idle.
+                // mindcraft-ce's BrainAgent goal manager doesn't drive autonomy by itself,
+                // so we kick the legacy self_prompter loop with a character-driven prompt.
+                // Respect any prompt loaded from memory.json — only fall back to the
+                // default autonomy prompt when nothing was saved.
+                if (!this.self_prompter.isActive()) {
+                    let prompt = this.self_prompter.prompt;
+                    if (!prompt) {
+                        prompt = `You are ${this.name}, living autonomously in this Minecraft world with your friends. When idle, pursue a SUSTAINED in-character project that helps the team survive and thrive — not just tiny actions. Examples that fit your personality: gather lots of wood, mine cobblestone, craft tools, build a small structure, plant flowers, find food, scout an area, smelt iron. Pick one project and stick with it across many turns until it's done, then start the next one. Use multi-step tools like collectBlocks(type, count) and executeCode for repeated placements. Avoid trivial actions (lookAtPlayer, repeatedly rememberHere). Help humans only if directly asked. Never stop, never just narrate — every turn must include a concrete tool call advancing your project.`;
+                        log.info(`Starting self-prompter with default autonomy prompt for ${this.name}`);
+                    } else {
+                        log.info(`Resuming self-prompter for ${this.name} with saved prompt (len=${prompt.length})`);
+                    }
+                    this.self_prompter.start(prompt);
+                }
 
             } catch (error) {
                 log.error('Error in spawn event:', error);
@@ -162,8 +199,15 @@ export class Agent {
         this.bot.on('whisper', respondFunc);
 
         this.bot.on('chat', (username, message) => {
-            if (serverProxy.getNumOtherAgents() > 0) return;
-            // only respond to open chat messages when there are no other agents
+            // Multi-agent: only respond to public chat if message mentions this bot's name
+            // or uses a broadcast keyword. /msg <bot> still works via whisper handler above.
+            if (serverProxy.getNumOtherAgents() > 0) {
+                const lower = message.toLowerCase();
+                const myName = this.name.toLowerCase();
+                const broadcastWords = ['everyone', 'everybody', 'all of you', "y'all", 'yall', 'you guys', 'you all', 'team', 'critters'];
+                const addressed = lower.includes(myName) || broadcastWords.some(w => lower.includes(w));
+                if (!addressed) return;
+            }
             respondFunc(username, message);
         });
 
@@ -250,6 +294,13 @@ export class Agent {
         const self_prompt = source === 'system' || source === this.name;
         const from_other_bot = convoManager.isOtherAgent(source);
 
+        // Heartbeat fast-path: route self-prompt ticks to local idle_model with simple
+        // !command parsing. Bypasses BrainAgent → TaskAgent → API calls entirely.
+        // User-driven messages still flow through the full Brain/Task path on chat_model.
+        if (self_prompt && message.includes('Self-prompt tick') && this.prompter?.idle_model) {
+            return await this._handleHeartbeatLocal(message);
+        }
+
         if (!self_prompt && !from_other_bot) { // from user, check for forced commands
             const user_command_name = containsToolCall(message);
             if (user_command_name) {
@@ -275,6 +326,16 @@ export class Agent {
         if (settings.use_brain_agent && this.brainAgent) {
             try {
                 const decision = await this.brainAgent.processRequest(source, message);
+                // For self-prompt autonomy ticks, force route=task. BrainAgent often misroutes
+                // these to rp because they read as character behavior; but rp never calls tools,
+                // so the bot just narrates and then idles. Forcing task makes self-prompts actually act.
+                if (decision && self_prompt && decision.route === 'rp') {
+                    log.info('Self-prompt rerouted from rp → task to ensure tool execution');
+                    decision.route = 'task';
+                    decision.task_action = decision.task_action || 'start';
+                    if (!decision.task_description) decision.task_description = 'Take one small in-character action right now.';
+                    if (!decision.task_system_prompt) decision.task_system_prompt = `You are ${this.name} acting autonomously per your character. Pick ONE small action that fits your personality (lookAtPlayer, rememberHere, moveAway, goToCoordinates within ~10 blocks, collectBlocks of 1-2 nearby items, placeHere a torch, etc) and call it via the function-calling tool. Do not just chat.`;
+                }
                 if (!decision) {
                     log.info('No brain decision, falling through.');
                 } else if (decision.route === 'queued') {
@@ -467,6 +528,258 @@ export class Agent {
         return used_command;
     }
 
+    // Lightweight heartbeat handler. Skips BrainAgent + TaskAgent + RPAgent entirely
+    // and routes self-prompt ticks to the local idle_model (Ollama andy-4-micro typically).
+    // Returns true if a command was successfully executed, false otherwise. The
+    // self_prompter uses this return value to track its no-command streak.
+    async _handleHeartbeatLocal(message) {
+        try {
+            // Yield when a real task is in flight. The heartbeat fast-path is for
+            // IDLE behavior; if pathfinder is actively moving (e.g. TaskAgent
+            // navigating to the dock entrance after a respawn) or a tool is
+            // currently executing, firing another inventory-driven command will
+            // override the navigation and walk the bot in the wrong direction.
+            if (this.bot?.pathfinder?.isMoving?.() || this.actions?.executing) {
+                return false;
+            }
+            // Slim system prompt — local model needs concise instructions and tool examples.
+            const personaMatch = (this.prompter?.profile?.conversing || '').match(/personality:\s*([^\n]+?)(?=\.\s|$)/i);
+            const persona = personaMatch ? personaMatch[1].trim() : 'a friendly Smiling Critters character';
+
+            // Inventory snapshot — keeps the prompt grounded so the model picks
+            // achievable actions (e.g. don't try to mine stone with no pickaxe).
+            const inv = this.bot?.inventory?.items() || [];
+            const counts = {};
+            for (const it of inv) counts[it.name] = (counts[it.name] || 0) + (it.count || 1);
+            const invBrief = Object.entries(counts).slice(0, 12).map(([k,v]) => `${k}:${v}`).join(', ') || '(empty)';
+            const hasPickaxe = inv.some(i => i.name.endsWith('_pickaxe'));
+            const hasAxe = inv.some(i => i.name.endsWith('_axe') && !i.name.endsWith('_pickaxe'));
+            // Sum across all natural log/plank/sapling types — biome-agnostic.
+            const logTypes = ['oak_log','birch_log','spruce_log','jungle_log','acacia_log','dark_oak_log','mangrove_log','cherry_log'];
+            const plankTypes = logTypes.map(l => l.replace('_log','_planks'));
+            const totalLogs = logTypes.reduce((s,t) => s + (counts[t] || 0), 0);
+            const planksCount = plankTypes.reduce((s,t) => s + (counts[t] || 0), 0);
+            const stickCount = counts['stick'] || 0;
+            // Pick the dominant log type the bot already has, else default to oak.
+            const preferredLog = logTypes.reduce((best,t) => (counts[t] || 0) > (counts[best] || 0) ? t : best, 'oak_log');
+
+            // Tool-priority chain: deterministic next-action hint based on what's missing.
+            // Biome-agnostic — accepts any natural log/plank type, not just oak.
+            const lastCmd = this.lastHeartbeat?.command;
+            const lastOk = this.lastHeartbeat?.succeeded;
+            // Stuck-loop break. The local idle model anchors hard on its last
+            // command and will retry collectBlocks/searchForBlock for the same
+            // target indefinitely when the resource isn't in the area. After
+            // 3 consecutive soft-failures on the same (cmd:firstArg) we
+            // override priorityHint to send the bot home.
+            const stuckCount = this.lastHeartbeat?.streakCount || 0;
+            const stuckKey = this.lastHeartbeat?.streakKey || '';
+            const isStuck = stuckCount >= 3 && /^(collectBlocks|searchForBlock):/.test(stuckKey);
+            const resourcePivot = getHeartbeatResourcePivot(this.lastHeartbeat);
+            let priorityHint = '';
+            if (resourcePivot) {
+                priorityHint = resourcePivot.hint;
+            } else if (isStuck) {
+                const stuckTarget = stuckKey.split(':').slice(1).join(':') || 'that resource';
+                const stuckBed = this.memory_bank?.recallPlace('my_bed');
+                const stuckEntry = settings.home_entrance;
+                if (stuckEntry) {
+                    priorityHint = `PRIORITY: STUCK LOOP — ${stuckKey} failed ${stuckCount}× in a row. ${stuckTarget} is not reachable from here. Stop searching. Head to the dock entrance NOW: !goToCoordinates(${stuckEntry[0]}, ${stuckEntry[1]}, ${stuckEntry[2]}, 2). From there you can walk through the door to your bed.`;
+                } else if (stuckBed) {
+                    priorityHint = `PRIORITY: STUCK LOOP — ${stuckKey} failed ${stuckCount}× in a row. ${stuckTarget} is not reachable from here. Stop searching. Return home NOW: !goToCoordinates(${stuckBed[0]}, ${stuckBed[1]+1}, ${stuckBed[2]}, 2).`;
+                } else {
+                    priorityHint = `PRIORITY: STUCK LOOP — ${stuckKey} failed ${stuckCount}× in a row. Stop trying ${stuckTarget}. Call !goToPlayer("justFielding", 3) to regroup.`;
+                }
+            } else if (!hasPickaxe) {
+                if (totalLogs < 1) {
+                    // Search-then-collect alternation. The local model anchors on
+                    // whatever it just did, so we must explicitly force the next
+                    // step. After a successful searchForBlock the bot has been
+                    // teleported on top of a log — collect NOW.
+                    if (lastCmd === 'searchForBlock' && lastOk) {
+                        priorityHint = 'PRIORITY: You just teleported next to a log. Call !collectBlocks("any_log", 4) RIGHT NOW. Do NOT call searchForBlock again — you are already there.';
+                    } else if (lastCmd === 'collectBlocks' && !lastOk) {
+                        priorityHint = 'PRIORITY: No logs within reach. Call !searchForBlock("any_log", 128) to find a tree.';
+                    } else {
+                        priorityHint = 'PRIORITY: No logs. First call !collectBlocks("any_log", 4) — alias matches oak/birch/spruce/jungle/acacia/dark_oak/mangrove/cherry. Only if it says "no logs nearby" should you call !searchForBlock("any_log", 128).';
+                    }
+                } else if (planksCount < 4) {
+                    const plankType = preferredLog.replace('_log','_planks');
+                    priorityHint = `PRIORITY: Convert your logs to planks. Call !craftRecipe("${plankType}", 4).`;
+                } else if (stickCount < 2) {
+                    priorityHint = 'PRIORITY: Make sticks. Call !craftRecipe("stick", 4).';
+                } else {
+                    priorityHint = 'PRIORITY: Make a wooden pickaxe. Call !craftRecipe("wooden_pickaxe", 1).';
+                }
+            }
+
+            // Last-action memory: tell the model what just happened so it
+            // doesn't lock into a failing-command loop (e.g. craftRecipe(stick)
+            // looped 644× in one session because every tick was stateless).
+            let lastActionHint = '';
+            if (this.lastHeartbeat) {
+                const lh = this.lastHeartbeat;
+                if (lh.succeeded) {
+                    lastActionHint = `Last action: !${lh.command} succeeded.`;
+                } else {
+                    const errBrief = (lh.error || '').toString().slice(0, 120);
+                    lastActionHint = `Last action: !${lh.command} FAILED${errBrief ? ' (' + errBrief + ')' : ''}. Try a DIFFERENT type of action this turn.`;
+                }
+            }
+
+            // Pull a short summary of the bot's long-running project so the
+            // local model picks actions that advance it, not random tool calls.
+            // Skip the first sentence (typically the persona intro "You are X...")
+            // — the actionable project content is in the sentences after it.
+            const selfPromptRaw = (this.self_prompter?.prompt || '').toString();
+            const firstPeriod = selfPromptRaw.indexOf('.');
+            const projectStart = firstPeriod > 0 && firstPeriod < 80 ? firstPeriod + 1 : 0;
+            const projectBrief = selfPromptRaw.slice(projectStart, projectStart + 400).trim();
+            const projectLine = projectBrief ? `CURRENT PROJECT: ${projectBrief}\nPick the action that best advances this project. If the project mentions a location or coordinates, work THERE — do not invent other coordinates.\n\n` : '';
+
+            // Inventory + distance hint: bias bots toward returning home / depositing
+            // before they wander too far and lose everything to a death.
+            const totalItems = inv.reduce((s, i) => s + (i.count || 1), 0);
+            const myShulker = this.memory_bank?.recallPlace('my_shulker');
+            const myBed = this.memory_bank?.recallPlace('my_bed');
+            const pos = this.bot?.entity?.position;
+            let storageHint = '';
+            if (myShulker && totalItems >= 8) {
+                storageHint = `\nYou have ${totalItems} items and a bound storage shulker at ${myShulker[0]},${myShulker[1]},${myShulker[2]}. Consider !depositToMyShulker() to stash them safely before risking a death-loss.`;
+            } else if (myBed && totalItems >= 4 && pos) {
+                const dx = pos.x - myBed[0], dz = pos.z - myBed[2];
+                const distFromBed = Math.hypot(dx, dz);
+                if (distFromBed > 80) {
+                    const entry = settings.home_entrance;
+                    const target = entry
+                        ? `!goToCoordinates(${entry[0]}, ${entry[1]}, ${entry[2]}, 2) — that's the dock entrance; from there walk through the door to your bed`
+                        : `!goToCoordinates(${myBed[0]}, ${myBed[1]+1}, ${myBed[2]}, 2)`;
+                    storageHint = `\nYou are ${Math.round(distFromBed)} blocks from your bed and have ${totalItems} items. Consider ${target} to return home before you wander further and lose them.`;
+                }
+            }
+
+            // Operating radius hint. The local idle model keeps generating wild
+            // far targets (observed: 4000+ blocks), which goToCoordinates then
+            // refuses via the travel leash. Telling the model the radius up
+            // front lets it pick a closer goal instead of burning ticks on
+            // refused targets.
+            let radiusHint = '';
+            const zonesH = settings.protected_zones;
+            if (settings.max_travel_distance && Array.isArray(zonesH) && zonesH[0]) {
+                const z0 = zonesH[0];
+                const cx = Math.round((z0[0] + z0[3]) / 2);
+                const cz = Math.round((z0[2] + z0[5]) / 2);
+                radiusHint = `\nOPERATING RADIUS: stay within ${settings.max_travel_distance} blocks of base center (x≈${cx}, z≈${cz}). NEVER call !goToCoordinates with x,z farther than that — the system refuses it. To "explore" or "find a biome", pick coords near base.\n`;
+            }
+
+            const system = `${priorityHint}\n\n${projectLine}You are ${this.name}, ${persona}. You are idle in Minecraft and must take ONE small in-character action right now.\n\nYour current inventory: ${invBrief}\nHas wooden pickaxe: ${hasPickaxe}    Has axe: ${hasAxe}\n${lastActionHint}${storageHint}${radiusHint}\n\nFollow the PRIORITY above exactly. Reply with EXACTLY ONE command in the format !commandName(arg1, arg2). No chat. No explanation. Just the command.\n\nUseful commands:\n!collectBlocks("any_log", 4)\n!craftRecipe("oak_planks", 4)\n!craftRecipe("stick", 4)\n!craftRecipe("wooden_pickaxe", 1)\n!craftRecipe("wooden_axe", 1)\n!equip("wooden_pickaxe")\n!placeHere("dirt")\n!goToCoordinates(3, 51, -122, 2)\n!goToPlayer("justFielding", 3)\n!searchForBlock("any_log", 128)\n!consume("bread")\n!depositToMyShulker()  // stash materials in your storage box (auto-bound after sleeping)\n!worldEditFill(x1, y1, z1, x2, y2, z2, "stone")  // FAST: fills a whole region instantly\n\nThese tools are NOT available in this build. Never call them: !newAction, !goal, !endGoal, !startConversation, !endConversation, !setMode, !searchWiki, !shutUp, !stfu.`;
+            const turns = [{ role: 'user', content: message }];
+
+            // Pass null tools + null responseFormat so we don't inherit ollama.js's
+            // default `responseFormatSchema` (the BrainAgent JSON schema). The local
+            // model can't satisfy that schema and Ollama returns 500.
+            let raw = await this.prompter.idle_model.sendRequest(turns, system, [], null);
+            // ollama returns string; gpt-style returns [text, function_calls]
+            if (Array.isArray(raw)) raw = raw[0];
+            if (typeof raw !== 'string' || !raw.trim()) {
+                return false;
+            }
+
+            // Find the first !commandName(...) in the response
+            const m = raw.match(/!(\w+)\s*(?:\(([^)]*)\))?/);
+            if (!m) {
+                log.info(`Heartbeat[${this.name}]: idle_model produced no command (got "${raw.slice(0, 80)}")`);
+                return false;
+            }
+            const cmdName = m[1];
+            const rawArgs = m[2] || '';
+
+            if (!isTool(cmdName)) {
+                log.info(`Heartbeat[${this.name}]: hallucinated tool '${cmdName}'`);
+                return false;
+            }
+            if (settings.blocked_actions && settings.blocked_actions.includes(cmdName)) {
+                log.info(`Heartbeat[${this.name}]: tool '${cmdName}' is blocked`);
+                return false;
+            }
+            // Heartbeat-specific deny list: valid tools that aren't useful for idle autonomy.
+            // Stops/queries/etc. are wasted ticks — return false so loop tries something productive.
+            // digDown is on this list because it actively gets bots killed (drowning, lava, fall)
+            // when the local model picks it as a "let's mine down" idle action with no plan.
+            // searchForEntity / nearbyBlocks / entities are pure information queries — bot has
+            // no follow-through, just wastes a tick.
+            const heartbeatSkip = new Set([
+                'stop', 'stats', 'inventory', 'setMode', 'goal', 'endGoal',
+                'startConversation', 'endConversation', 'restart', 'clearChat',
+                'rememberHere', 'digDown', 'searchForEntity', 'nearbyBlocks',
+                'entities', 'savedPlaces', 'getCraftingPlan', 'lookAtPlayer',
+            ]);
+            if (heartbeatSkip.has(cmdName)) {
+                log.info(`Heartbeat[${this.name}]: skipping non-productive tool '${cmdName}'`);
+                return false;
+            }
+            // Hard alternation: if last heartbeat was searchForBlock, refuse a
+            // back-to-back searchForBlock. The bot has already been teleported
+            // to the target block; the productive next step is collectBlocks.
+            // Without this the small local model loops on search forever.
+            if (this.lastHeartbeat?.command === 'searchForBlock' && cmdName === 'searchForBlock') {
+                log.info(`Heartbeat[${this.name}]: blocking back-to-back searchForBlock — forcing alternation`);
+                return false;
+            }
+
+            // Parse args: split on commas not inside quotes, strip surrounding quotes, coerce numbers
+            const argsArr = [];
+            if (rawArgs.trim()) {
+                const tokens = rawArgs.match(/"[^"]*"|'[^']*'|[^,]+/g) || [];
+                for (const t of tokens) {
+                    const trimmed = t.trim();
+                    if (/^["'].*["']$/.test(trimmed)) {
+                        argsArr.push(trimmed.slice(1, -1));
+                    } else if (!isNaN(Number(trimmed))) {
+                        argsArr.push(Number(trimmed));
+                    } else if (trimmed === 'true') argsArr.push(true);
+                    else if (trimmed === 'false') argsArr.push(false);
+                    else argsArr.push(trimmed);
+                }
+            }
+
+            log.info(`Heartbeat[${this.name}] → !${cmdName}(${argsArr.map(a => JSON.stringify(a)).join(', ')})`);
+
+            try {
+                const execRes = await executeTool(this, cmdName, argsArr);
+                // Heartbeat tool output is autonomous internal behavior — keep it in the
+                // mindcraft logs but DON'T broadcast to public chat. Reduces chat flood.
+                // Direct user→bot chat (BrainAgent → TaskAgent → chat_response) still
+                // reaches public chat via its own routeResponse calls.
+                if (execRes && typeof execRes === 'string') {
+                    log.info(`Heartbeat[${this.name}] result: ${execRes.slice(0, 200)}`);
+                }
+                // Treat tool messages containing "No <x> nearby", "Collected 0",
+                // "Could not find", "Don't have", "Failed", "Invalid" as soft failures so the next
+                // tick is nudged to try something different.
+                const resStr = (execRes || '').toString();
+                const softFail = /\b(No |Collected 0|Could not find|Don't have|Failed|Invalid|nearby to collect)/i.test(resStr);
+                const newStreakKey = `${cmdName}:${argsArr[0] ?? ''}`;
+                const prevKey = this.lastHeartbeat?.streakKey;
+                const prevCount = this.lastHeartbeat?.streakCount || 0;
+                const streakCount = softFail ? (newStreakKey === prevKey ? prevCount + 1 : 1) : 0;
+                this.lastHeartbeat = { command: cmdName, succeeded: !softFail, error: softFail ? resStr.slice(0, 120) : null, streakKey: newStreakKey, streakCount };
+                return true;
+            } catch (err) {
+                log.warn(`Heartbeat[${this.name}] tool '${cmdName}' failed: ${err.message}`);
+                const newStreakKey = `${cmdName}:${argsArr[0] ?? ''}`;
+                const prevKey = this.lastHeartbeat?.streakKey;
+                const prevCount = this.lastHeartbeat?.streakCount || 0;
+                const streakCount = newStreakKey === prevKey ? prevCount + 1 : 1;
+                this.lastHeartbeat = { command: cmdName, succeeded: false, error: err.message, streakKey: newStreakKey, streakCount };
+                return false;
+            }
+        } catch (err) {
+            log.error(`Heartbeat[${this.name}] LLM call failed: ${err.message}`);
+            return false;
+        }
+    }
+
     async routeResponse(to_player, message) {
         if (this.shut_up) return;
         let self_prompt = to_player === 'system' || to_player === this.name;
@@ -560,10 +873,28 @@ export class Agent {
                 this.memory_bank.rememberPlace('last_death_position', death_pos.x, death_pos.y, death_pos.z);
                 let death_pos_text = null;
                 if (death_pos) {
-                    death_pos_text = `x: ${death_pos.x.toFixed(2)}, y: ${death_pos.y.toFixed(2)}, z: ${death_pos.x.toFixed(2)}`;
+                    death_pos_text = `x: ${death_pos.x.toFixed(2)}, y: ${death_pos.y.toFixed(2)}, z: ${death_pos.z.toFixed(2)}`;
+                }
+                // Corpse-run leash. BrainAgent reliably routes a respawn into a
+                // "go retrieve last_death_position" task; when the death was far
+                // from base that task walks the bot straight back to the same
+                // hazard (drowning, lava, skeletons). Suppress the suggestion
+                // when the death is >150 blocks from the protected_zones AABB.
+                let recoveryHint = `Your place of death is saved as 'last_death_position' if you want to return.`;
+                if (death_pos && settings.protected_zones && settings.protected_zones[0]) {
+                    const pz = settings.protected_zones[0];
+                    const cx = (pz[0] + pz[3]) / 2, cz = (pz[2] + pz[5]) / 2;
+                    const dist = Math.hypot(death_pos.x - cx, death_pos.z - cz);
+                    if (dist > 150) {
+                        const entry = settings.home_entrance;
+                        const route = entry
+                            ? `Head to the dock entrance at !goToCoordinates(${entry[0]}, ${entry[1]}, ${entry[2]}, 2) and walk through the door to your bed.`
+                            : `Return home via your my_bed coordinates.`;
+                        recoveryHint = `You died ${Math.round(dist)} blocks from base — TOO FAR to corpse-run. DO NOT navigate to last_death_position. ${route} Abandon the lost items.`;
+                    }
                 }
                 let dimention = this.bot.game.dimension;
-                this.handleMessage('system', `You died at position ${death_pos_text || "unknown"} in the ${dimention} dimension with the final message: '${message}'. Your place of death is saved as 'last_death_position' if you want to return. Previous actions were stopped and you have respawned.`);
+                this.handleMessage('system', `You died at position ${death_pos_text || "unknown"} in the ${dimention} dimension with the final message: '${message}'. ${recoveryHint} Previous actions were stopped and you have respawned.`);
             }
         });
         this.bot.on('idle', () => {
@@ -602,6 +933,47 @@ export class Agent {
         await this.bot.modes.update();
         this.self_prompter.update(delta);
         await this.checkTaskDone();
+        this._stuckRescueCheck();
+    }
+
+    // Stuck auto-rescue: if the bot has been below y=50 for >60s, /tp it to the
+    // nearest human player. Pathfinder often can't escape cave/hole drops, and
+    // sessions accumulate dozens of underground stuck events that need manual
+    // /tp from console. Cheat mode is enabled in the assistant profile, so the
+    // bot can run /tp on itself.
+    _stuckRescueCheck() {
+        try {
+            const pos = this.bot?.entity?.position;
+            if (!pos) return;
+            const now = Date.now();
+            if (!this._stuckCheck) {
+                this._stuckCheck = { lastSurfaceTime: now, lastRescueAt: 0 };
+            }
+            if (pos.y >= 50) {
+                this._stuckCheck.lastSurfaceTime = now;
+                return;
+            }
+            const elapsed = now - this._stuckCheck.lastSurfaceTime;
+            if (elapsed < 60000) return;
+            // Cooldown so we don't spam /tp every tick once stuck.
+            if (now - this._stuckCheck.lastRescueAt < 30000) return;
+
+            const botNames = new Set(convoManager.getInGameAgents());
+            const humans = Object.keys(this.bot.players || {})
+                .filter(n => n && n !== this.name && !botNames.has(n));
+            if (humans.length === 0) return;
+            // Prefer a human with a loaded entity (in render distance) so /tp
+            // lands somewhere safe and present.
+            const withEntity = humans.find(n => this.bot.players[n]?.entity);
+            const target = withEntity || humans[0];
+            log.warn(`Heartbeat[${this.name}] stuck rescue: y=${pos.y.toFixed(1)} for ${(elapsed/1000)|0}s — /tp to ${target}`);
+            this.bot.chat(`/tp @s ${target}`);
+            this._stuckCheck.lastRescueAt = now;
+            this._stuckCheck.lastSurfaceTime = now;
+        } catch (err) {
+            // Don't let rescue logic break the update loop.
+            log.warn(`stuckRescueCheck[${this.name}] error: ${err.message}`);
+        }
     }
 
     isIdle() {

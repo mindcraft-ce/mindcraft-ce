@@ -4,6 +4,36 @@ import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
 import settings from "../../../settings.js";
 
+// Tune pathfinder Movements globally:
+//   liquidCost: 1   - default — bots can swim through waterfalls / decorative water in builds
+//   allow1by1towers: true - let bots place block, jump up, place again (escape holes)
+//   canDig: true    - allow breaking blocks to navigate (mineflayer default, explicit)
+//   placeCost: 1    - cheap block placement so towering out of holes isn't disfavored
+//   maxDropDown: 4  - max safe drop height
+const _OriginalMovements = pf.Movements;
+function PenalizedMovements(bot) {
+    const m = new _OriginalMovements(bot);
+    m.liquidCost = 1;
+    m.allow1by1towers = true;
+    m.canDig = true;
+    m.placeCost = 1;
+    m.maxDropDown = 4;
+    // Plan-time protected_zones enforcement. Without this, pathfinder happily
+    // plans paths through protected blocks, calls bot.dig, gets refused, and
+    // retries the same path 20×/sec. Returning false from safeToBreak makes
+    // the planner route AROUND the zone instead of through it.
+    const _origSafeToBreak = m.safeToBreak.bind(m);
+    m.safeToBreak = (block) => {
+        if (block?.position && isInProtectedZone(block.position.x, block.position.y, block.position.z)) {
+            return false;
+        }
+        return _origSafeToBreak(block);
+    };
+    return m;
+}
+PenalizedMovements.prototype = _OriginalMovements.prototype;
+pf.Movements = PenalizedMovements;
+
 const blockPlaceDelay = settings.block_place_delay == null ? 0 : settings.block_place_delay;
 const useDelay = blockPlaceDelay > 0;
 
@@ -44,7 +74,8 @@ export async function craftRecipe(bot, itemName, num=1) {
      **/
     let placedTable = false;
 
-    if (mc.getItemCraftingRecipes(itemName).length == 0) {
+    const _recipes = mc.getItemCraftingRecipes(itemName);
+    if (!_recipes || _recipes.length == 0) {
         log(bot, `${itemName} is either not an item, or it does not have a crafting recipe!`);
         return false;
     }
@@ -414,6 +445,52 @@ export async function defendSelf(bot, range=9) {
 
 
 
+// Blocks that are typically *placed* (in villages, by players, or as part of
+// structures) rather than naturally generated. The bot must not mine these —
+// it would tear down houses, looted chests, beds, etc.
+const STRUCTURAL_BLOCK_SUFFIXES = [
+    '_planks','_slab','_stairs','_door','_trapdoor','_fence','_fence_gate',
+    '_wall','_pressure_plate','_button','_sign','_hanging_sign','_bed',
+    '_carpet','_wool','_glass_pane','_stained_glass','_stained_glass_pane',
+    '_bricks','_chiseled','_polished','_smooth','_cut','_glazed_terracotta',
+    '_concrete','_concrete_powder','_banner','_wall_banner',
+];
+const STRUCTURAL_BLOCK_NAMES = new Set([
+    'chest','trapped_chest','barrel','crafting_table','furnace','smoker',
+    'blast_furnace','glass','tinted_glass','lantern','soul_lantern',
+    'torch','soul_torch','wall_torch','bookshelf','lectern','composter',
+    'smithing_table','cartography_table','fletching_table','loom','grindstone',
+    'stonecutter','anvil','chipped_anvil','damaged_anvil','bell','beehive',
+    'bee_nest','hay_block','target','brewing_stand','enchanting_table',
+    'jukebox','note_block','beacon','conduit','dragon_egg','flower_pot',
+    'item_frame','painting','ladder','scaffolding','iron_bars','glow_lichen',
+    'cobblestone_wall','mossy_cobblestone_wall','glass_pane',
+]);
+function isStructuralBlock(name) {
+    if (!name || typeof name !== 'string') return false;
+    if (STRUCTURAL_BLOCK_NAMES.has(name)) return true;
+    // Stripped logs/wood only exist where a player or villager placed and
+    // stripped them. Always structural.
+    if (name.startsWith('stripped_')) return true;
+    for (const suf of STRUCTURAL_BLOCK_SUFFIXES) if (name.endsWith(suf)) return true;
+    return false;
+}
+
+// True if the block at `pos` has any neighbor that's obviously a placed
+// structural block (planks, doors, glass, etc.). Used to refuse mining a
+// regular oak_log when it's actually part of a house wall.
+function _hasStructuralNeighbor(bot, pos) {
+    if (!pos || typeof pos.offset !== 'function') return false;
+    const offsets = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    for (const [dx,dy,dz] of offsets) {
+        try {
+            const n = bot.blockAt(pos.offset(dx, dy, dz));
+            if (n && isStructuralBlock(n.name)) return true;
+        } catch (_) { /* unloaded chunk or transient — treat as non-structural */ }
+    }
+    return false;
+}
+
 export async function collectBlock(bot, blockType, num=1, exclude=null) {
     /**
      * Collect one of the given block type.
@@ -429,6 +506,12 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         log(bot, `Invalid number of blocks to collect: ${num}.`);
         return false;
     }
+    // Refuse to collect structural / placed blocks (villages, houses, chests, etc.)
+    // Toggle via settings.protect_structures (default true).
+    if (settings.protect_structures !== false && isStructuralBlock(blockType)) {
+        log(bot, `Refusing to collect ${blockType} — looks like a placed/structural block (door, plank, chest, etc.). Won't tear down homes or loot.`);
+        return false;
+    }
     let blocktypes = [blockType];
     if (blockType === 'coal' || blockType === 'diamond' || blockType === 'emerald' || blockType === 'iron' || blockType === 'gold' || blockType === 'lapis_lazuli' || blockType === 'redstone')
         blocktypes.push(blockType+'_ore');
@@ -438,6 +521,13 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
         blocktypes.push('grass_block');
     if (blockType === 'cobblestone')
         blocktypes.push('stone');
+    // Multi-type aliases: biome-agnostic resource gathering.
+    if (blockType === 'any_log' || blockType === 'log' || blockType === 'wood') {
+        blocktypes = ['oak_log','birch_log','spruce_log','jungle_log','acacia_log','dark_oak_log','mangrove_log','cherry_log'];
+    }
+    if (blockType === 'any_stone' || blockType === 'natural_stone') {
+        blocktypes = ['stone','andesite','diorite','granite','tuff','deepslate'];
+    }
     const isLiquid = blockType === 'lava' || blockType === 'water';
 
     let collected = 0;
@@ -450,24 +540,47 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
     const unsafeBlocks = ['obsidian'];
 
     for (let i=0; i<num; i++) {
-        let blocks = world.getNearestBlocksWhere(bot, block => {
+        // Two-stage search: 1) cheap mineflayer findBlocks predicate (no
+        // position-based checks — position is null inside that predicate),
+        // 2) post-filter for structural neighbors using bot.blockAt on each
+        // candidate position. We over-fetch (count=30) so the post-filter has
+        // candidates to pick from after rejecting house-embedded blocks.
+        let candidates = world.getNearestBlocksWhere(bot, block => {
             if (!blocktypes.includes(block.name)) {
                 return false;
-            }
-            if (exclude) {
-                for (let position of exclude) {
-                    if (block.position.x === position.x && block.position.y === position.y && block.position.z === position.z) {
-                        return false;
-                    }
-                }
             }
             if (isLiquid) {
                 // collect only source blocks
                 return block.metadata === 0;
             }
-            
             return movements.safeToBreak(block) || unsafeBlocks.includes(block.name);
-        }, 64, 1);
+        }, 64, 30);
+
+        let blocks = [];
+        for (const block of candidates) {
+            if (!block || !block.position) continue;
+            if (exclude) {
+                let skip = false;
+                for (const position of exclude) {
+                    if (block.position.x === position.x && block.position.y === position.y && block.position.z === position.z) {
+                        skip = true; break;
+                    }
+                }
+                if (skip) continue;
+            }
+            // Structure-aware filter: refuse a block whose neighbors include
+            // anything obviously placed (planks, doors, glass, stripped logs).
+            // Catches a regular oak_log embedded in a house wall.
+            if (settings.protect_structures !== false && _hasStructuralNeighbor(bot, block.position)) {
+                continue;
+            }
+            // Hard AABB protection — refuse anything inside a configured protected zone.
+            if (isInProtectedZone(block.position.x, block.position.y, block.position.z)) {
+                continue;
+            }
+            blocks.push(block);
+            if (blocks.length >= 1) break;
+        }
 
         if (blocks.length === 0) {
             if (collected === 0)
@@ -498,11 +611,17 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
             }
             else if (mc.mustCollectManually(blockType)) {
                 await goToPosition(bot, block.position.x, block.position.y, block.position.z, 2);
+                if (bot.tool && bot.tool.equipForBlock) {
+                    try { await bot.tool.equipForBlock(block); } catch {}
+                }
                 await bot.dig(block);
                 await pickupNearbyItems(bot);
                 success = true;
             }
             else {
+                if (bot.tool && bot.tool.equipForBlock) {
+                    try { await bot.tool.equipForBlock(block); } catch {}
+                }
                 await bot.collectBlock.collect(block);
                 success = true;
             }
@@ -558,6 +677,23 @@ export async function pickupNearbyItems(bot) {
 }
 
 
+// Returns true if (x,y,z) is inside any settings.protected_zones AABB.
+// Bots must walk outside the box to mine — keeps them from chewing through user-built bases.
+export function isInProtectedZone(x, y, z) {
+    const zones = settings.protected_zones || [];
+    const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
+    for (const z_ of zones) {
+        if (!Array.isArray(z_) || z_.length < 6) continue;
+        const [x1, y1, z1, x2, y2, z2] = z_;
+        if (fx >= Math.min(x1, x2) && fx <= Math.max(x1, x2) &&
+            fy >= Math.min(y1, y2) && fy <= Math.max(y1, y2) &&
+            fz >= Math.min(z1, z2) && fz <= Math.max(z1, z2)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 export async function breakBlockAt(bot, x, y, z) {
     /**
      * Break the block at the given position. Will use the bot's equipped item.
@@ -571,6 +707,10 @@ export async function breakBlockAt(bot, x, y, z) {
      * await skills.breakBlockAt(bot, position.x, position.y - 1, position.x);
      **/
     if (x == null || y == null || z == null) throw new Error('Invalid position to break block at.');
+    if (isInProtectedZone(x, y, z)) {
+        log(bot, `Refusing to break at ${Math.floor(x)},${Math.floor(y)},${Math.floor(z)} — inside protected base zone. Walk outside the base first.`);
+        return false;
+    }
     let block = bot.blockAt(Vec3(x, y, z));
     if (block.name !== 'air' && block.name !== 'water' && block.name !== 'lava') {
         if (bot.modes.isOn('cheat')) {
@@ -1251,16 +1391,35 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         range = MAX_RANGE;
     }
     let block = null;
-    if (blockType === 'water' || blockType === 'lava') {
-        let blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType && block.metadata === 0, range, 1);
-        if (blocks.length === 0) {
+    // Multi-type aliases — biome-agnostic. Mirrors collectBlock's expansion so
+    // searchForBlock("any_log", 128) works in birch/spruce/etc. forests too.
+    let aliasTypes = null;
+    if (blockType === 'any_log' || blockType === 'log' || blockType === 'wood') {
+        aliasTypes = ['oak_log','birch_log','spruce_log','jungle_log','acacia_log','dark_oak_log','mangrove_log','cherry_log'];
+    } else if (blockType === 'any_stone' || blockType === 'natural_stone') {
+        aliasTypes = ['stone','andesite','diorite','granite','tuff','deepslate'];
+    }
+    // Skip blocks inside any protected_zone — searchForBlock would otherwise
+    // teleport bots to logs/stone embedded in the base, where collectBlock then
+    // refuses to break, wasting ticks and stranding the bot inside a wall.
+    // Over-fetch + post-filter so we still find the nearest unprotected target.
+    const isProtected = (b) => b?.position && isInProtectedZone(b.position.x, b.position.y, b.position.z);
+    if (aliasTypes) {
+        const blocks = world.getNearestBlocksWhere(bot, b => aliasTypes.includes(b.name), range, 30);
+        block = blocks.find(b => !isProtected(b));
+    }
+    else if (blockType === 'water' || blockType === 'lava') {
+        let blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType && block.metadata === 0, range, 30);
+        block = blocks.find(b => !isProtected(b));
+        if (!block) {
             log(bot, `Could not find any source ${blockType} in ${range} blocks, looking for uncollectable flowing instead...`);
-            blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType, range, 1);
+            blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType, range, 30);
+            block = blocks.find(b => !isProtected(b));
         }
-        block = blocks[0];
     }
     else {
-        block = world.getNearestBlock(bot, blockType, range);
+        const blocks = world.getNearestBlocks(bot, blockType, range, 30);
+        block = blocks.find(b => !isProtected(b));
     }
     if (!block) {
         log(bot, `Could not find any ${blockType} in ${range} blocks.`);
@@ -1579,6 +1738,217 @@ export async function goToBed(bot) {
     }
     log(bot, `You have woken up.`);
     return true;
+}
+
+export async function worldEditFill(bot, x1, y1, z1, x2, y2, z2, blockType) {
+    /**
+     * Use FastAsyncWorldEdit to fill a cuboid region with the given block type.
+     * Issues //pos1, //pos2, //set as chat commands. Bot must be op'd.
+     * Massively faster than per-block placement — fills thousands of blocks instantly.
+     * @returns {Promise<boolean>} true if commands were issued.
+     **/
+    const ix = (n) => Math.floor(n);
+    const cmds = [
+        `//pos1 ${ix(x1)},${ix(y1)},${ix(z1)}`,
+        `//pos2 ${ix(x2)},${ix(y2)},${ix(z2)}`,
+        `//set ${blockType}`
+    ];
+    for (const c of cmds) {
+        bot.chat(c);
+        await new Promise(r => setTimeout(r, 250));
+    }
+    log(bot, `WorldEdit fill ${blockType} from ${ix(x1)},${ix(y1)},${ix(z1)} to ${ix(x2)},${ix(y2)},${ix(z2)} issued.`);
+    return true;
+}
+
+export async function ensureBedAndSleep(bot, agent) {
+    /**
+     * Use the bot's own bed if remembered, place one from inventory if not, or craft one.
+     * Vanilla bed-sleep also binds the bot's respawn point. Each bot owns one bed via memory_bank('my_bed').
+     * @returns {Promise<boolean>} true if the bot reached a sleep state, false otherwise.
+     **/
+    const memory = agent && agent.memory_bank;
+    const myBed = memory ? memory.recallPlace('my_bed') : null;
+
+    const bindShulkerNear = (bedX, bedY, bedZ) => {
+        if (!memory) return;
+        if (memory.recallPlace('my_shulker')) return;
+        const matches = bot.findBlocks({
+            matching: (b) => b && b.name && b.name.includes('shulker_box'),
+            maxDistance: 6,
+            count: 8,
+        });
+        let best = null;
+        let bestDist = Infinity;
+        for (const pos of matches) {
+            const d = Math.abs(pos.x - bedX) + Math.abs(pos.y - bedY) + Math.abs(pos.z - bedZ);
+            if (d < bestDist) { bestDist = d; best = pos; }
+        }
+        if (best) {
+            memory.rememberPlace('my_shulker', best.x, best.y, best.z);
+            log(bot, `Bound my_shulker at ${best.x},${best.y},${best.z}.`);
+        }
+    };
+
+    const sleepInBlock = async (bedBlock) => {
+        try {
+            await bot.sleep(bedBlock);
+        } catch (e) {
+            log(bot, `Could not sleep: ${e.message}`);
+            return false;
+        }
+        log(bot, `Sleeping. Spawn point bound to this bed.`);
+        bindShulkerNear(bedBlock.position.x, bedBlock.position.y, bedBlock.position.z);
+        bot.modes.pause('unstuck');
+        while (bot.isSleeping) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        log(bot, `Woke up.`);
+        return true;
+    };
+
+    // Resolve preferred bed color from profile (e.g. "blue" → "blue_bed").
+    // Bots placed by hand by the user are color-themed per character; this lets
+    // each bot adopt its own pre-placed bed without bed-stealing.
+    const bedColor = agent?.prompter?.profile?.bed_color || null;
+    const preferredBedName = bedColor ? `${bedColor}_bed` : null;
+
+    if (myBed) {
+        const [bx, by, bz] = myBed;
+        await goToPosition(bot, bx, by, bz, 2);
+        const block = bot.blockAt(new Vec3(Math.floor(bx), Math.floor(by), Math.floor(bz)));
+        if (block && block.name.includes('bed')) {
+            return await sleepInBlock(block);
+        }
+        log(bot, `My remembered bed at ${bx},${by},${bz} is gone. Forgetting it.`);
+        delete memory.memory['my_bed'];
+        memory.save();
+    }
+
+    // Look for a pre-placed bed of my preferred color (placed by the user).
+    if (preferredBedName) {
+        const matches = bot.findBlocks({
+            matching: (b) => b.name === preferredBedName,
+            maxDistance: 64,
+            count: 1
+        });
+        if (matches.length) {
+            const loc = matches[0];
+            await goToPosition(bot, loc.x, loc.y, loc.z, 2);
+            const bedBlock = bot.blockAt(loc);
+            if (bedBlock && bedBlock.name === preferredBedName) {
+                if (memory) memory.rememberPlace('my_bed', loc.x, loc.y, loc.z);
+                return await sleepInBlock(bedBlock);
+            }
+        }
+    }
+
+    const bedItem = bot.inventory.items().find(i => i.name.endsWith('_bed'));
+    if (bedItem) {
+        const pos = bot.entity.position;
+        const candidates = [
+            [1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]
+        ];
+        for (const [dx, dz] of candidates) {
+            const px = Math.floor(pos.x) + dx;
+            const py = Math.floor(pos.y);
+            const pz = Math.floor(pos.z) + dz;
+            const at = bot.blockAt(new Vec3(px, py, pz));
+            const above = bot.blockAt(new Vec3(px, py + 1, pz));
+            const below = bot.blockAt(new Vec3(px, py - 1, pz));
+            if (at && above && below &&
+                at.name === 'air' && above.name === 'air' &&
+                below.boundingBox === 'block') {
+                const placed = await placeBlock(bot, bedItem.name, px, py, pz, 'top', true);
+                if (placed) {
+                    if (memory) memory.rememberPlace('my_bed', px, py, pz);
+                    await new Promise(r => setTimeout(r, 500));
+                    const bedBlock = bot.blockAt(new Vec3(px, py, pz));
+                    if (bedBlock && bedBlock.name.includes('bed')) {
+                        return await sleepInBlock(bedBlock);
+                    }
+                    return false;
+                }
+            }
+        }
+        log(bot, `Have a bed but no flat clear ground to place it nearby.`);
+        return false;
+    }
+
+    const planks = bot.inventory.items().find(i => i.name.endsWith('_planks'));
+    const wool = bot.inventory.items().find(i => i.name.endsWith('_wool'));
+    if (planks && wool) {
+        const woolCount = bot.inventory.items().filter(i => i.name === wool.name).reduce((s, i) => s + i.count, 0);
+        const planksCount = bot.inventory.items().filter(i => i.name.endsWith('_planks')).reduce((s, i) => s + i.count, 0);
+        if (woolCount >= 3 && planksCount >= 3) {
+            const color = wool.name.replace('_wool', '');
+            log(bot, `Crafting ${color}_bed.`);
+            await craftRecipe(bot, `${color}_bed`, 1);
+            return false;
+        }
+    }
+
+    log(bot, `No bed, no inventory to make one. Standing tight.`);
+    return false;
+}
+
+export async function depositToMyShulker(bot, agent) {
+    /**
+     * Walk to my_shulker (auto-bound after sleeping) and deposit gathered materials.
+     * Deposits logs, planks, sticks, stone/cobble, ores, ingots, food. Skips tools/armor.
+     * @returns {Promise<boolean>} true if any items were deposited.
+     **/
+    const memory = agent && agent.memory_bank;
+    const coords = memory ? memory.recallPlace('my_shulker') : null;
+    if (!coords) {
+        log(bot, `No bound shulker yet. Sleep in your bed first to auto-bind your storage box.`);
+        return false;
+    }
+    const [sx, sy, sz] = coords;
+    await goToPosition(bot, sx, sy, sz, 2);
+    const block = bot.blockAt(new Vec3(Math.floor(sx), Math.floor(sy), Math.floor(sz)));
+    if (!block || !block.name.includes('shulker_box')) {
+        log(bot, `My shulker at ${sx},${sy},${sz} is gone. Forgetting it.`);
+        delete memory.memory['my_shulker'];
+        memory.save();
+        return false;
+    }
+
+    let container;
+    try {
+        container = await bot.openContainer(block);
+    } catch (e) {
+        log(bot, `Could not open shulker: ${e.message}`);
+        return false;
+    }
+
+    const isStorable = (n) => (
+        n.endsWith('_log') || n.endsWith('_planks') || n === 'stick' ||
+        n === 'cobblestone' || n === 'stone' || n === 'andesite' || n === 'diorite' ||
+        n === 'granite' || n === 'tuff' || n === 'deepslate' || n === 'cobbled_deepslate' ||
+        n.endsWith('_ore') || n.endsWith('_ingot') || n === 'coal' || n === 'redstone' ||
+        n === 'gold_nugget' || n === 'iron_nugget' || n === 'flint' ||
+        n === 'wheat' || n === 'wheat_seeds' || n === 'bread' ||
+        n === 'beef' || n === 'porkchop' || n === 'chicken' || n === 'mutton' ||
+        n === 'cooked_beef' || n === 'cooked_porkchop' || n === 'cooked_chicken' ||
+        n === 'apple' || n === 'carrot' || n === 'potato' || n === 'baked_potato' ||
+        n === 'wool' || n === 'string' || n === 'feather' || n === 'leather' ||
+        n === 'rotten_flesh' || n === 'bone' || n === 'gunpowder'
+    );
+
+    let deposited = 0;
+    for (const item of bot.inventory.items()) {
+        if (!isStorable(item.name)) continue;
+        try {
+            await container.deposit(item.type, item.metadata, item.count);
+            deposited += item.count;
+        } catch (e) {
+            // shulker full or item issue; keep going
+        }
+    }
+    container.close();
+    log(bot, `Deposited ${deposited} items to my_shulker.`);
+    return deposited > 0;
 }
 
 export async function tillAndSow(bot, x, y, z, seedType=null) {

@@ -25,14 +25,17 @@ export class Ollama {
             console.log(`Awaiting local response... (model: ${model}, attempt: ${attempt})`);
             let res = null;
             try {
-                let apiResponse = await this.send(this.chat_endpoint, {
+                // Only include tools/format when they're actually provided. Sending
+                // `format: null` or `tools: []` makes Ollama 500 in some versions.
+                const body = {
                     model: model,
                     messages: messages,
-                    tools: tools,
                     stream: false,
-                    format: responseFormat,
+                    ...(tools && tools.length ? { tools } : {}),
+                    ...(responseFormat ? { format: responseFormat } : {}),
                     ...(this.params || {})
-                });
+                };
+                let apiResponse = await this.send(this.chat_endpoint, body);
                 if (apiResponse) {
                     res = apiResponse['message']['content'];
                 } else {
@@ -80,29 +83,44 @@ export class Ollama {
 
     async embed(text) {
         let model = this.model_name || 'embeddinggemma';
-        let body = { model: model, input: text };
+        // /api/embeddings expects `prompt` (singular). Sending `input` returns
+        // HTTP 200 with `{"embedding":[]}` — silently empty, RAG falls back to
+        // word-overlap with no warning.
+        let body = { model: model, prompt: text };
         let res = await this.send(this.embedding_endpoint, body);
-        return res['embedding'];
+        return res?.['embedding'];
     }
 
     async send(endpoint, body) {
         const url = new URL(endpoint, this.url);
-        let method = 'POST';
-        let headers = new Headers();
-        const request = new Request(url, { method, headers, body: JSON.stringify(body) });
-        let data = null;
-        try {
-            const res = await fetch(request);
-            if (res.ok) {
-                data = await res.json();
-            } else {
+        const method = 'POST';
+        const headers = new Headers();
+        // Retry on 503/429: 8 bots booting in parallel hammer Ollama with embed
+        // requests during initial RAG indexing and Ollama returns 503 while the
+        // model is loading or under load.
+        const maxAttempts = 4;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const request = new Request(url, { method, headers, body: JSON.stringify(body) });
+                const res = await fetch(request);
+                if (res.ok) {
+                    return await res.json();
+                }
+                if ((res.status === 503 || res.status === 429) && attempt < maxAttempts) {
+                    await new Promise(r => setTimeout(r, 300 * attempt));
+                    continue;
+                }
                 throw new Error(`Ollama Status: ${res.status}`);
+            } catch (err) {
+                if (attempt === maxAttempts) {
+                    console.error('Failed to send Ollama request.');
+                    console.error(err);
+                    return null;
+                }
+                await new Promise(r => setTimeout(r, 300 * attempt));
             }
-        } catch (err) {
-            console.error('Failed to send Ollama request.');
-            console.error(err);
         }
-        return data;
+        return null;
     }
 
     async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
