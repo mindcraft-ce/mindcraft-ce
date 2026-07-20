@@ -5,12 +5,49 @@ import prismarine_items from 'prismarine-item';
 import { pathfinder } from 'mineflayer-pathfinder';
 import { plugin as pvp } from 'mineflayer-pvp';
 import { plugin as collectblock } from 'mineflayer-collectblock';
-import { plugin as autoEat } from 'mineflayer-auto-eat';
+import { loader as autoEat } from 'mineflayer-auto-eat';
 import plugin from 'mineflayer-armor-manager';
 const armorManager = plugin;
 let mc_version = settings.minecraft_version;
 let mcdata = null;
 let Item = null;
+
+const FABRIC_REGISTRY_SYNC = 'fabric:registry/sync';
+const FABRIC_REGISTRY_SYNC_COMPLETE = 'fabric:registry/sync/complete';
+
+/**
+ * Completes Fabric API's configuration-phase registry handshake.
+ *
+ * Fabric servers advertise the serverbound completion channel through
+ * minecraft:register. Advertising the matching clientbound sync channel lets
+ * Fabric send its registry map; Mineflayer can then finish configuration after
+ * acknowledging that map. Servers without Fabric API are left untouched.
+ */
+function enableFabricRegistrySync(bot) {
+    let registrySyncAdvertised = false;
+
+    bot._client.on('custom_payload', (packet) => {
+        const channels = Array.isArray(packet.data) ? packet.data : [];
+
+        if (packet.channel === 'minecraft:register'
+            && channels.includes(FABRIC_REGISTRY_SYNC_COMPLETE)
+            && !registrySyncAdvertised) {
+            registrySyncAdvertised = true;
+            bot._client.write('custom_payload', {
+                channel: 'minecraft:register',
+                data: Buffer.from(FABRIC_REGISTRY_SYNC, 'ascii')
+            });
+            return;
+        }
+
+        if (packet.channel === FABRIC_REGISTRY_SYNC && registrySyncAdvertised) {
+            bot._client.write('custom_payload', {
+                channel: FABRIC_REGISTRY_SYNC_COMPLETE,
+                data: Buffer.alloc(0)
+            });
+        }
+    });
+}
 
 /**
  * @typedef {string} ItemName
@@ -66,6 +103,8 @@ export function initBot(username) {
     }
 
     const bot = createBot(options);
+
+    enableFabricRegistrySync(bot);
 
     // Throttle position packets to avoid kicks on Paper/Spigot servers
     // Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET

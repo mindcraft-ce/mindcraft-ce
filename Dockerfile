@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -30,7 +30,7 @@ WORKDIR /app
 
 COPY package*.json .
 COPY patches ./patches
-RUN npm install
+RUN npm ci
 
 COPY . .
 

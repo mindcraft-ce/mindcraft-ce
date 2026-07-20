@@ -17,8 +17,13 @@ const ERROR_DEFINITIONS = {
         msg: 'Connection Failed: The server is full.',
         isFatal: false
     },
+    'modded_client_required': {
+        keywords: ['fabric loader', 'fabric api', 'registry entry namespaces'],
+        msg: 'Modded Server Incompatibility: The server requires client-side mod support that Mindcraft cannot provide.',
+        isFatal: true
+    },
     'version_mismatch': {
-        keywords: ['outdated', 'version', 'client'],
+        keywords: ['outdated client', 'outdated server', 'incompatible version', 'version mismatch'],
         msg: 'Version Mismatch: Client and server versions do not match.',
         isFatal: true
     },

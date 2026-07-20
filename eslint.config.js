@@ -14,8 +14,11 @@ export default [
       "no-floating-promise": noFloatingPromise,
     },
     languageOptions: {
-      globals: globals.browser,
-      ecmaVersion: 2021,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+      ecmaVersion: "latest",
       sourceType: "module",
     },
     rules: {
