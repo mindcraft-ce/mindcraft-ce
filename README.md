@@ -29,7 +29,6 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementat
 |--------|-------|--------|--------------|
 | `stable` | Production ready | Stable | Confirmed working snapshot |
 | [`develop`](#develop) | Active development | Beta | Upstream + extra/unique content |
-| [`r0.1`](#revamp-01) | Complete revamp | Experimental | Ground-up redesign |
 | [`agent-system`](#agent-system) | AI tooling | Experimental | Function calling, RAG, tool-based prompting |
 
 > [!Warning]
@@ -40,25 +39,25 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementat
 This is the default branch, but you can still access it [here](https://github.com/mindcraft-ce/mindcraft-ce/tree/develop).
 
 ### 🦙 Andy API
-The [Andy API](https://andy.mindcraft-ce.com/) is a distributed framework that allows people to donate their resources to a **public pool** for anyone to access AI models donors wish to contribute. It is used by default in the `andy.json` profile on mindcraft-ce.
+The [Andy API](https://andy.mindcraft-ce.com/) is a free, distributed pool of community-contributed models. It includes RAG designed to help Mindcraft bots play Minecraft and is used by default through `andy/auto` in `andy.json`.
 
-The Andy API works **completely free** without an API key:
-- 5 concurrent requests
-- 1000 requests per day
-- No authentication required
+You can use the API without an API key. Adding an `ANDY_API_KEY` to `keys.json` raises the applicable limits; keys no longer have individual RPM overrides.
 
-Get an optional API key from [Developer Console](https://andy.mindcraft-ce.com/api-keys) for higher limits:
-- 10 concurrent requests
-- Unlimited daily requests
+| Request type | Without an API key | Authenticated |
+| --- | --- | --- |
+| Server models | 100/day, 3/minute, 1 concurrent request | Unlimited/day, 6/minute, 2 concurrent requests |
+| Non-server models | 1000/day, 6/minute, 1 concurrent request | Unlimited/day, 12/minute, 2 concurrent requests |
+
+The API is OpenAI-compatible. For OpenAI-compatible clients, use:
+
+```text
+https://andy.mindcraft-ce.com/api/v1/
+```
 
 > [!Note]
-> The Andy API does not currently support embeddings through Mindcraft due to a server-side bug. It will be added at a later date.
+> Embeddings are not currently supported through the Andy API in Mindcraft because of a server-side issue.
 
-## Revamp 0.1
-
-You can access this on the [r0.1](https://github.com/mindcraft-ce/mindcraft-ce/tree/r0.1) branch.
-
-A possible plan (not set in stone) to rework mindcraft in its entirety. This could potentially become the new core architecture of mindcraft-ce, separating all the current additions. If completed, v0.1 will be released.
+You do not need to run the Andy API local client or open a port to use the API.
 
 ## Agent System
 
