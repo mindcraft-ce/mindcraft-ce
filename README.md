@@ -97,7 +97,7 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 ## Requirements
 
 - [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to and including v1.21.11)
-- [Node.js Installed](https://nodejs.org/) (Node v22.13 or newer; Node v24 LTS recommended)
+- [Node.js Installed](https://nodejs.org/) (Node.js 22 LTS, v22.13 or newer)
 - At least one API key from a supported API provider. See [supported APIs](#model-customization). OpenAI is the default.
 
 > [!Important]
@@ -113,7 +113,7 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 
 3. Rename `keys.example.json` to `keys.json` and fill in your API keys (you only need one). The desired model is set in `andy.json` or other profiles. For other models refer to the table below.
 
-4. In terminal/command prompt, run `npm ci` from the installed directory
+4. In terminal/command prompt, run `npm install` from the installed directory
 
 5. Start a minecraft world and open it to LAN on localhost port `55916`
 
