@@ -40,6 +40,24 @@ export function getFullState(agent) {
     const leggings = bot.inventory.slots[7];
     const boots = bot.inventory.slots[8];
 
+    // Richer activity than a bare "Idle": a bot counts as idle (no action executing) even while
+    // chatting, deciding its next move, or stopped. Surface those so the dashboard is meaningful.
+    let activity;
+    if (!agent.isIdle()) {
+        activity = { current: agent.actions.currentActionLabel || 'Acting', kind: 'acting' };
+    } else if (convoManager.inConversation()) {
+        const who = convoManager.activeConversation?.name;
+        activity = { current: who ? `Chatting with ${who}` : 'Chatting', kind: 'chatting' };
+    } else if (agent.self_prompter.isStopped()) {
+        activity = { current: 'Stopped', kind: 'stopped' };   // self-prompter OFF: won't act on its own
+    } else if (agent.self_prompter.isPaused()) {
+        activity = { current: 'Chatting', kind: 'chatting' };
+    } else if (agent.self_prompter.isActive()) {
+        activity = { current: 'Thinking', kind: 'thinking' }; // self-prompting between actions
+    } else {
+        activity = { current: 'Idle', kind: 'idle' };
+    }
+
     const state = {
         name: agent.name,
         gameplay: {
@@ -54,7 +72,8 @@ export function getFullState(agent) {
             timeLabel
         },
         action: {
-            current: agent.isIdle() ? 'Idle' : agent.actions.currentActionLabel,
+            current: activity.current,
+            kind: activity.kind,
             isIdle: agent.isIdle()
         },
         surroundings: {

@@ -713,6 +713,8 @@
                     }
                     if (actionEl && st.action) {
                         actionEl.textContent = `${st.action.current || 'Idle'}`;
+                        const _statusColors = { acting: '#4CAF50', chatting: '#42a5f5', thinking: '#9e9e9e', stopped: '#f44336', idle: '#888' };
+                        actionEl.style.color = _statusColors[st.action.kind] || '';
                     }
                     if (invGrid && st.inventory?.counts) {
                         const counts = st.inventory.counts;
