@@ -188,11 +188,12 @@ export class Agent {
         });
 
         // Set up auto-eat
-        this.bot.autoEat.options = {
+        this.bot.autoEat.setOpts({
             priority: 'foodPoints',
-            startAt: 14,
+            minHunger: 14,
             bannedFood: ["rotten_flesh", "spider_eye", "poisonous_potato", "pufferfish", "chicken"]
-        };
+        });
+        this.bot.autoEat.enableAuto();
 
         if (save_data?.self_prompt) {
             if (init_message) {

@@ -64,7 +64,7 @@ export function createMindServer(host_public = false, port = 8080) {
             const preferred = conn?.settings?.minecraft_version;
             const candidates = [];
             if (preferred && preferred !== 'auto') candidates.push(preferred);
-            candidates.push('1.21.8');
+            candidates.push('1.21.11');
 
             // Lazy import to avoid ESM/CJS conflicts
             const mod = await import('minecraft-assets');

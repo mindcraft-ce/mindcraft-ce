@@ -1,5 +1,5 @@
-zensical
-mkdocs-material
-mkdocs-click
-markdown-gfm-admonition
-mdx-truly-sane-lists
+zensical==0.0.51
+mkdocs-material==9.7.7
+mkdocs-click==0.9.0
+markdown-gfm-admonition==0.3.0
+mdx-truly-sane-lists==1.3
