@@ -1,6 +1,7 @@
 {
     "name": "andy",
 
-    "model": "andy/auto"
+    "model": "andy/auto",
+    "embedding": "andy/auto"
 
 }

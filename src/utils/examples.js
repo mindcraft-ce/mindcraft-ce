@@ -26,17 +26,22 @@ export class Examples {
             return;
 
         try {
-            // Create array of promises first
-            const embeddingPromises = examples.map(example => {
-                const turn_text = this.turnsToText(example);
-                return this.model.embed(turn_text)
-                    .then(embedding => {
-                        this.embeddings[turn_text] = embedding;
-                    });
-            });
-            
-            // Wait for all embeddings to complete
-            await Promise.all(embeddingPromises);
+            const turn_texts = examples.map(example => this.turnsToText(example));
+            if (typeof this.model.embedMany === 'function') {
+                const embeddings = await this.model.embedMany(turn_texts);
+                turn_texts.forEach((turn_text, index) => {
+                    this.embeddings[turn_text] = embeddings[index];
+                });
+            }
+            else {
+                const embeddingPromises = turn_texts.map(turn_text => {
+                    return this.model.embed(turn_text)
+                        .then(embedding => {
+                            this.embeddings[turn_text] = embedding;
+                        });
+                });
+                await Promise.all(embeddingPromises);
+            }
         } catch (err) {
             console.warn('Error with embedding model, using word-overlap instead.');
             this.model = null;

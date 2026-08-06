@@ -39,25 +39,22 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementat
 This is the default branch, but you can still access it [here](https://github.com/mindcraft-ce/mindcraft-ce/tree/develop).
 
 ### 🦙 Andy API
-The [Andy API](https://andy.mindcraft-ce.com/) is a free, distributed pool of community-contributed models. It includes RAG designed to help Mindcraft bots play Minecraft and is used by default through `andy/auto` in `andy.json`.
+The [Andy API](https://andy.mindcraft-ce.com/) is Mindcraft CE's OpenAI-compatible model gateway. The current public service is a standalone gateway while the integrated Mindcraft compute-pool and Unleashed platform continue development. Mindcraft CE uses it by default through `andy/auto` in `andy.json`, and it remains usable by ordinary OpenAI-compatible clients.
 
-You can use the API without an API key. Adding an `ANDY_API_KEY` to `keys.json` raises the applicable limits; keys no longer have individual RPM overrides.
+You can use the API without an API key. Adding an `ANDY_API_KEY` to `keys.json` enables authenticated account limits; keys do not multiply an account's capacity. The available models and service limits are live and may change, so use the API's model list and documentation for the current values.
 
-| Request type | Without an API key | Authenticated |
-| --- | --- | --- |
-| Server models | 100/day, 3/minute, 1 concurrent request | Unlimited/day, 6/minute, 2 concurrent requests |
-| Non-server models | 1000/day, 6/minute, 1 concurrent request | Unlimited/day, 12/minute, 2 concurrent requests |
-
-The API is OpenAI-compatible. For OpenAI-compatible clients, use:
+For OpenAI-compatible clients, use:
 
 ```text
 https://andy.mindcraft-ce.com/api/v1/
 ```
 
 > [!Note]
-> Embeddings are not currently supported through the Andy API in Mindcraft because of a server-side issue.
+> Andy API supports embeddings through `/api/v1/embeddings`. The `andy/auto` model selects an embedding-capable model automatically.
 
 You do not need to run the Andy API local client or open a port to use the API.
+
+The public endpoint and API contract are documented here independently of the gateway's internal implementation. Any future account or key migration will be announced in advance.
 
 ## Agent System
 
@@ -144,7 +141,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
     <tr>
       <td><pre>andy</pre></td>
       <td><pre>ANDY_API_KEY</pre> (optional)</td>
-      <td><a href="https://andy.mindcraft-ce.com/andy-docs">docs</a></td>
+      <td><a href="https://andy.mindcraft-ce.com/docs">docs</a></td>
     </tr>
     <tr>
       <td><pre>openai</pre></td>

@@ -1,6 +1,10 @@
 import { hasKey, getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
+// Keep batches comfortably below provider-specific item limits while still
+// reducing the request burst during examples/skill initialization.
+const MAX_EMBEDDING_BATCH_SIZE = 64;
+
 export class Andy {
     static prefix = 'andy';
 
@@ -9,7 +13,8 @@ export class Andy {
         this.params = params;
         this.base_url = url || 'https://andy.mindcraft-ce.com';
         this.chat_endpoint = '/api/v1/chat/completions';
-        // this.embedding_endpoint = '/api/v1/embeddings';
+        this.embedding_endpoint = '/api/v1/embeddings';
+        this.embedding_queue = Promise.resolve();
     }
 
     async sendRequest(turns, systemMessage) {
@@ -70,13 +75,48 @@ export class Andy {
         return finalRes;
     }
 
-    // async embed(text) {
-    //     const data = await this.send(this.embedding_endpoint, { model: this.model_name, input: text });
-    //     if (!data?.data?.[0]?.embedding) {
-    //         throw new Error('Andy API embeddings not available.');
-    //     }
-    //     return data.data[0].embedding;
-    // }
+    async embed(text) {
+        const embeddings = await this.embedMany([text]);
+        return embeddings[0];
+    }
+
+    async embedMany(texts) {
+        if (!Array.isArray(texts)) {
+            throw new TypeError('Andy embeddings require an array of texts.');
+        }
+        if (texts.length === 0) return [];
+
+        const request = this.embedding_queue.then(async () => {
+            const embeddings = [];
+            for (let start = 0; start < texts.length; start += MAX_EMBEDDING_BATCH_SIZE) {
+                const batch = texts.slice(start, start + MAX_EMBEDDING_BATCH_SIZE);
+                const data = await this.send(this.embedding_endpoint, { model: this.model_name, input: batch });
+                if (!Array.isArray(data?.data) || data.data.length !== batch.length) {
+                    throw new Error('Andy API embeddings not available.');
+                }
+
+                // OpenAI-compatible providers normally return `index`; use it
+                // when valid so an out-of-order response cannot pair an
+                // embedding with the wrong example or skill document. Keep a
+                // positional fallback for older compatible providers that omit
+                // the field entirely.
+                const hasIndexes = data.data.every(item => Number.isInteger(item?.index));
+                const ordered = hasIndexes
+                    ? [...data.data].sort((a, b) => a.index - b.index)
+                    : data.data;
+                if (hasIndexes && ordered.some((item, index) => item.index !== index)) {
+                    throw new Error('Andy API returned invalid embedding indexes.');
+                }
+                if (ordered.some(item => !Array.isArray(item?.embedding))) {
+                    throw new Error('Andy API embeddings not available.');
+                }
+                embeddings.push(...ordered.map(item => item.embedding));
+            }
+            return embeddings;
+        });
+        this.embedding_queue = request.catch(() => {});
+        return await request;
+    }
 
     async send(endpoint, body) {
         const url = new URL(endpoint, this.base_url);
