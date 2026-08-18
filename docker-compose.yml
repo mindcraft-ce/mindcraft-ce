@@ -5,6 +5,7 @@ services:
       SETTINGS_JSON: |
         {"auto_open_ui": false}
       MINDCRAFT_BIND_HOST: 0.0.0.0
+      MINDCRAFT_CONTROL_TOKEN: "${MINDCRAFT_CONTROL_TOKEN:?Set MINDCRAFT_CONTROL_TOKEN before starting Mindcraft}"
     volumes:
       - ./settings.js:/app/settings.js
       - ./keys.json:/app/keys.json
