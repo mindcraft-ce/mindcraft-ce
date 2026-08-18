@@ -46,7 +46,7 @@ jobs:
         run: npm test
 
   batch-pr-validation:
-    if: github.repository == 'xdCloudy/mindcraft-dev' && github.ref_name == 'ce/ci-validation-workflow'
+    if: github.repository == 'xdCloudy/mindcraft-dev' && (github.ref_name == 'ce/ci-validation-workflow' || github.head_ref == 'ce/ci-validation-workflow')
     runs-on: ubuntu-latest
 
     steps:
