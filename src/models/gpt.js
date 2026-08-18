@@ -1,12 +1,33 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
+import {
+    RequestAbortedError,
+    RequestTimeoutError,
+    runAbortableRequest,
+} from './request_control.js';
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 120000;
+
+function splitRequestParams(params) {
+    const providerParams = { ...(params || {}) };
+    const configured = Number(providerParams.request_timeout_ms);
+    delete providerParams.request_timeout_ms;
+    return {
+        providerParams,
+        timeoutMs: Number.isInteger(configured) && configured > 0
+            ? configured
+            : DEFAULT_REQUEST_TIMEOUT_MS,
+    };
+}
 
 export class GPT {
     static prefix = 'openai';
     constructor(model_name, url, params) {
         this.model_name = model_name;
-        this.params = params;
+        const { providerParams, timeoutMs } = splitRequestParams(params);
+        this.params = providerParams;
+        this.requestTimeoutMs = timeoutMs;
         this.url = url; // store so that we know whether a custom URL has been set
 
         let config = {};
@@ -21,7 +42,7 @@ export class GPT {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, stop_seq='***') {
+    async sendRequest(turns, systemMessage, stop_seq='***', { signal } = {}) {
         let messages = strictFormat(turns);
         messages = messages.map(message => {
             message.content += stop_seq;
@@ -47,12 +68,15 @@ export class GPT {
                 if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
                     delete pack.stop;
                 }
-                let completion = await this.openai.chat.completions.create(pack);
+                let completion = await runAbortableRequest(
+                    requestSignal => this.openai.chat.completions.create(pack, { signal: requestSignal }),
+                    { timeoutMs: this.requestTimeoutMs, signal }
+                );
                 if (completion.choices[0].finish_reason == 'length')
-                    throw new Error('Context length exceeded'); 
+                    throw new Error('Context length exceeded');
                 console.log('Received.');
                 res = completion.choices[0].message.content;
-            } 
+            }
             // otherwise, use responses
             else {
                 let messages = strictFormat(turns);
@@ -60,12 +84,15 @@ export class GPT {
                     message.content += stop_seq;
                     return message;
                 });
-                const response = await this.openai.responses.create({
-                    model: model,
-                    instructions: systemMessage,
-                    input: messages,
-                    ...(this.params || {})
-                });
+                const response = await runAbortableRequest(
+                    requestSignal => this.openai.responses.create({
+                        model: model,
+                        instructions: systemMessage,
+                        input: messages,
+                        ...(this.params || {})
+                    }, { signal: requestSignal }),
+                    { timeoutMs: this.requestTimeoutMs, signal }
+                );
                 console.log('Received.');
                 res = response.output_text;
                 let stop_seq_index = res.indexOf(stop_seq);
@@ -73,9 +100,12 @@ export class GPT {
             }
         }
         catch (err) {
+            if (err instanceof RequestTimeoutError || err instanceof RequestAbortedError) {
+                throw err;
+            }
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
                 console.log('Context length exceeded, trying again with shorter context.');
-                return await this.sendRequest(turns.slice(1), systemMessage, stop_seq);
+                return await this.sendRequest(turns.slice(1), systemMessage, stop_seq, { signal });
             } else if (err.message.includes('image_url')) {
                 console.log(err);
                 res = 'Vision is only supported by certain models.';
@@ -87,7 +117,7 @@ export class GPT {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer, requestOptions = {}) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -99,18 +129,21 @@ export class GPT {
                 }
             ]
         });
-        
-        return this.sendRequest(imageMessages, systemMessage);
+
+        return this.sendRequest(imageMessages, systemMessage, '***', requestOptions);
     }
 
-    async embed(text) {
+    async embed(text, { signal } = {}) {
         if (text.length > 8191)
             text = text.slice(0, 8191);
-        const embedding = await this.openai.embeddings.create({
-            model: this.model_name || "text-embedding-3-small",
-            input: text,
-            encoding_format: "float",
-        });
+        const embedding = await runAbortableRequest(
+            requestSignal => this.openai.embeddings.create({
+                model: this.model_name || "text-embedding-3-small",
+                input: text,
+                encoding_format: "float",
+            }, { signal: requestSignal }),
+            { timeoutMs: this.requestTimeoutMs, signal }
+        );
         return embedding.data[0].embedding;
     }
 
@@ -135,7 +168,10 @@ const sendAudioRequest = async (text, model, voice, url) => {
 
     const openai = new OpenAIApi(config);
 
-    const mp3 = await openai.audio.speech.create(payload);
+    const mp3 = await runAbortableRequest(
+        requestSignal => openai.audio.speech.create(payload, { signal: requestSignal }),
+        { timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS }
+    );
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const base64 = buffer.toString("base64");
     return base64;

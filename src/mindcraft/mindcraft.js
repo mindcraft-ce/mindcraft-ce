@@ -57,7 +57,11 @@ export async function createAgent(settings) {
             console.warn(`Attempting to connect anyway...`);
         }
 
-        const agentProcess = new AgentProcess(agent_name, mindserver_port);
+        const agentProcess = new AgentProcess(agent_name, mindserver_port, {
+            // Task runners use terminal child exit codes as their process result.
+            // Ordinary multi-agent sessions isolate child crashes instead.
+            exitParentOnTerminalCode: settings.task != null,
+        });
         agentProcess.start(load_memory, init_message, agentIndex);
         agent_processes[settings.profile.name] = agentProcess;
     } catch (error) {
