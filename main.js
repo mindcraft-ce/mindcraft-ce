@@ -38,8 +38,9 @@ if (args.task_path) {
     }
 }
 
-// Collect explicit typed environment overrides first. SETTINGS_JSON is applied as
-// a bulk override below, then these explicit values are applied last.
+// Parse the individual environment overrides with explicit types. Apply them
+// before SETTINGS_JSON to preserve the repository's existing precedence: the
+// bulk SETTINGS_JSON object remains the final environment-level override.
 const explicitEnvOverrides = {};
 if (process.env.MINECRAFT_PORT !== undefined) {
     explicitEnvOverrides.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT', { min: -1, max: 65535 });
@@ -75,11 +76,17 @@ if (process.env.NUM_EXAMPLES !== undefined) {
 if (process.env.LOG_ALL !== undefined) {
     explicitEnvOverrides.log_all_prompts = parseBooleanEnv(process.env.LOG_ALL, 'LOG_ALL');
 }
-if (process.env.SETTINGS_JSON !== undefined) {
-    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
-}
 Object.assign(settings, explicitEnvOverrides);
 
+if (process.env.SETTINGS_JSON !== undefined) {
+    try {
+        Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
+    } catch (err) {
+        // Preserve the previous startup behavior for a malformed bulk override:
+        // report it, then continue with the individually parsed environment values.
+        console.error('Failed to parse environment variable for SETTINGS_JSON:', err);
+    }
+}
 
 Mindcraft.init(false, settings.mindserver_port, settings.auto_open_ui);
 
