@@ -2,12 +2,27 @@ import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
+export function normalizeApiKeyAlias(apiKeyAlias) {
+    if (apiKeyAlias == null || apiKeyAlias === '')
+        return 'OPENAI_API_KEY';
+    if (typeof apiKeyAlias !== 'string')
+        throw new Error('api_key_alias must be a string.');
+
+    const alias = apiKeyAlias.trim();
+    if (alias.length === 0)
+        return 'OPENAI_API_KEY';
+    if (/[\r\n\0]/.test(alias))
+        throw new Error('api_key_alias must not contain control characters.');
+    return alias;
+}
+
 export class GPT {
     static prefix = 'openai';
-    constructor(model_name, url, params) {
+    constructor(model_name, url, params, api_key_alias=null) {
         this.model_name = model_name;
         this.params = params;
-        this.url = url; // store so that we know whether a custom URL has been set
+        this.url = url;
+        this.api_key_alias = normalizeApiKeyAlias(api_key_alias);
 
         const config = {};
         if (url)
@@ -16,8 +31,7 @@ export class GPT {
         if (hasKey('OPENAI_ORG_ID'))
             config.organization = getKey('OPENAI_ORG_ID');
 
-        config.apiKey = getKey('OPENAI_API_KEY');
-
+        config.apiKey = getKey(this.api_key_alias);
         this.openai = new OpenAIApi(config);
     }
 
@@ -27,8 +41,6 @@ export class GPT {
 
         try {
             console.log('Awaiting openai api response from model', model);
-            // if a custom URL is set, use chat.completions
-            // because custom "OpenAI-compatible" endpoints likely do not have responses endpoint
             if (this.url) {
                 let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
                 messages = strictFormat(messages);
@@ -47,7 +59,6 @@ export class GPT {
                 console.log('Received.');
                 res = completion.choices[0].message.content;
             }
-            // otherwise, use responses
             else {
                 let messages = strictFormat(turns);
                 messages = messages.map(message => {
@@ -107,7 +118,6 @@ export class GPT {
         });
         return embedding.data[0].embedding;
     }
-
 }
 
 const sendAudioRequest = async (text, model, voice, url) => {
@@ -118,21 +128,16 @@ const sendAudioRequest = async (text, model, voice, url) => {
     };
 
     const config = {};
-
     if (url)
         config.baseURL = url;
-
     if (hasKey('OPENAI_ORG_ID'))
         config.organization = getKey('OPENAI_ORG_ID');
-
     config.apiKey = getKey('OPENAI_API_KEY');
 
     const openai = new OpenAIApi(config);
-
     const mp3 = await openai.audio.speech.create(payload);
     const buffer = Buffer.from(await mp3.arrayBuffer());
-    const base64 = buffer.toString("base64");
-    return base64;
+    return buffer.toString("base64");
 };
 
 export const TTSConfig = {
