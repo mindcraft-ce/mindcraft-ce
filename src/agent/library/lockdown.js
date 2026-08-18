@@ -26,7 +26,7 @@ export function lockdown() {
 }
 
 export const makeCompartment = (endowments = {}) => {
-  return new Compartment({
+  return new globalThis.Compartment({
     // provide untamed Math, Date, etc
     Math,
     Date,
