@@ -2,15 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     isAuthorizedControlRequest,
+    normalizeBindHost,
     normalizeControlToken,
     resolveControlToken,
     resolveMindServerBindHost,
 } from '../src/mindcraft/security.js';
 
-test('MindServer binds loopback unless public hosting is explicitly enabled', () => {
-    assert.equal(resolveMindServerBindHost(false), '127.0.0.1');
-    assert.equal(resolveMindServerBindHost(), '127.0.0.1');
-    assert.equal(resolveMindServerBindHost(true), '0.0.0.0');
+test('MindServer binds loopback unless public hosting or an explicit bind host is configured', () => {
+    assert.equal(resolveMindServerBindHost(false, null), '127.0.0.1');
+    assert.equal(resolveMindServerBindHost(false, ''), '127.0.0.1');
+    assert.equal(resolveMindServerBindHost(true, null), '0.0.0.0');
+    assert.equal(resolveMindServerBindHost(false, ' 0.0.0.0 '), '0.0.0.0');
+    assert.equal(resolveMindServerBindHost(false, '::'), '::');
+});
+
+test('bind host normalization rejects malformed values', () => {
+    assert.equal(normalizeBindHost(' 127.0.0.1 '), '127.0.0.1');
+    assert.throws(() => normalizeBindHost(123), /must be a string/);
+    assert.throws(() => normalizeBindHost('bad\nhost'), /control characters/);
 });
 
 test('public hosting fails closed without a control token', () => {
