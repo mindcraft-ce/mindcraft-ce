@@ -8,7 +8,16 @@ export function isPlayerCommandAuthorized(username, commandName, settings = {}) 
     const user = String(username ?? '').trim();
     if (!user) return false;
 
+    // This is an explicit opt-in to trust every player, so it does not depend on
+    // the Minecraft authentication mode.
     if (settings.allow_public_commands === true) return true;
+
+    // Offline-mode usernames are self-asserted and therefore are not identities.
+    // Do not let a username ACL create a false security boundary unless the
+    // operator explicitly acknowledges that tradeoff.
+    if (settings.auth === 'offline' && settings.allow_offline_command_acl !== true) {
+        return false;
+    }
 
     const globalUsers = normalizeUsers(settings.command_users);
     if (globalUsers.includes(user)) return true;
