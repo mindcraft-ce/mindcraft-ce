@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, 'ce/**']
   pull_request:
-    branches: [develop]
+    branches: [develop, ce/ci-validation-workflow]
 
 permissions:
   contents: read
