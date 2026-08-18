@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop]
+    branches:
+      - develop
+      - ce/ci-validation-workflow
   pull_request:
     branches: [develop]
 
@@ -15,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -40,3 +44,139 @@ jobs:
 
       - name: Test
         run: npm test
+
+  batch-pr-validation:
+    if: github.repository == 'xdCloudy/mindcraft-dev' && github.ref_name == 'ce/ci-validation-workflow'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Install shared dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate open PRs and integration stacks
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          git config user.name 'mindcraft-batch-ci'
+          git config user.email 'mindcraft-batch-ci@users.noreply.github.com'
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream https://github.com/mindcraft-ce/mindcraft-ce.git
+          git fetch --no-tags upstream develop
+
+          prs=(59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80)
+          for pr in "${prs[@]}"; do
+            git fetch --no-tags upstream "pull/${pr}/head:refs/remotes/upstream/pr-${pr}"
+          done
+
+          summary="$RUNNER_TEMP/batch-ci-summary.md"
+          printf '# Mindcraft PR batch validation\n\n' > "$summary"
+          failures=0
+
+          validate_tree() {
+            local label="$1"
+            local failed=0
+
+            echo "::group::Validate ${label}"
+
+            while IFS= read -r -d '' file; do
+              node --check "$file" || failed=1
+            done < <(find src -type f -name '*.js' -print0)
+
+            if [ -d tests ]; then
+              while IFS= read -r -d '' file; do
+                node --check "$file" || failed=1
+              done < <(find tests -type f -name '*.js' -print0)
+            fi
+
+            node --check main.js || failed=1
+            node --check settings.js || failed=1
+
+            mapfile -t changed_js < <(git diff --name-only upstream/develop...HEAD -- '*.js' | grep -E '^(src/|tests/|main\.js$|settings\.js$)' || true)
+            if [ "${#changed_js[@]}" -gt 0 ]; then
+              npx eslint "${changed_js[@]}" || failed=1
+            fi
+
+            node --test || failed=1
+
+            if [ "$failed" -eq 0 ]; then
+              printf -- '- ✅ %s\n' "$label" >> "$summary"
+            else
+              printf -- '- ❌ %s\n' "$label" >> "$summary"
+              failures=$((failures + 1))
+            fi
+
+            echo "::endgroup::"
+            return 0
+          }
+
+          printf '## Individual PR heads\n\n' >> "$summary"
+          for pr in "${prs[@]}"; do
+            git reset --hard >/dev/null
+            git checkout --detach "upstream/pr-${pr}" >/dev/null 2>&1
+            validate_tree "PR #${pr}"
+          done
+
+          validate_stack() {
+            local name="$1"
+            shift
+            local stack_prs=("$@")
+
+            git reset --hard >/dev/null
+            git checkout --detach upstream/develop >/dev/null 2>&1
+            local merge_failed=0
+
+            echo "::group::Build integration stack ${name}"
+            for pr in "${stack_prs[@]}"; do
+              if ! git merge --no-edit --no-ff "upstream/pr-${pr}"; then
+                echo "Merge conflict while adding PR #${pr} to ${name}"
+                git diff --name-only --diff-filter=U || true
+                git merge --abort || true
+                merge_failed=1
+                break
+              fi
+            done
+            echo "::endgroup::"
+
+            if [ "$merge_failed" -ne 0 ]; then
+              printf -- '- ❌ %s (merge conflict)\n' "$name" >> "$summary"
+              failures=$((failures + 1))
+              return 0
+            fi
+
+            validate_tree "$name"
+          }
+
+          printf '\n## Integration stacks\n\n' >> "$summary"
+          validate_stack 'Provider stack (#59 + #61)' 59 61
+          validate_stack 'Command stack (#62 + #65)' 62 65
+          validate_stack 'Action/NPC stack (#64 + #76 + #72)' 64 76 72
+          validate_stack 'Conversation lifecycle stack (#79 + #66)' 79 66
+          validate_stack 'Startup/MindServer stack (#70 + #69 + #75 + #73)' 70 69 75 73
+          validate_stack 'Prompter stack (#80 + #60)' 80 60
+          validate_stack 'Full proposed stack' 63 68 70 69 75 73 59 61 62 65 64 76 72 79 66 71 77 78 80 60 67
+
+          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          echo
+          cat "$summary"
+
+          if [ "$failures" -ne 0 ]; then
+            echo "Batch validation found ${failures} failing PRs/stacks."
+            exit 1
+          fi
+
+      - name: Upload batch summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindcraft-pr-batch-validation
+          path: ${{ runner.temp }}/batch-ci-summary.md
