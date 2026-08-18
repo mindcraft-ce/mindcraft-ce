@@ -44,7 +44,7 @@ export class GPT {
 
     async sendRequest(turns, systemMessage, stop_seq='***', { signal } = {}) {
         const model = this.model_name || 'gpt-5.4-mini';
-        let res = null;
+        let res;
 
         try {
             console.log('Awaiting openai api response from model', model);
@@ -62,7 +62,7 @@ export class GPT {
                 console.log('Received.');
                 res = completion.choices[0].message.content;
             } else {
-                let messages = strictFormat(turns).map(message => ({
+                const messages = strictFormat(turns).map(message => ({
                     ...message,
                     content: message.content + stop_seq,
                 }));
@@ -96,7 +96,7 @@ export class GPT {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, requestOptions = {}) {
+    sendVisionRequest(messages, systemMessage, imageBuffer, requestOptions = {}) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: 'user',
