@@ -2,36 +2,52 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SelfPrompter } from '../src/agent/self_prompter.js';
 
-function makePrompter() {
+function makePrompter(overrides = {}) {
     const agent = {
         actions: { stop: async () => {} },
         isIdle: () => true,
         handleMessage: async () => true,
         openChat: () => {},
+        ...overrides,
     };
     return new SelfPrompter(agent);
 }
 
-test('stopLoop waits even when interrupt was already requested', async () => {
-    const prompter = makePrompter();
-    prompter.loop_active = true;
-    prompter.interrupt = true;
-    setTimeout(() => { prompter.loop_active = false; }, 20);
+test('stopLoop waits for the owned loop promise and clears lifecycle state', async () => {
+    let release;
+    const prompter = makePrompter({
+        handleMessage: () => new Promise(resolve => { release = () => resolve(true); }),
+    });
+    prompter.cooldown = 0;
+    prompter.start('test goal');
 
-    await prompter.stopLoop();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(prompter.loop_active, true);
+    assert.ok(prompter.loopPromise);
+
+    const stopping = prompter.stopLoop();
+    release();
+    await stopping;
 
     assert.equal(prompter.loop_active, false);
+    assert.equal(prompter.loopPromise, null);
     assert.equal(prompter.interrupt, false);
 });
 
-test('stop changes state immediately and clears the interrupt after shutdown', async () => {
-    const prompter = makePrompter();
-    prompter.state = 1;
-    prompter.loop_active = true;
-    setTimeout(() => { prompter.loop_active = false; }, 20);
+test('stop changes state immediately and waits for loop shutdown', async () => {
+    let release;
+    const prompter = makePrompter({
+        handleMessage: () => new Promise(resolve => { release = () => resolve(true); }),
+    });
+    prompter.cooldown = 0;
+    prompter.start('test goal');
+    await new Promise(resolve => setImmediate(resolve));
 
     const stopping = prompter.stop(false);
     assert.equal(prompter.isStopped(), true);
+    release();
     await stopping;
+
+    assert.equal(prompter.loop_active, false);
     assert.equal(prompter.interrupt, false);
 });
