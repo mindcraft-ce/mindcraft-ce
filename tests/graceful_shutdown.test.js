@@ -42,7 +42,7 @@ test('graceful shutdown aborts provider work, waits for cleanup and exits once',
 
     let exits = 0;
     installGracefulShutdown(agent, {
-        disconnect: async () => events.push('disconnect'),
+        disconnect: () => events.push('disconnect'),
         exit: code => {
             exits++;
             events.push(`exit:${code}`);
@@ -75,7 +75,7 @@ test('graceful shutdown bounds stuck cleanup and still flushes history', async (
     const agent = {
         history: {
             addShutdownMessage() {},
-            save: async () => events.push('saved'),
+            save: () => events.push('saved'),
         },
         actions: {
             stop: () => new Promise(() => {}),
