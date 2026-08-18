@@ -17,6 +17,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // - api to control from other languages and remote users
 // - host for webapp
 
+const CONTROL_ROOM = 'mindcraft:control';
+const AGENT_ROOM = 'mindcraft:agents';
+
 let io;
 let server;
 const agent_connections = {};
@@ -39,7 +42,7 @@ class AgentConnection {
 }
 
 export function registerAgent(settings, viewer_port, process_token) {
-    let agentConnection = new AgentConnection(settings, viewer_port, process_token);
+    const agentConnection = new AgentConnection(settings, viewer_port, process_token);
     agent_connections[settings.profile.name] = agentConnection;
 }
 
@@ -64,8 +67,6 @@ export function createMindServer(host_public = false, port = 8080) {
     server = http.createServer(app);
     io = new Server(server);
 
-    // Serve static files
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
     app.use(express.static(path.join(__dirname, 'public')));
 
     // Texture proxy: resolve item/block textures using minecraft-assets with version fallback
@@ -80,34 +81,29 @@ export function createMindServer(host_public = false, port = 8080) {
             if (preferred && preferred !== 'auto') candidates.push(preferred);
             candidates.push('1.21.11');
 
-            // Lazy import to avoid ESM/CJS conflicts
             const mod = await import('minecraft-assets');
             const mcAssetsFactory = mod.default || mod;
 
             for (const ver of candidates) {
                 try {
                     const assets = mcAssetsFactory(ver);
-                    // Prefer items path first, then blocks
                     const item = assets.items[itemName];
                     const block = assets.blocks[itemName];
                     const tex = assets.textureContent?.[itemName]?.texture
                         || (item ? assets.textureContent?.[itemName]?.texture : null)
                         || (block ? assets.textureContent?.[itemName]?.texture : null);
-                    if (tex) {
-                        // textureContent already provides a data URL in many versions
-                        if (tex.startsWith('data:image')) {
-                            const base64 = tex.split(',')[1];
-                            const img = globalThis.Buffer.from(base64, 'base64');
-                            res.setHeader('Content-Type', 'image/png');
-                            return res.end(img);
-                        }
+                    if (tex?.startsWith('data:image')) {
+                        const base64 = tex.split(',')[1];
+                        const img = globalThis.Buffer.from(base64, 'base64');
+                        res.setHeader('Content-Type', 'image/png');
+                        return res.end(img);
                     }
-                    // If textureContent missing, try static path resolution inside package
-                    // Helps with some strange blocks like Leaf Litter
-                    const guessPaths = [];
+
                     const base = assets.directory;
-                    guessPaths.push(path.join(base, 'items', `${itemName}.png`));
-                    guessPaths.push(path.join(base, 'blocks', `${itemName}.png`));
+                    const guessPaths = [
+                        path.join(base, 'items', `${itemName}.png`),
+                        path.join(base, 'blocks', `${itemName}.png`),
+                    ];
                     for (const p of guessPaths) {
                         try {
                             const fsMod = await import('fs');
@@ -118,7 +114,6 @@ export function createMindServer(host_public = false, port = 8080) {
                     }
                 } catch { /* ignore */ }
             }
-            // Not found, fallback svg
             res.setHeader('Content-Type', 'image/svg+xml');
             res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="100%" height="100%" fill="#444"/><text x="50%" y="55%" font-size="12" fill="#bbb" text-anchor="middle">?</text></svg>');
         } catch (e) {
@@ -127,12 +122,16 @@ export function createMindServer(host_public = false, port = 8080) {
         }
     });
 
-    // Socket.io connection handling
     io.on('connection', (socket) => {
         let curAgentName = null;
         console.log('Client connected');
 
         const controlAuthorized = () => {
+            // Child-agent sockets use a separate credential and should not silently
+            // inherit control-plane privilege just because the server is loopback-only.
+            const hasAgentCredential = typeof socket.handshake.auth?.agentToken === 'string';
+            const hasControlCredential = typeof socket.handshake.auth?.controlToken === 'string';
+            if (hasAgentCredential && !hasControlCredential) return false;
             if (!controlToken) return !host_public;
             return isAuthorizedControlRequest(socket.handshake.auth?.controlToken, controlToken);
         };
@@ -158,36 +157,33 @@ export function createMindServer(host_public = false, port = 8080) {
         };
 
         if (controlAuthorized()) {
+            socket.join(CONTROL_ROOM);
             agentsStatusUpdate(socket);
         }
 
         socket.on('create-agent', async (settings, callback) => {
             if (!requireControl(callback)) return;
             console.log('API create agent...');
-            for (let key in settings_spec) {
+            for (const key in settings_spec) {
                 if (!(key in settings)) {
                     if (settings_spec[key].required) {
                         callback({ success: false, error: `Setting ${key} is required` });
                         return;
                     }
-                    else {
-                        settings[key] = settings_spec[key].default;
-                    }
+                    settings[key] = settings_spec[key].default;
                 }
             }
-            for (let key in settings) {
-                if (!(key in settings_spec)) {
-                    delete settings[key];
-                }
+            for (const key in settings) {
+                if (!(key in settings_spec)) delete settings[key];
             }
             if (settings.profile?.name) {
                 if (settings.profile.name in agent_connections) {
                     callback({ success: false, error: 'Agent already exists' });
                     return;
                 }
-                let returned = await mindcraft.createAgent(settings);
+                const returned = await mindcraft.createAgent(settings);
                 callback({ success: returned.success, error: returned.error });
-                let name = settings.profile.name;
+                const name = settings.profile.name;
                 if (!returned.success && agent_connections[name]) {
                     mindcraft.destroyAgent(name);
                     delete agent_connections[name];
@@ -213,6 +209,7 @@ export function createMindServer(host_public = false, port = 8080) {
             if (!requireAgent(agentName)) return;
             agent_connections[agentName].socket = socket;
             curAgentName = agentName;
+            socket.join(AGENT_ROOM);
             agentsStatusUpdate();
         });
 
@@ -222,6 +219,7 @@ export function createMindServer(host_public = false, port = 8080) {
                 agent_connections[agentName].socket = socket;
                 agent_connections[agentName].in_game = true;
                 curAgentName = agentName;
+                socket.join(AGENT_ROOM);
                 agentsStatusUpdate();
             }
             else {
@@ -236,9 +234,7 @@ export function createMindServer(host_public = false, port = 8080) {
                 agent_connections[curAgentName].socket = null;
                 agentsStatusUpdate();
             }
-            if (agent_listeners.includes(socket)) {
-                removeListener(socket);
-            }
+            if (agent_listeners.includes(socket)) removeListener(socket);
         });
 
         socket.on('chat-message', (agentName, json) => {
@@ -289,7 +285,7 @@ export function createMindServer(host_public = false, port = 8080) {
         socket.on('stop-all-agents', () => {
             if (!requireControl()) return;
             console.log('Killing all agents');
-            for (let agentName in agent_connections) {
+            for (const agentName in agent_connections) {
                 mindcraft.stopAgent(agentName);
             }
         });
@@ -297,10 +293,9 @@ export function createMindServer(host_public = false, port = 8080) {
         socket.on('shutdown', () => {
             if (!requireControl()) return;
             console.log('Shutting down');
-            for (let agentName in agent_connections) {
+            for (const agentName in agent_connections) {
                 mindcraft.stopAgent(agentName);
             }
-            // wait 2 seconds
             setTimeout(() => {
                 console.log('Exiting MindServer');
                 globalThis.process.exit(0);
@@ -323,7 +318,7 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('bot-output', (agentName, message) => {
             if (!requireAgent(agentName)) return;
-            io.emit('bot-output', agentName, message);
+            io.to(CONTROL_ROOM).emit('bot-output', agentName, message);
         });
 
         socket.on('listen-to-agents', () => {
@@ -341,11 +336,8 @@ export function createMindServer(host_public = false, port = 8080) {
 
 function agentsStatusUpdate(socket) {
     if (!io) return;
-    if (!socket) {
-        socket = io;
-    }
-    let agents = [];
-    for (let agentName in agent_connections) {
+    const agents = [];
+    for (const agentName in agent_connections) {
         const conn = agent_connections[agentName];
         agents.push({
             name: agentName,
@@ -353,19 +345,25 @@ function agentsStatusUpdate(socket) {
             viewerPort: conn.viewer_port,
             socket_connected: !!conn.socket
         });
-    };
-    socket.emit('agents-status', agents);
-}
+    }
 
+    if (socket) {
+        socket.emit('agents-status', agents);
+        return;
+    }
+    io.to(CONTROL_ROOM).emit('agents-status', agents);
+    io.to(AGENT_ROOM).emit('agents-status', agents);
+}
 
 let listenerInterval = null;
 function addListener(listener_socket) {
+    if (agent_listeners.includes(listener_socket)) return;
     agent_listeners.push(listener_socket);
     if (agent_listeners.length === 1) {
         listenerInterval = setInterval(async () => {
             const states = {};
-            for (let agentName in agent_connections) {
-                let agent = agent_connections[agentName];
+            for (const agentName in agent_connections) {
+                const agent = agent_connections[agentName];
                 if (agent.in_game && agent.socket) {
                     try {
                         const state = await new Promise((resolve) => {
@@ -377,7 +375,7 @@ function addListener(listener_socket) {
                     }
                 }
             }
-            for (let listener of agent_listeners) {
+            for (const listener of agent_listeners) {
                 listener.emit('state-update', states);
             }
         }, 1000);
@@ -393,7 +391,6 @@ function removeListener(listener_socket) {
     }
 }
 
-// Optional: export these if you need access to them from other files
 export const getIO = () => io;
 export const getServer = () => server;
 export const numStateListeners = () => agent_listeners.length;
