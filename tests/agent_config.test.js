@@ -14,7 +14,7 @@ test('validateAgentSettings accepts root launcher keys but excludes them from ag
 test('agent names reject path/control syntax before runtime use', () => {
     assert.equal(normalizeAgentName(' Test_Bot '), 'Test_Bot');
     assert.throws(() => normalizeAgentName('../bots'), /Invalid agent name/);
-    assert.throws(() => normalizeAgentName('a\/b'), /Invalid agent name/);
+    assert.throws(() => normalizeAgentName('a/b'), /Invalid agent name/);
     assert.throws(() => normalizeAgentName('bad\nname'), /Invalid agent name/);
     assert.throws(() => normalizeAgentName('ab'), /Invalid agent name/);
     assert.throws(() => normalizeAgentName(123), /must be a string/);
