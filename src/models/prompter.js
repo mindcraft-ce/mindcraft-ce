@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
+import { resolveProfile } from './profile_resolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,32 +17,8 @@ const __dirname = path.dirname(__filename);
 export class Prompter {
     constructor(agent, profile) {
         this.agent = agent;
-        this.profile = profile;
         const defaults_dir = path.join(__dirname, '../../profiles/defaults');
-        let default_profile = JSON.parse(readFileSync(path.join(defaults_dir, '_default.json'), 'utf8'));
-        let base_fp = '';
-        if (settings.base_profile.includes('survival')) {
-            base_fp = path.join(defaults_dir, 'survival.json');
-        } else if (settings.base_profile.includes('assistant')) {
-            base_fp = path.join(defaults_dir, 'assistant.json');
-        } else if (settings.base_profile.includes('creative')) {
-            base_fp = path.join(defaults_dir, 'creative.json');
-        } else if (settings.base_profile.includes('god_mode')) {
-            base_fp = path.join(defaults_dir, 'god_mode.json');
-        }
-        let base_profile = JSON.parse(readFileSync(base_fp, 'utf8'));
-
-        // first use defaults to fill in missing values in the base profile
-        for (let key in default_profile) {
-            if (base_profile[key] === undefined)
-                base_profile[key] = default_profile[key];
-        }
-        // then use base profile to fill in missing values in the individual profile
-        for (let key in base_profile) {
-            if (this.profile[key] === undefined)
-                this.profile[key] = base_profile[key];
-        }
-        // base overrides default, individual overrides base
+        this.profile = resolveProfile(profile, settings.base_profile, defaults_dir);
 
         this.convo_examples = null;
         this.coding_examples = null;
@@ -179,9 +156,9 @@ export class Prompter {
             let goal_text = '';
             for (let goal in last_goals) {
                 if (last_goals[goal])
-                    goal_text += `You recently successfully completed the goal ${goal}.\n`
+                    goal_text += `You recently successfully completed the goal ${goal}.\n`;
                 else
-                    goal_text += `You recently failed to complete the goal ${goal}.\n`
+                    goal_text += `You recently failed to complete the goal ${goal}.\n`;
             }
             prompt = prompt.replaceAll('$LAST_GOALS', goal_text.trim());
         }
@@ -251,8 +228,8 @@ export class Prompter {
             }
 
             if (generation?.includes('</think>')) {
-                const [_, afterThink] = generation.split('</think>')
-                generation = afterThink
+                const [_, afterThink] = generation.split('</think>');
+                generation = afterThink;
             }
 
             return generation;
@@ -284,7 +261,7 @@ export class Prompter {
         let resp = await this.chat_model.sendRequest([], prompt);
         await this._saveLog(prompt, to_summarize, resp, 'memSaving');
         if (resp?.includes('</think>')) {
-            const [_, afterThink] = resp.split('</think>')
+            const [_, afterThink] = resp.split('</think>');
             resp = afterThink;
         }
         return resp;
@@ -313,7 +290,7 @@ export class Prompter {
         system_message = await this.replaceStrings(system_message, messages);
 
         let user_message = 'Use the below info to determine what goal to target next\n\n';
-        user_message += '$LAST_GOALS\n$STATS\n$INVENTORY\n$CONVO'
+        user_message += '$LAST_GOALS\n$STATS\n$INVENTORY\n$CONVO';
         user_message = await this.replaceStrings(user_message, messages, null, null, last_goals);
         let user_messages = [{role: 'user', content: user_message}];
 
