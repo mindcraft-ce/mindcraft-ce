@@ -47,7 +47,7 @@ test('ActionManager serializes concurrent runAction calls and interrupts the cur
         active--;
     };
 
-    const secondAction = async () => {
+    const secondAction = () => {
         active++;
         maxActive = Math.max(maxActive, active);
         events.push('b:start');
