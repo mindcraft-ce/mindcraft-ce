@@ -32,7 +32,7 @@ export class GroqCloudAPI {
         // Construct messages array
         let messages = [{"role": "system", "content": systemMessage}].concat(turns);
 
-        let res = null;
+        let res;
 
         try {
             console.log("Awaiting Groq response...");
@@ -71,7 +71,7 @@ export class GroqCloudAPI {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = messages.filter(message => message.role !== 'system');
         imageMessages.push({
             role: "user",
@@ -89,7 +89,7 @@ export class GroqCloudAPI {
         return this.sendRequest(imageMessages);
     }
 
-    async embed(_) {
-        throw new Error('Embeddings are not supported by Groq.');
+    embed(_) {
+        return Promise.reject(new Error('Embeddings are not supported by Groq.'));
     }
 }

@@ -29,7 +29,7 @@ export class Grok {
             ...(this.params || {})
         };
 
-        let res = null;
+        let res;
         try {
             console.log('Awaiting xai api response...');
             ///console.log('Messages:', messages);
@@ -55,7 +55,7 @@ export class Grok {
         return res.replace(/<\|separator\|>/g, '*no response*');
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -73,8 +73,8 @@ export class Grok {
         return this.sendRequest(imageMessages, systemMessage);
     }
     
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Grok.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Grok.'));
     }
 }
 

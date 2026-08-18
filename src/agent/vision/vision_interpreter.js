@@ -16,7 +16,7 @@ export class VisionInterpreter {
         if (!this.allow_vision || !this.agent.prompter.vision_model.sendVisionRequest) {
             return "Vision is disabled. Use other methods to describe the environment.";
         }
-        let result = "";
+        let result;
         const bot = this.agent.bot;
         const player = bot.players[player_name]?.entity;
         if (!player) {
@@ -42,7 +42,7 @@ export class VisionInterpreter {
         if (!this.allow_vision || !this.agent.prompter.vision_model.sendVisionRequest) {
             return "Vision is disabled. Use other methods to describe the environment.";
         }
-        let result = "";
+        let result;
         const bot = this.agent.bot;
         await bot.lookAt(new Vec3(x, y + 2, z));
         result = `Looking at coordinate ${x}, ${y}, ${z}\n`;

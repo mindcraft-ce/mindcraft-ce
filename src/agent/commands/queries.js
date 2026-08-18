@@ -222,7 +222,7 @@ export const queryList = [
     {
         name: '!savedPlaces',
         description: 'List all saved locations.',
-        perform: async function (agent) {
+        perform: function (agent) {
             return "Saved place names: " + agent.memory_bank.getKeys();
         }
     }, 
@@ -340,7 +340,7 @@ export const queryList = [
     {
         name: '!help',
         description: 'Lists all available commands and their descriptions.',
-        perform: async function (agent) {
+        perform: function (agent) {
             return getCommandDocs(agent);
         }
     },

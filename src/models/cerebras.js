@@ -37,7 +37,7 @@ export class Cerebras {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -55,7 +55,7 @@ export class Cerebras {
         return this.sendRequest(imageMessages, systemMessage);
     }
     
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Cerebras.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Cerebras.'));
     }
 }

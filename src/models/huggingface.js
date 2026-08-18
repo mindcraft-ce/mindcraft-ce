@@ -46,7 +46,7 @@ export class HuggingFace {
         }
       } catch (err) {
         console.log(err);
-        res = 'My brain disconnected, try again.';
+        finalRes = 'My brain disconnected, try again.';
         // Break out immediately; we only retry when handling partial <think> tags.
         break;
       }
@@ -80,7 +80,7 @@ export class HuggingFace {
     return finalRes;
   }
 
-  async embed(text) {
-    throw new Error('Embeddings are not supported by HuggingFace.');
-  }
+  embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by HuggingFace.'));
+    }
 }

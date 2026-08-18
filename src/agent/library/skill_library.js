@@ -42,14 +42,14 @@ export class SkillLibrary {
         }
     }
 
-    async getAllSkillDocs() {
+    getAllSkillDocs() {
         return this.skill_docs;
     }
 
     async getRelevantSkillDocs(message, select_num) {
         if(!message) // use filler message if none is provided
             message = '(no message)';
-        let skill_doc_similarities = [];
+        let skill_doc_similarities;
 
         if (select_num === -1) {
             skill_doc_similarities = Object.keys(this.skill_docs_embeddings)

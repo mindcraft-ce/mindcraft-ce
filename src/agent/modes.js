@@ -312,7 +312,7 @@ function execute(mode, agent, func, timeout=-1) {
 
 async function executeMode(mode, agent, func, timeout=-1) {
     if (agent.self_prompter.isActive())
-        agent.self_prompter.stopLoop();
+        await agent.self_prompter.stopLoop();
     let interrupted_action = agent.actions.currentActionLabel;
     mode.active = true;
     let code_return = await agent.actions.runAction(`mode:${mode.name}`, async () => {
@@ -331,7 +331,7 @@ async function executeMode(mode, agent, func, timeout=-1) {
         // auto prompt to respond to the interruption
         let role = convoManager.inConversation() ? agent.last_sender : 'system';
         let logs = agent.bot.modes.flushBehaviorLog();
-        agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.
+        await agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.
         Your behavior log: ${logs}\nRespond accordingly.`);
     }
 }

@@ -67,7 +67,7 @@ export const actionsList = [
     {
         name: '!stfu',
         description: 'Stop all chatting and self prompting, but continue current action.',
-        perform: async function (agent) {
+        perform: function (agent) {
             agent.openChat('Shutting up.');
             agent.shutUp();
             return;
@@ -76,14 +76,14 @@ export const actionsList = [
     {
         name: '!restart',
         description: 'Restart the agent process.',
-        perform: async function (agent) {
+        perform: function (agent) {
             agent.cleanKill();
         }
     },
     {
         name: '!clearChat',
         description: 'Clear the chat history.',
-        perform: async function (agent) {
+        perform: function (agent) {
             agent.history.clear();
             return agent.name + "'s chat history was cleared, starting new conversation from scratch.";
         }
@@ -161,7 +161,7 @@ export const actionsList = [
         name: '!rememberHere',
         description: 'Save the current location with a given name.',
         params: {'name': { type: 'string', description: 'The name to remember the location as.' }},
-        perform: async function (agent, name) {
+        perform: function (agent, name) {
             const pos = agent.bot.entity.position;
             agent.memory_bank.rememberPlace(name, pos.x, pos.y, pos.z);
             return `Location saved as "${name}".`;
@@ -350,7 +350,7 @@ export const actionsList = [
             'mode_name': { type: 'string', description: 'The name of the mode to enable.' },
             'on': { type: 'boolean', description: 'Whether to enable or disable the mode.' }
         },
-        perform: async function (agent, mode_name, on) {
+        perform: function (agent, mode_name, on) {
             const modes = agent.bot.modes;
             if (!modes.exists(mode_name))
             return `Mode ${mode_name} does not exist.` + modes.getDocs();
@@ -366,7 +366,7 @@ export const actionsList = [
         params: {
             'selfPrompt': { type: 'string', description: 'The goal prompt.' },
         },
-        perform: async function (agent, prompt) {
+        perform: function (agent, prompt) {
             if (convoManager.inConversation()) {
                 agent.self_prompter.setPromptPaused(prompt);
             }
@@ -379,7 +379,7 @@ export const actionsList = [
         name: '!endGoal',
         description: 'Call when you have accomplished your goal. It will stop self-prompting and the current action. ',
         perform: async function (agent) {
-            agent.self_prompter.stop();
+            await agent.self_prompter.stop();
             return 'Self-prompting stopped.';
         }
     },
@@ -416,8 +416,8 @@ export const actionsList = [
             if (convoManager.inConversation() && !convoManager.inConversation(player_name)) 
                 convoManager.forceEndCurrentConversation();
             else if (convoManager.inConversation(player_name))
-                agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\'t use this command to talk to them.');
-            convoManager.startConversation(player_name, message);
+                await agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\'t use this command to talk to them.');
+            await convoManager.startConversation(player_name, message);
         }
     },
     {
@@ -426,7 +426,7 @@ export const actionsList = [
         params: {
             'player_name': { type: 'string', description: 'The name of the player to end the conversation with.' }
         },
-        perform: async function (agent, player_name) {
+        perform: function (agent, player_name) {
             if (!convoManager.inConversation(player_name))
                 return `Not in conversation with ${player_name}.`;
             convoManager.endConversation(player_name);

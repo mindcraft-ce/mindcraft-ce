@@ -140,7 +140,7 @@ export class Blueprint {
         return explanation;
     }
     check(bot) {
-        if (!bot || typeof bot !== 'object' || !bot.hasOwnProperty('blockAt')) {
+        if (!bot || typeof bot !== 'object' || !Object.prototype.hasOwnProperty.call(bot, 'blockAt')) {
             throw new Error('Invalid bot object. Expected a mineflayer bot.');
         }
         const levels = this.data.levels;
@@ -994,7 +994,7 @@ function matrixToBlueprint(matrix, startCoord) {
     };
 }
 
-async function getBlockName(bot, coordinate) {
+function getBlockName(bot, coordinate) {
     const blockAtLocation = bot.blockAt(new Vec3(coordinate.x, coordinate.y, coordinate.z));
     return blockAtLocation ? bot.registry.blocks[blockAtLocation.type].name : "air";
 }

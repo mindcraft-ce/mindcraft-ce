@@ -157,7 +157,7 @@ export async function smeltItem(bot, itemName, num=1) {
     }
 
     let placedFurnace = false;
-    let furnaceBlock = undefined;
+    let furnaceBlock;
     const furnaceRange = 16;
     furnaceBlock = world.getNearestBlock(bot, 'furnace', furnaceRange);
     if (!furnaceBlock){
@@ -1250,7 +1250,7 @@ export async function goToNearestBlock(bot, blockType,  min_distance=2, range=64
         log(bot, `Maximum search range capped at ${MAX_RANGE}. `);
         range = MAX_RANGE;
     }
-    let block = null;
+    let block;
     if (blockType === 'water' || blockType === 'lava') {
         let blocks = world.getNearestBlocksWhere(bot, block => block.name === blockType && block.metadata === 0, range, 1);
         if (blocks.length === 0) {
@@ -2017,7 +2017,7 @@ export async function useToolOn(bot, toolName, targetName) {
         await bot.useOn(entity);
         log(bot, `Used ${toolName} on ${targetName}.`);
     } else {
-        let block = null;
+        let block;
         if (targetName === 'water' || targetName === 'lava') {
             // we want to get liquid source blocks, not flowing blocks
             // so search for blocks with metadata 0 (not flowing)

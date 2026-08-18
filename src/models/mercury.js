@@ -34,7 +34,7 @@ export class Mercury {
         };
 
 
-        let res = null;
+        let res;
 
         try {
             console.log('Awaiting mercury api response from model', this.model_name);
@@ -60,7 +60,7 @@ export class Mercury {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",

@@ -28,7 +28,7 @@ export class DeepSeek {
             ...(this.params || {})
         };
 
-        let res = null;
+        let res;
         try {
             console.log('Awaiting deepseek api response...');
             // console.log('Messages:', messages);
@@ -50,8 +50,8 @@ export class DeepSeek {
         return res;
     }
 
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Deepseek.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Deepseek.'));
     }
 }
 

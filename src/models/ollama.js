@@ -21,7 +21,7 @@ export class Ollama {
         while (attempt < maxAttempts) {
             attempt++;
             console.log(`Awaiting local response... (model: ${model}, attempt: ${attempt})`);
-            let res = null;
+            let res;
             try {
                 let apiResponse = await this.send(this.chat_endpoint, {
                     model: model,
@@ -95,7 +95,7 @@ export class Ollama {
         return data;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",

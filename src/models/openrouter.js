@@ -32,7 +32,7 @@ export class OpenRouter {
             stop: stop_seq
         };
 
-        let res = null;
+        let res;
         try {
             console.log('Awaiting openrouter api response...');
             let completion = await this.openai.chat.completions.create(pack);
@@ -53,7 +53,7 @@ export class OpenRouter {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -71,7 +71,7 @@ export class OpenRouter {
         return this.sendRequest(imageMessages, systemMessage);
     }
 
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Openrouter.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Openrouter.'));
     }
 }

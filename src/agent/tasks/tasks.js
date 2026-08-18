@@ -435,7 +435,7 @@ export class Task {
 
         if (this.data.initial_inventory) {
             console.log("Setting inventory...");
-            let initialInventory = {};
+            let initialInventory;
             
             initialInventory = this.data.initial_inventory[this.agent.count_id.toString()] || {};
             console.log("Initial inventory for agent", this.agent.count_id, ":", initialInventory);

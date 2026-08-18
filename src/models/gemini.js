@@ -83,7 +83,7 @@ export class Gemini {
             parts: [{ text: 'SYSTEM: Vision response' }, imagePart]
         });
 
-        let res = null;
+        let res;
         try {
             console.log('Awaiting Google API vision response...');
             const result = await this.genAI.models.generateContent({

@@ -44,7 +44,7 @@ export class Hyperbolic {
             console.log(`Awaiting Hyperbolic API response... (attempt: ${attempt})`);
             console.log('Messages:', messages);
 
-            let completionContent = null;
+            let completionContent;
 
             try {
                 const response = await fetch(this.apiUrl, {
@@ -108,7 +108,7 @@ export class Hyperbolic {
         return finalRes;
     }
 
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Hyperbolic.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Hyperbolic.'));
     }
 }
