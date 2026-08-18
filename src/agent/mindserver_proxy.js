@@ -11,7 +11,7 @@ class MindServerProxy {
         if (MindServerProxy.instance) {
             return MindServerProxy.instance;
         }
-        
+
         this.socket = null;
         this.connected = false;
         this.agents = [];
@@ -20,9 +20,15 @@ class MindServerProxy {
 
     async connect(name, port) {
         if (this.connected) return;
-        
+
         this.name = name;
-        this.socket = io(`http://localhost:${port}`);
+        const agentToken = process.env.MINDCRAFT_AGENT_TOKEN;
+        if (!agentToken) {
+            throw new Error('Missing MINDCRAFT_AGENT_TOKEN for MindServer agent authentication.');
+        }
+        this.socket = io(`http://localhost:${port}`, {
+            auth: { agentToken },
+        });
 
         await new Promise((resolve, reject) => {
             this.socket.on('connect', resolve);
@@ -43,6 +49,10 @@ class MindServerProxy {
             }
         });
 
+        this.socket.on('agent-auth-error', ({ error } = {}) => {
+            console.error(error || 'MindServer rejected agent authentication.');
+        });
+
         this.socket.on('chat-message', (agentName, json) => {
             convoManager.receiveFromBot(agentName, json);
         });
@@ -60,7 +70,7 @@ class MindServerProxy {
             console.log(`Restarting agent: ${agentName}`);
             this.agent.cleanKill();
         });
-		
+
         this.socket.on('send-message', (data) => {
             try {
                 this.agent.respondFunc(data.from, data.message);
