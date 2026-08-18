@@ -44,7 +44,6 @@ export class Coder {
         const MAX_ATTEMPTS = 5;
         const MAX_NO_CODE = 3;
 
-        let code = null;
         let no_code_failures = 0;
         for (let i=0; i<MAX_ATTEMPTS; i++) {
             if (this.agent.bot.interrupt_code)
@@ -74,7 +73,7 @@ export class Coder {
                 no_code_failures++;
                 continue;
             }
-            code = res.substring(res.indexOf('```')+3, res.lastIndexOf('```'));
+            const code = res.substring(res.indexOf('```')+3, res.lastIndexOf('```'));
             const result = await this._stageCode(code);
             const executionModule = result.func;
             const lintResult = await this._lintCode(result.src_lint_copy);
