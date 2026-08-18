@@ -17,8 +17,7 @@ export class Coder {
         this.fp = '/bots/'+agent.name+'/action-code/';
         this.code_template = '';
         this.code_lint_template = '';
-
-        this.ready = this._loadTemplates();
+        this.ready = null;
         mkdirSync('.' + this.fp, { recursive: true });
     }
 
@@ -29,8 +28,14 @@ export class Coder {
         ]);
     }
 
-    async generateCode(agent_history) {
+    async _ensureReady() {
+        if (!this.ready)
+            this.ready = this._loadTemplates();
         await this.ready;
+    }
+
+    async generateCode(agent_history) {
+        await this._ensureReady();
         this.agent.bot.modes.pause('unstuck');
         lockdown();
         let messages = agent_history.getHistory(); 
@@ -152,7 +157,7 @@ export class Coder {
     }
 
     async _stageCode(code) {
-        await this.ready;
+        await this._ensureReady();
         code = this._sanitizeCode(code);
         let src = '';
         code = code.replaceAll('console.log(', 'log(bot,');
