@@ -1,4 +1,5 @@
-import { writeFileSync, readFileSync, mkdirSync, existsSync, appendFileSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
+import { appendFile } from 'fs/promises';
 import settings from './settings.js';
 
 export class History {
@@ -7,6 +8,7 @@ export class History {
         this.name = agent.name;
         this.memory_fp = `./bots/${this.name}/memory.json`;
         this.full_history_fp = undefined;
+        this.full_history_write = Promise.resolve();
 
         mkdirSync(`./bots/${this.name}/histories`, { recursive: true });
 
@@ -46,10 +48,17 @@ export class History {
             this.full_history_fp = `./bots/${this.name}/histories/${string_timestamp}.jsonl`;
         }
 
+        const lines = to_store.map(turn => JSON.stringify(turn)).join('\n');
+        if (lines.length === 0)
+            return;
+
+        const writeOperation = this.full_history_write.then(() =>
+            appendFile(this.full_history_fp, lines + '\n', 'utf8')
+        );
+        this.full_history_write = writeOperation.catch(() => {});
+
         try {
-            const lines = to_store.map(turn => JSON.stringify(turn)).join('\n');
-            if (lines.length > 0)
-                appendFileSync(this.full_history_fp, lines + '\n', 'utf8');
+            await writeOperation;
         } catch (err) {
             console.error(`Error appending ${this.name}'s full history file: ${err.message}`);
         }
