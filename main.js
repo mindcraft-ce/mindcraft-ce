@@ -3,7 +3,7 @@ import settings from './settings.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { readFileSync } from 'fs';
-import { parseBooleanEnv, parseIntegerEnv, parseJsonEnv } from './src/utils/env.js';
+import { parseBooleanEnv, parseIntegerEnv, parseJsonEnv, parseJsonObjectEnv } from './src/utils/env.js';
 
 function parseArguments() {
     return yargs(hideBin(process.argv))
@@ -40,10 +40,10 @@ if (args.task_path) {
 
 // these environment variables override certain settings
 if (process.env.MINECRAFT_PORT !== undefined) {
-    settings.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT');
+    settings.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT', { min: -1, max: 65535 });
 }
 if (process.env.MINDSERVER_PORT !== undefined) {
-    settings.mindserver_port = parseIntegerEnv(process.env.MINDSERVER_PORT, 'MINDSERVER_PORT');
+    settings.mindserver_port = parseIntegerEnv(process.env.MINDSERVER_PORT, 'MINDSERVER_PORT', { min: 1, max: 65535 });
 }
 if (process.env.PROFILES !== undefined) {
     const profiles = parseJsonEnv(process.env.PROFILES, 'PROFILES');
@@ -65,20 +65,16 @@ if (process.env.BLOCKED_ACTIONS !== undefined) {
     settings.blocked_actions = blockedActions;
 }
 if (process.env.MAX_MESSAGES !== undefined) {
-    settings.max_messages = parseIntegerEnv(process.env.MAX_MESSAGES, 'MAX_MESSAGES');
+    settings.max_messages = parseIntegerEnv(process.env.MAX_MESSAGES, 'MAX_MESSAGES', { min: 1 });
 }
 if (process.env.NUM_EXAMPLES !== undefined) {
-    settings.num_examples = parseIntegerEnv(process.env.NUM_EXAMPLES, 'NUM_EXAMPLES');
+    settings.num_examples = parseIntegerEnv(process.env.NUM_EXAMPLES, 'NUM_EXAMPLES', { min: 0 });
 }
 if (process.env.LOG_ALL !== undefined) {
     settings.log_all_prompts = parseBooleanEnv(process.env.LOG_ALL, 'LOG_ALL');
 }
-if (process.env.SETTINGS_JSON) {
-    try {
-        Object.assign(settings, parseJsonEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
-    } catch (err) {
-        console.error('Failed to parse environment variable for SETTINGS_JSON:', err);
-    }
+if (process.env.SETTINGS_JSON !== undefined) {
+    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
 }
 
 
