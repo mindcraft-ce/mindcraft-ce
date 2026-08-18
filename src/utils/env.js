@@ -25,7 +25,7 @@ export function parseJsonEnv(value, name = 'environment variable') {
     try {
         return JSON.parse(value);
     } catch (error) {
-        throw new Error(`${name} must contain valid JSON: ${error.message}`);
+        throw new Error(`${name} must contain valid JSON: ${error.message}`, { cause: error });
     }
 }
 
