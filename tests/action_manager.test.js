@@ -30,7 +30,7 @@ test('a previous timeout does not leak into the next action result', async () =>
     agent.actions = actions;
     actions.timedout = true;
 
-    const result = await actions.runAction('test', async () => {}, { timeout: -1 });
+    const result = await actions.runAction('test', () => Promise.resolve(), { timeout: -1 });
 
     assert.equal(result.success, true);
     assert.equal(result.timedout, false);
