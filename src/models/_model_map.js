@@ -76,7 +76,7 @@ export function selectAPI(profile) {
 }
 
 export function createModel(profile) {
-    if (!!apiMap[profile.model]) {
+    if (apiMap[profile.model]) {
         // if the model value is an api (instead of a specific model name)
         // then set model to null so it uses the default model for that api
         profile.model = null;
@@ -84,6 +84,6 @@ export function createModel(profile) {
     if (!apiMap[profile.api]) {
         throw new Error('Unknown api:', profile.api);
     }
-    const model = new apiMap[profile.api](profile.model, profile.url, profile.params);
+    const model = new apiMap[profile.api](profile.model, profile.url, profile.params, profile.api_key_alias);
     return model;
 }
