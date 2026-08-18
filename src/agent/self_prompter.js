@@ -40,7 +40,7 @@ export class SelfPrompter {
         return this.state === PAUSED;
     }
 
-    async handleLoad(prompt, state) {
+    handleLoad(prompt, state) {
         if (state == undefined)
             state = STOPPED;
         this.state = state;
