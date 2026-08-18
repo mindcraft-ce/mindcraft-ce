@@ -26,8 +26,6 @@ export class History {
 
     _queueMutation(operation) {
         const pending = this.mutation_write.then(operation);
-        // Keep the internal queue usable after an operation fails. The original
-        // promise is still returned so awaited callers receive the failure.
         this.mutation_write = pending.catch(error => {
             console.error(`History mutation failed for ${this.name}:`, error);
         });
@@ -46,7 +44,7 @@ export class History {
         console.log('Memory updated to: ', this.memory);
     }
 
-    async appendFullHistory(to_store) {
+    appendFullHistory(to_store) {
         if (this.full_history_fp === undefined) {
             const string_timestamp = new Date().toLocaleString().replace(/[/:]/g, '-').replace(/ /g, '').replace(/,/g, '_');
             this.full_history_fp = `./bots/${this.name}/histories/${string_timestamp}.jsonl`;
@@ -54,7 +52,7 @@ export class History {
 
         const lines = to_store.map(turn => JSON.stringify(turn)).join('\n');
         if (lines.length === 0)
-            return;
+            return Promise.resolve();
 
         const writeOperation = this.full_history_write.then(() =>
             appendFile(this.full_history_fp, lines + '\n', 'utf8')
@@ -65,8 +63,6 @@ export class History {
         return writeOperation;
     }
 
-    // Shutdown messages participate in the mutation queue but never trigger
-    // summarization/provider work.
     addShutdownMessage(content) {
         return this._queueMutation(() => {
             this.turns.push({ role: 'system', content });
@@ -111,9 +107,6 @@ export class History {
     }
 
     save() {
-        // Capture the mutation barrier that existed when save() was requested.
-        // Every persisted snapshot waits for that barrier and for the previous
-        // snapshot, preventing an older asynchronous write from landing last.
         const mutationBarrier = this.mutation_write;
         const writeOperation = this.save_write.then(async () => {
             await mutationBarrier;
