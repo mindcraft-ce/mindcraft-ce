@@ -48,24 +48,23 @@ export class BuildGoal {
                     let world_pos = new Vec3(position.x + x, position.y + y, position.z + z);
                     let current_block = this.agent.bot.blockAt(world_pos);
 
-                    let res = null;
                     if (current_block !== null && !blockSatisfied(block_name, current_block)) {
                         acted = true;
 
                         if (current_block.name !== 'air') {
-                            res = await this.wrapSkill(async () => {
+                            const breakSucceeded = await this.wrapSkill(async () => {
                                 await skills.breakBlockAt(this.agent.bot, world_pos.x, world_pos.y, world_pos.z);
                             });
-                            if (!res) return {missing: missing, acted: acted, position: position, orientation: orientation};
+                            if (!breakSucceeded) return {missing: missing, acted: acted, position: position, orientation: orientation};
                         }
 
                         if (block_name !== 'air') {
                             let block_typed = getTypeOfGeneric(this.agent.bot, block_name);
                             if (inventory[block_typed] > 0) {
-                                res = await this.wrapSkill(async () => {
+                                const placementSucceeded = await this.wrapSkill(async () => {
                                     await skills.placeBlock(this.agent.bot, block_typed, world_pos.x, world_pos.y, world_pos.z);
                                 });
-                                if (!res) return {missing: missing, acted: acted, position: position, orientation: orientation};
+                                if (!placementSucceeded) return {missing: missing, acted: acted, position: position, orientation: orientation};
                                 inventory[block_typed]--;
                             } else {
                                 if (missing[block_typed] === undefined)
