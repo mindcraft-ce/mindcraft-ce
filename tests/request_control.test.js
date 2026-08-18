@@ -9,7 +9,7 @@ import {
 } from '../src/models/request_control.js';
 
 test('runAbortableRequest forwards a live AbortSignal', async () => {
-    const value = await runAbortableRequest(async signal => {
+    const value = await runAbortableRequest(signal => {
         assert.equal(signal.aborted, false);
         return 42;
     }, { timeoutMs: 1000 });
