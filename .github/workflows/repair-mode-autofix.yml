@@ -32,11 +32,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
+
           path = Path('src/agent/modes.js')
           text = path.read_text()
           text = text.replace('async function say(agent, message) {', 'function say(agent, message) {')
           text = text.replace('await say(', 'say(')
           text = text.replace('await execute(', 'execute(')
+
+          for mode_name in ('self_preservation', 'unstuck', 'elbow_room'):
+              pattern = rf"(name: '{mode_name}',.*?update:) async function"
+              text, count = re.subn(pattern, r'\1 function', text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'could not make {mode_name} update synchronous')
+
           old = 'async function execute(mode, agent, func, timeout=-1) {'
           new = '''function execute(mode, agent, func, timeout=-1) {
               void executeMode(mode, agent, func, timeout).catch(error => {
