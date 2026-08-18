@@ -23,7 +23,7 @@ export class Claude {
 
     async sendRequest(turns, systemMessage, _stopSeq = '***', { signal } = {}) {
         const messages = strictFormat(turns);
-        let res = null;
+        let res;
         try {
             console.log(`Awaiting anthropic response from ${this.model_name}...`);
             const params = { ...(this.params || {}) };
@@ -56,7 +56,7 @@ export class Claude {
         return res;
     }
 
-    async sendVisionRequest(turns, systemMessage, imageBuffer, requestOptions = {}) {
+    sendVisionRequest(turns, systemMessage, imageBuffer, requestOptions = {}) {
         const imageMessages = [...turns];
         imageMessages.push({
             role: 'user',
@@ -68,7 +68,7 @@ export class Claude {
         return this.sendRequest(imageMessages, systemMessage, '***', requestOptions);
     }
 
-    async embed(_text) {
-        throw new Error('Embeddings are not supported by Claude.');
+    embed(_text) {
+        return Promise.reject(new Error('Embeddings are not supported by Claude.'));
     }
 }
