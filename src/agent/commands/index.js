@@ -46,7 +46,7 @@ export function containsCommand(message) {
         const parsed = parseStructuredCommand(message);
         if (parsed) return parsed.commandName;
     } catch {
-        // Preserve command detection for malformed or legacy-formatted commands.
+        // Command presence is still useful for routing an eventual parse error.
     }
     const commandMatch = message.match(commandNameRegex);
     if (commandMatch)
@@ -174,15 +174,17 @@ export function parseCommandMessage(message) {
         return `Command exceeds maximum length of ${structuredCommandLimits.maxLength} characters.`;
 
     let parsed = null;
-    let structuredError = null;
     try {
         parsed = parseStructuredCommand(message);
     } catch (error) {
-        structuredError = error;
+        // If a command uses parenthesized structured syntax but its arguments are
+        // malformed, fail closed. Falling back here can reinterpret e.g.
+        // !stop(foo) as a valid zero-argument !stop command.
+        return error instanceof Error ? error.message : 'Command is incorrectly formatted';
     }
 
     if (!parsed) parsed = parseLegacyCommand(message);
-    if (!parsed) return structuredError?.message || 'Command is incorrectly formatted';
+    if (!parsed) return 'Command is incorrectly formatted';
 
     const { commandName } = parsed;
     const args = [...parsed.args];
@@ -209,7 +211,8 @@ export function truncCommandMessage(message) {
         try {
             return truncateToStructuredCommand(message);
         } catch {
-            // Fall back to the established regex boundary for legacy/malformed syntax.
+            // Preserve the original malformed command for parseCommandMessage to reject.
+            return message;
         }
     }
     const commandMatch = message.match(commandRegex);
