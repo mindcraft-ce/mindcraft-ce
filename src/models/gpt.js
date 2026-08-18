@@ -24,7 +24,7 @@ export class GPT {
         this.url = url; // store so that we know whether a custom URL has been set
         this.api_key_alias = normalizeApiKeyAlias(api_key_alias);
 
-        let config = {};
+        const config = {};
         if (url)
             config.baseURL = url;
 
@@ -37,14 +37,8 @@ export class GPT {
     }
 
     async sendRequest(turns, systemMessage, stop_seq='***') {
-        let messages = strictFormat(turns);
-        messages = messages.map(message => {
-            message.content += stop_seq;
-            return message;
-        });
-        let model = this.model_name || "gpt-5.4-mini";
-
-        let res = null;
+        const model = this.model_name || "gpt-5.4-mini";
+        let res;
 
         try {
             console.log('Awaiting openai api response from model', model);
@@ -62,12 +56,12 @@ export class GPT {
                 if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
                     delete pack.stop;
                 }
-                let completion = await this.openai.chat.completions.create(pack);
+                const completion = await this.openai.chat.completions.create(pack);
                 if (completion.choices[0].finish_reason == 'length')
-                    throw new Error('Context length exceeded'); 
+                    throw new Error('Context length exceeded');
                 console.log('Received.');
                 res = completion.choices[0].message.content;
-            } 
+            }
             // otherwise, use responses
             else {
                 let messages = strictFormat(turns);
@@ -83,7 +77,7 @@ export class GPT {
                 });
                 console.log('Received.');
                 res = response.output_text;
-                let stop_seq_index = res.indexOf(stop_seq);
+                const stop_seq_index = res.indexOf(stop_seq);
                 res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
             }
         }
@@ -102,7 +96,7 @@ export class GPT {
         return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -114,7 +108,7 @@ export class GPT {
                 }
             ]
         });
-        
+
         return this.sendRequest(imageMessages, systemMessage);
     }
 
@@ -136,9 +130,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
         model: model,
         voice: voice,
         input: text
-    }
+    };
 
-    let config = {};
+    const config = {};
 
     if (url)
         config.baseURL = url;
@@ -154,9 +148,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const base64 = buffer.toString("base64");
     return base64;
-}
+};
 
 export const TTSConfig = {
     sendAudioRequest: sendAudioRequest,
     baseUrl: 'https://api.openai.com/v1',
-}
+};
