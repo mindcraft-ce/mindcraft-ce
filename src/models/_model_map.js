@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { withProviderRetries } from './provider_error.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,9 +17,7 @@ const apiMap = await (async () => {
             for (const exported of Object.values(mod)) {
                 if (typeof exported === 'function' && Object.prototype.hasOwnProperty.call(exported, 'prefix')) {
                     const prefix = exported.prefix;
-                    if (typeof prefix === 'string' && prefix.length > 0) {
-                        map[prefix] = exported;
-                    }
+                    if (typeof prefix === 'string' && prefix.length > 0) map[prefix] = exported;
                 }
             }
         } catch (e) {
@@ -29,54 +28,54 @@ const apiMap = await (async () => {
 })();
 
 export function selectAPI(profile) {
-    if (typeof profile === 'string' || profile instanceof String) {
-        profile = {model: profile};
-    }
+    if (typeof profile === 'string' || profile instanceof String) profile = {model: profile};
     if (profile.api?.includes('local') || profile.model?.includes('local')) {
         profile.api = 'ollama';
-        if (profile.model) {
-            profile.model = profile.model.replace('local', 'ollama');
-        }
+        if (profile.model) profile.model = profile.model.replace('local', 'ollama');
     }
     if (!profile.api) {
         const api = Object.keys(apiMap).find(key => profile.model?.startsWith(key));
-        if (api) {
-            profile.api = api;
-        }
+        if (api) profile.api = api;
         else {
-            if (profile.model.includes('gpt') || profile.model.includes('o1') || profile.model.includes('o3'))
-                profile.api = 'openai';
-            else if (profile.model.includes('claude'))
-                profile.api = 'anthropic';
-            else if (profile.model.includes('gemini'))
-                profile.api = 'google';
-            else if (profile.model.includes('grok'))
-                profile.api = 'xai';
-            else if (profile.model.includes('mistral'))
-                profile.api = 'mistral';
-            else if (profile.model.includes('deepseek'))
-                profile.api = 'deepseek';
-            else if (profile.model.includes('qwen'))
-                profile.api = 'qwen';
+            if (profile.model.includes('gpt') || profile.model.includes('o1') || profile.model.includes('o3')) profile.api = 'openai';
+            else if (profile.model.includes('claude')) profile.api = 'anthropic';
+            else if (profile.model.includes('gemini')) profile.api = 'google';
+            else if (profile.model.includes('grok')) profile.api = 'xai';
+            else if (profile.model.includes('mistral')) profile.api = 'mistral';
+            else if (profile.model.includes('deepseek')) profile.api = 'deepseek';
+            else if (profile.model.includes('qwen')) profile.api = 'qwen';
         }
-        if (!profile.api) {
-            throw new Error(`Unknown model: ${profile.model}`);
-        }
+        if (!profile.api) throw new Error(`Unknown model: ${profile.model}`);
     }
-    if (!apiMap[profile.api]) {
-        throw new Error(`Unknown api: ${profile.api}`);
-    }
+    if (!apiMap[profile.api]) throw new Error(`Unknown api: ${profile.api}`);
     const model_name = profile.model.replace(profile.api + '/', '');
     profile.model = model_name === '' ? null : model_name;
     return profile;
 }
 
+function requestSignalFromArgs(args) {
+    const lastArg = args.at(-1);
+    if (lastArg && typeof lastArg === 'object' && !Array.isArray(lastArg)) return lastArg.signal;
+    return undefined;
+}
+
+function wrapProviderModel(model) {
+    const retryableMethods = new Set(['sendRequest', 'sendVisionRequest', 'embed']);
+    return new Proxy(model, {
+        get(target, property, receiver) {
+            const value = Reflect.get(target, property, receiver);
+            if (!retryableMethods.has(property) || typeof value !== 'function') return value;
+            return (...args) => withProviderRetries(
+                () => value.apply(target, args),
+                { signal: requestSignalFromArgs(args) }
+            );
+        },
+    });
+}
+
 export function createModel(profile) {
-    if (apiMap[profile.model]) {
-        profile.model = null;
-    }
-    if (!apiMap[profile.api]) {
-        throw new Error(`Unknown api: ${profile.api}`);
-    }
-    return new apiMap[profile.api](profile.model, profile.url, profile.params, profile.api_key_alias);
+    if (apiMap[profile.model]) profile.model = null;
+    if (!apiMap[profile.api]) throw new Error(`Unknown api: ${profile.api}`);
+    const model = new apiMap[profile.api](profile.model, profile.url, profile.params, profile.api_key_alias);
+    return wrapProviderModel(model);
 }
