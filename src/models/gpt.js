@@ -22,8 +22,14 @@ export class GPT {
     }
 
     async sendRequest(turns, systemMessage, stop_seq='***') {
-        const model = this.model_name || "gpt-5.4-mini";
-        let res;
+        let messages = strictFormat(turns);
+        messages = messages.map(message => {
+            message.content += stop_seq;
+            return message;
+        });
+        let model = this.model_name || "gpt-5.4-mini";
+
+        let res = null;
 
         try {
             console.log('Awaiting openai api response from model', model);
@@ -41,12 +47,12 @@ export class GPT {
                 if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
                     delete pack.stop;
                 }
-                const completion = await this.openai.chat.completions.create(pack);
+                let completion = await this.openai.chat.completions.create(pack);
                 if (completion.choices[0].finish_reason == 'length')
                     console.warn('Model response stopped with finish_reason=length; returning partial response.');
                 console.log('Received.');
                 res = completion.choices[0].message.content;
-            }
+            } 
             // otherwise, use responses
             else {
                 let messages = strictFormat(turns);
@@ -62,7 +68,7 @@ export class GPT {
                 });
                 console.log('Received.');
                 res = response.output_text;
-                const stop_seq_index = res.indexOf(stop_seq);
+                let stop_seq_index = res.indexOf(stop_seq);
                 res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
             }
         }
@@ -81,7 +87,7 @@ export class GPT {
         return res;
     }
 
-    sendVisionRequest(messages, systemMessage, imageBuffer) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -93,7 +99,7 @@ export class GPT {
                 }
             ]
         });
-
+        
         return this.sendRequest(imageMessages, systemMessage);
     }
 
@@ -115,7 +121,7 @@ const sendAudioRequest = async (text, model, voice, url) => {
         model: model,
         voice: voice,
         input: text
-    };
+    }
 
     let config = {};
 
@@ -133,9 +139,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const base64 = buffer.toString("base64");
     return base64;
-};
+}
 
 export const TTSConfig = {
     sendAudioRequest: sendAudioRequest,
     baseUrl: 'https://api.openai.com/v1',
-};
+}
