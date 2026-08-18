@@ -7,18 +7,20 @@ import { resolveProfile } from '../src/models/profile_resolver.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const defaultsDir = path.resolve(here, '../profiles/defaults');
 
-test('individual profile values win over base/default values', () => {
+test('profile precedence is individual > base > defaults without mutating input', () => {
     const profile = { name: 'TestBot', modes: { custom: true } };
-    const resolved = resolveProfile(profile, 'survival', defaultsDir);
+    const snapshot = structuredClone(profile);
+    const resolved = resolveProfile(profile, ' SURVIVAL ', defaultsDir);
 
-    assert.equal(resolved, profile);
+    assert.notEqual(resolved, profile);
+    assert.deepEqual(profile, snapshot);
     assert.deepEqual(resolved.modes, { custom: true });
     assert.equal(typeof resolved.conversing, 'string');
 });
 
-test('unknown base profiles fail clearly', () => {
+test('base profile matching is exact after normalization', () => {
     assert.throws(
-        () => resolveProfile({ name: 'TestBot' }, 'does-not-exist', defaultsDir),
+        () => resolveProfile({ name: 'TestBot' }, 'survival-extra', defaultsDir),
         /Unknown base profile/
     );
 });
