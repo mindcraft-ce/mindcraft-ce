@@ -1,6 +1,21 @@
 import { timingSafeEqual } from 'node:crypto';
 
-export function resolveMindServerBindHost(hostPublic = false) {
+export function normalizeBindHost(host) {
+    if (host == null || host === '') return null;
+    if (typeof host !== 'string') {
+        throw new Error('MindServer bind host must be a string.');
+    }
+    const normalized = host.trim();
+    if (!normalized) return null;
+    if (/[\r\n\0]/.test(normalized)) {
+        throw new Error('MindServer bind host contains invalid control characters.');
+    }
+    return normalized;
+}
+
+export function resolveMindServerBindHost(hostPublic = false, bindHost = process.env.MINDCRAFT_BIND_HOST) {
+    const configured = normalizeBindHost(bindHost);
+    if (configured) return configured;
     return hostPublic ? '0.0.0.0' : '127.0.0.1';
 }
 
