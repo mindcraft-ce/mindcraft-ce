@@ -28,6 +28,7 @@ export class Prompter {
         this.last_prompt_time = 0;
         this.awaiting_coding = false;
 
+        // for backwards compatibility, move max_tokens to params
         let max_tokens = null;
         if (this.profile.max_tokens)
             max_tokens = this.profile.max_tokens;
@@ -51,6 +52,7 @@ export class Prompter {
             this.vision_model = this.chat_model;
         }
 
+        
         let embedding_model_profile = null;
         if (this.profile.embedding) {
             try {
@@ -88,11 +90,14 @@ export class Prompter {
         try {
             this.convo_examples = new Examples(this.embedding_model, settings.num_examples);
             this.coding_examples = new Examples(this.embedding_model, settings.num_examples);
+            
+            // Wait for both examples to load before proceeding
             await Promise.all([
                 this.convo_examples.load(this.profile.conversation_examples),
                 this.coding_examples.load(this.profile.coding_examples),
                 this.skill_libary.initSkillLibrary()
             ]).catch(error => {
+                // Preserve error details
                 console.error('Failed to initialize examples. Error details:', error);
                 console.error('Stack trace:', error.stack);
                 throw error;
@@ -102,7 +107,7 @@ export class Prompter {
         } catch (error) {
             console.error('Failed to initialize examples:', error);
             console.error('Stack trace:', error.stack);
-            throw error;
+            throw error; // Re-throw with preserved details
         }
     }
 
@@ -143,6 +148,7 @@ export class Prompter {
         if (prompt.includes('$CONVO'))
             prompt = prompt.replaceAll('$CONVO', 'Recent conversation:\n' + stringifyTurns(messages));
         if (prompt.includes('$SELF_PROMPT')) {
+            // if active or paused, show the current goal
             let self_prompt = !this.agent.self_prompter.isStopped() ? `YOUR CURRENT ASSIGNED GOAL: "${this.agent.self_prompter.prompt}"\n` : '';
             prompt = prompt.replaceAll('$SELF_PROMPT', self_prompt);
         }
@@ -150,9 +156,9 @@ export class Prompter {
             let goal_text = '';
             for (let goal in last_goals) {
                 if (last_goals[goal])
-                    goal_text += `You recently successfully completed the goal ${goal}.\n`;
+                    goal_text += `You recently successfully completed the goal ${goal}.\n`
                 else
-                    goal_text += `You recently failed to complete the goal ${goal}.\n`;
+                    goal_text += `You recently failed to complete the goal ${goal}.\n`
             }
             prompt = prompt.replaceAll('$LAST_GOALS', goal_text.trim());
         }
@@ -166,6 +172,7 @@ export class Prompter {
             }
         }
 
+        // check if there are any remaining placeholders with syntax $<word>
         let remaining = prompt.match(/\$[A-Z_]+/g);
         if (remaining !== null) {
             console.warn('Unknown prompt placeholders:', remaining.join(', '));
@@ -185,7 +192,7 @@ export class Prompter {
         this.most_recent_msg_time = Date.now();
         let current_msg_time = this.most_recent_msg_time;
 
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 3; i++) { // try 3 times to avoid hallucinations
             await this.checkCooldown();
             if (current_msg_time !== this.most_recent_msg_time) {
                 return '';
@@ -203,11 +210,13 @@ export class Prompter {
                 }
                 console.log("Generated response:", generation);
                 await this._saveLog(prompt, messages, generation, 'conversation');
+
             } catch (error) {
                 console.error('Error during message generation or file writing:', error);
                 continue;
             }
 
+            // Check for hallucination or invalid output
             if (generation?.includes('(FROM OTHER BOT)')) {
                 console.warn('LLM hallucinated message as another bot. Trying again...');
                 continue;
@@ -219,8 +228,8 @@ export class Prompter {
             }
 
             if (generation?.includes('</think>')) {
-                const [_, afterThink] = generation.split('</think>');
-                generation = afterThink;
+                const [_, afterThink] = generation.split('</think>')
+                generation = afterThink
             }
 
             return generation;
@@ -252,7 +261,7 @@ export class Prompter {
         let resp = await this.chat_model.sendRequest([], prompt);
         await this._saveLog(prompt, to_summarize, resp, 'memSaving');
         if (resp?.includes('</think>')) {
-            const [_, afterThink] = resp.split('</think>');
+            const [_, afterThink] = resp.split('</think>')
             resp = afterThink;
         }
         return resp;
@@ -276,11 +285,12 @@ export class Prompter {
     }
 
     async promptGoalSetting(messages, last_goals) {
+        // deprecated
         let system_message = this.profile.goal_setting;
         system_message = await this.replaceStrings(system_message, messages);
 
         let user_message = 'Use the below info to determine what goal to target next\n\n';
-        user_message += '$LAST_GOALS\n$STATS\n$INVENTORY\n$CONVO';
+        user_message += '$LAST_GOALS\n$STATS\n$INVENTORY\n$CONVO'
         user_message = await this.replaceStrings(user_message, messages, null, null, last_goals);
         let user_messages = [{role: 'user', content: user_message}];
 
