@@ -8,7 +8,7 @@ export class SkillLibrary {
         this.embedding_model = embedding_model;
         this.skill_docs_embeddings = {};
         this.skill_docs = null;
-        this.always_show_skills = ['skills.placeBlock', 'skills.wait', 'skills.breakBlockAt']
+        this.always_show_skills = ['skills.placeBlock', 'skills.wait', 'skills.breakBlockAt'];
     }
     async initSkillLibrary() {
         const skillDocs = getSkillDocs();
@@ -42,14 +42,14 @@ export class SkillLibrary {
         }
     }
 
-    async getAllSkillDocs() {
+    getAllSkillDocs() {
         return this.skill_docs;
     }
 
     async getRelevantSkillDocs(message, select_num) {
         if(!message) // use filler message if none is provided
             message = '(no message)';
-        let skill_doc_similarities = [];
+        let skill_doc_similarities;
 
         if (select_num === -1) {
             skill_doc_similarities = Object.keys(this.skill_docs_embeddings)

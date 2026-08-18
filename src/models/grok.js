@@ -13,7 +13,7 @@ export class Grok {
         if (url)
             config.baseURL = url;
         else
-            config.baseURL = "https://api.x.ai/v1"
+            config.baseURL = "https://api.x.ai/v1";
 
         config.apiKey = getKey('XAI_API_KEY');
 
@@ -29,14 +29,14 @@ export class Grok {
             ...(this.params || {})
         };
 
-        let res = null;
+        let res;
         try {
-            console.log('Awaiting xai api response...')
+            console.log('Awaiting xai api response...');
             ///console.log('Messages:', messages);
             let completion = await this.openai.chat.completions.create(pack);
             if (completion.choices[0].finish_reason == 'length')
                 throw new Error('Context length exceeded'); 
-            console.log('Received.')
+            console.log('Received.');
             res = completion.choices[0].message.content;
         }
         catch (err) {
@@ -55,7 +55,7 @@ export class Grok {
         return res.replace(/<\|separator\|>/g, '*no response*');
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -73,8 +73,8 @@ export class Grok {
         return this.sendRequest(imageMessages, systemMessage);
     }
     
-    async embed(text) {
-        throw new Error('Embeddings are not supported by Grok.');
+    embed(text) {
+        return Promise.reject(new Error('Embeddings are not supported by Grok.'));
     }
 }
 

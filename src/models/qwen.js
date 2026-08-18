@@ -27,7 +27,7 @@ export class Qwen {
             ...(this.params || {})
         };
 
-        let res = null;
+        let res;
         try {
             console.log('Awaiting Qwen api response...');
             // console.log('Messages:', messages);

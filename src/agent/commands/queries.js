@@ -7,7 +7,7 @@ import { load } from 'cheerio';
 
 const pad = (str) => {
     return '\n' + str + '\n';
-}
+};
 
 // queries are commands that just return strings and don't affect anything in the world
 export const queryList = [
@@ -49,7 +49,7 @@ export const queryList = [
             let action = agent.actions.currentActionLabel;
             if (agent.isIdle())
                 action = 'Idle';
-            res += `\- Current Action: ${action}`;
+            res += `- Current Action: ${action}`;
 
 
             let players = world.getNearbyPlayerNames(bot);
@@ -222,7 +222,7 @@ export const queryList = [
     {
         name: '!savedPlaces',
         description: 'List all saved locations.',
-        perform: async function (agent) {
+        perform: function (agent) {
             return "Saved place names: " + agent.memory_bank.getKeys();
         }
     }, 
@@ -315,7 +315,7 @@ export const queryList = [
             'query': { type: 'string', description: 'The query to search for.' }
         },
         perform: async function (agent, query) {
-            const url = `https://minecraft.wiki/w/${query}`
+            const url = `https://minecraft.wiki/w/${query}`;
             try {
                 const response = await fetch(url);
                 if (response.status === 404) {
@@ -333,14 +333,14 @@ export const queryList = [
                 return divContent.trim();
               } catch (error) {
                 console.error("Error fetching or parsing HTML:", error);
-                return `The following error occurred: ${error}`
+                return `The following error occurred: ${error}`;
               }
         }
     },
     {
         name: '!help',
         description: 'Lists all available commands and their descriptions.',
-        perform: async function (agent) {
+        perform: function (agent) {
             return getCommandDocs(agent);
         }
     },

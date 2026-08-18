@@ -45,7 +45,7 @@ export class ReplicateAPI {
 			};
 		}
 
-		let res = null;
+		let res;
 		try {
 			console.log('Awaiting Replicate API response...');
 

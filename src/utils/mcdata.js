@@ -68,7 +68,7 @@ export const MATCHING_WOOD_BLOCKS = [
     'button',
     'pressure_plate',
     'trapdoor'
-]
+];
 export const WOOL_COLORS = [
     'white',
     'orange',
@@ -86,7 +86,7 @@ export const WOOL_COLORS = [
     'green',
     'red',
     'black'
-]
+];
 
 
 export function initBot(username) {
@@ -97,7 +97,7 @@ export function initBot(username) {
         auth: settings.auth,
         version: mc_version,
         checkTimeoutInterval: 60000,  // 60s keep-alive check (default 30s) — reduces disconnects on slow servers
-    }
+    };
     if (!mc_version || mc_version === "auto") {
         delete options.version;
     }
@@ -187,8 +187,8 @@ export function mustCollectManually(blockName) {
     // all crops (that aren't normal blocks), torches, buttons, levers, redstone,
     const full_names = ['wheat', 'carrots', 'potatoes', 'beetroots', 'nether_wart', 'cocoa', 'sugar_cane', 'kelp', 'short_grass', 'fern', 'tall_grass', 'bamboo',
         'poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'oxeye_daisy', 'cornflower', 'lilac', 'wither_rose', 'lily_of_the_valley', 'wither_rose',
-        'lever', 'redstone_wire', 'lantern']
-    const partial_names = ['sapling', 'torch', 'button', 'carpet', 'pressure_plate', 'mushroom', 'tulip', 'bush', 'vines', 'fern']
+        'lever', 'redstone_wire', 'lantern'];
+    const partial_names = ['sapling', 'torch', 'button', 'carpet', 'pressure_plate', 'mushroom', 'tulip', 'bush', 'vines', 'fern'];
     return full_names.includes(blockName.toLowerCase()) || partial_names.some(partial => blockName.toLowerCase().includes(partial));
 }
 
@@ -201,7 +201,7 @@ export function getItemId(itemName) {
 }
 
 export function getItemName(itemId) {
-    let item = mcdata.items[itemId]
+    let item = mcdata.items[itemId];
     if (item) {
         return item.name;
     }
@@ -217,7 +217,7 @@ export function getBlockId(blockName) {
 }
 
 export function getBlockName(blockId) {
-    let block = mcdata.blocks[blockId]
+    let block = mcdata.blocks[blockId];
     if (block) {
         return block.name;
     }
@@ -236,7 +236,7 @@ export function getAllItems(ignore) {
     if (!ignore) {
         ignore = [];
     }
-    let items = []
+    let items = [];
     for (const itemId in mcdata.items) {
         const item = mcdata.items[itemId];
         if (!ignore.includes(item.name)) {
@@ -259,7 +259,7 @@ export function getAllBlocks(ignore) {
     if (!ignore) {
         ignore = [];
     }
-    let blocks = []
+    let blocks = [];
     for (const blockId in mcdata.blocks) {
         const block = mcdata.blocks[blockId];
         if (!ignore.includes(block.name)) {
@@ -326,10 +326,10 @@ export function isSmeltable(itemName) {
 }
 
 export function getSmeltingFuel(bot) {
-    let fuel = bot.inventory.items().find(i => i.name === 'coal' || i.name === 'charcoal' || i.name === 'blaze_rod')
+    let fuel = bot.inventory.items().find(i => i.name === 'coal' || i.name === 'charcoal' || i.name === 'blaze_rod');
     if (fuel)
         return fuel;
-    fuel = bot.inventory.items().find(i => i.name.includes('log') || i.name.includes('planks'))
+    fuel = bot.inventory.items().find(i => i.name.includes('log') || i.name.includes('planks'));
     if (fuel)
         return fuel;
     return bot.inventory.items().find(i => i.name === 'coal_block' || i.name === 'lava_bucket');
@@ -341,7 +341,7 @@ export function getFuelSmeltOutput(fuelName) {
     if (fuelName === 'blaze_rod')
         return 12;
     if (fuelName.includes('log') || fuelName.includes('planks'))
-        return 1.5
+        return 1.5;
     if (fuelName === 'coal_block')
         return 80;
     if (fuelName === 'lava_bucket')
@@ -450,7 +450,7 @@ export function calculateLimitingResource(availableItems, requiredItems, discret
         }
     }
     if(discrete) num = Math.floor(num);
-    return {num, limitingResource}
+    return {num, limitingResource};
 }
 
 let loopingItems = new Set();

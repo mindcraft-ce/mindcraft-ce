@@ -28,7 +28,7 @@ export class Andy {
         while (attempt < maxAttempts) {
             attempt++;
             console.log(`Awaiting Andy API response... (model: ${model}, attempt: ${attempt})`);
-            let res = null;
+            let res;
             try {
                 const data = await this.send(this.chat_endpoint, {
                     model,

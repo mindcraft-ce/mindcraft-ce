@@ -75,7 +75,7 @@ export class Examples {
 
         console.log('selected examples:');
         for (let example of selected_examples) {
-            console.log('Example:', example[0].content)
+            console.log('Example:', example[0].content);
         }
 
         let msg = 'Examples of how to respond:\n';
