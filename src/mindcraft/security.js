@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 
 export function normalizeBindHost(host) {
     if (host == null || host === '') return null;
@@ -19,6 +20,16 @@ export function resolveMindServerBindHost(hostPublic = false, bindHost = process
     return hostPublic ? '0.0.0.0' : '127.0.0.1';
 }
 
+export function isLoopbackBindHost(host) {
+    const normalized = normalizeBindHost(host);
+    if (!normalized) return false;
+
+    const lower = normalized.toLowerCase();
+    if (lower === 'localhost' || lower === '::1') return true;
+    if (isIP(lower) === 4) return lower.startsWith('127.');
+    return false;
+}
+
 export function normalizeControlToken(token) {
     if (token == null || token === '') return null;
     if (typeof token !== 'string') {
@@ -32,10 +43,15 @@ export function normalizeControlToken(token) {
     return normalized;
 }
 
-export function resolveControlToken(hostPublic, token = process.env.MINDCRAFT_CONTROL_TOKEN) {
+export function resolveControlToken(
+    hostPublic,
+    token = process.env.MINDCRAFT_CONTROL_TOKEN,
+    bindHost = process.env.MINDCRAFT_BIND_HOST
+) {
     const normalized = normalizeControlToken(token);
-    if (hostPublic && !normalized) {
-        throw new Error('Public MindServer hosting requires MINDCRAFT_CONTROL_TOKEN.');
+    const effectiveHost = resolveMindServerBindHost(hostPublic, bindHost);
+    if (!isLoopbackBindHost(effectiveHost) && !normalized) {
+        throw new Error('Non-loopback MindServer binding requires MINDCRAFT_CONTROL_TOKEN.');
     }
     return normalized;
 }
