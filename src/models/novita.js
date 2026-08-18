@@ -4,68 +4,66 @@ import { strictFormat } from '../utils/text.js';
 
 // llama, mistral
 export class Novita {
-	static prefix = 'novita';
-	constructor(model_name, url, params) {
-    this.model_name = model_name;
-    this.url = url || 'https://api.novita.ai/v3/openai';
-    this.params = params;
+    static prefix = 'novita';
 
+    constructor(model_name, url, params) {
+        this.model_name = model_name;
+        this.url = url || 'https://api.novita.ai/v3/openai';
+        this.params = params;
 
-    let config = {
-      baseURL: this.url
-    };
-    config.apiKey = getKey('NOVITA_API_KEY');
+        const config = {
+            baseURL: this.url,
+            apiKey: getKey('NOVITA_API_KEY'),
+        };
 
-    this.openai = new OpenAIApi(config);
-  }
+        this.openai = new OpenAIApi(config);
+    }
 
-	async sendRequest(turns, systemMessage, stop_seq='***') {
-      let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
+    async sendRequest(turns, systemMessage, stop_seq='***') {
+        let messages = [{ role: 'system', content: systemMessage }].concat(turns);
+        messages = strictFormat(messages);
 
-      
-      messages = strictFormat(messages);
-      
-      const pack = {
-          model: this.model_name || "meta-llama/llama-4-scout-17b-16e-instruct",
-          messages,
-          stop: [stop_seq],
-          ...(this.params || {})
-      };
+        const pack = {
+            model: this.model_name || 'meta-llama/llama-4-scout-17b-16e-instruct',
+            messages,
+            stop: [stop_seq],
+            ...(this.params || {}),
+        };
 
-      let res = null;
-      try {
-          console.log('Awaiting novita api response...')
-          let completion = await this.openai.chat.completions.create(pack);
-          if (completion.choices[0].finish_reason == 'length')
-              throw new Error('Context length exceeded'); 
-          console.log('Received.')
-          res = completion.choices[0].message.content;
-      }
-      catch (err) {
-          if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
-              console.log('Context length exceeded, trying again with shorter context.');
-              return await sendRequest(turns.slice(1), systemMessage, stop_seq);
-          } else {
+        let res;
+        try {
+            console.log('Awaiting novita api response...');
+            const completion = await this.openai.chat.completions.create(pack);
+            if (completion.choices[0].finish_reason === 'length') {
+                console.warn('Novita response stopped with finish_reason=length; returning partial response.');
+            }
+            console.log('Received.');
+            res = completion.choices[0].message.content;
+        } catch (err) {
+            if (err?.code === 'context_length_exceeded' && turns.length > 1) {
+                console.log('Context length exceeded, trying again with shorter context.');
+                return this.sendRequest(turns.slice(1), systemMessage, stop_seq);
+            }
             console.log(err);
-              res = 'My brain disconnected, try again.';
-          }
-      }
-      if (res.includes('<think>')) {
-        let start = res.indexOf('<think>');
-        let end = res.indexOf('</think>') + 8;
-        if (start != -1) {
-          if (end != -1) {
-            res = res.substring(0, start) + res.substring(end);
-          } else {
-            res = res.substring(0, start+7);
-          }
+            res = 'My brain disconnected, try again.';
         }
-        res = res.trim();
-      }
-      return res;
-  }
 
-	async embed(text) {
-		throw new Error('Embeddings are not supported by Novita AI.');
-	}
+        if (res.includes('<think>')) {
+            const start = res.indexOf('<think>');
+            const end = res.indexOf('</think>') + 8;
+            if (start !== -1) {
+                if (end !== -1) {
+                    res = res.substring(0, start) + res.substring(end);
+                } else {
+                    res = res.substring(0, start + 7);
+                }
+            }
+            res = res.trim();
+        }
+        return res;
+    }
+
+    embed(_text) {
+        return Promise.reject(new Error('Embeddings are not supported by Novita AI.'));
+    }
 }
