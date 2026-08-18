@@ -61,7 +61,7 @@ export class GPT {
                     { timeoutMs: this.requestTimeoutMs, signal }
                 );
                 if (completion.choices[0].finish_reason === 'length')
-                    throw new Error('Context length exceeded');
+                    console.warn('Model response stopped with finish_reason=length; returning partial response.');
                 console.log('Received.');
                 res = completion.choices[0].message.content;
             }
