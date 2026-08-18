@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk'
+import Groq from 'groq-sdk';
 import { getKey } from '../utils/keys.js';
 
 // THIS API IS NOT TO BE CONFUSED WITH GROK!

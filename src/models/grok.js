@@ -13,7 +13,7 @@ export class Grok {
         if (url)
             config.baseURL = url;
         else
-            config.baseURL = "https://api.x.ai/v1"
+            config.baseURL = "https://api.x.ai/v1";
 
         config.apiKey = getKey('XAI_API_KEY');
 
@@ -31,12 +31,12 @@ export class Grok {
 
         let res = null;
         try {
-            console.log('Awaiting xai api response...')
+            console.log('Awaiting xai api response...');
             ///console.log('Messages:', messages);
             let completion = await this.openai.chat.completions.create(pack);
             if (completion.choices[0].finish_reason == 'length')
                 throw new Error('Context length exceeded'); 
-            console.log('Received.')
+            console.log('Received.');
             res = completion.choices[0].message.content;
         }
         catch (err) {

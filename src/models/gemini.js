@@ -81,7 +81,7 @@ export class Gemini {
         contents.push({
             role: 'user',
             parts: [{ text: 'SYSTEM: Vision response' }, imagePart]
-        })
+        });
 
         let res = null;
         try {
@@ -112,7 +112,7 @@ export class Gemini {
         const result = await this.genAI.models.embedContent({
             model: this.model_name || "gemini-embedding-001",
             contents: text,
-        })
+        });
 
         return result.embeddings;
     }
@@ -132,7 +132,7 @@ const sendAudioRequest = async (text, model, voice, url) => {
                 },
             },
         },
-    })
+    });
 
     const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!pcmBase64) {
@@ -147,7 +147,7 @@ const sendAudioRequest = async (text, model, voice, url) => {
 
     const wavBase64 = wavBuffer.toString('base64');
     return wavBase64;
-}
+};
 
 // helper: create PCM WAV header
 function createWavHeader(dataLength, sampleRate, channels, bitsPerSample) {
@@ -173,4 +173,4 @@ function createWavHeader(dataLength, sampleRate, channels, bitsPerSample) {
 
 export const TTSConfig = {
     sendAudioRequest: sendAudioRequest,
-}
+};

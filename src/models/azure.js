@@ -1,11 +1,11 @@
 import { AzureOpenAI } from "openai";
 import { getKey, hasKey } from '../utils/keys.js';
-import { GPT } from './gpt.js'
+import { GPT } from './gpt.js';
 
 export class AzureGPT extends GPT {
     static prefix = 'azure';
     constructor(model_name, url, params) {
-        super(model_name, url)
+        super(model_name, url);
 
         this.model_name = model_name;
         this.params = params || {};
@@ -27,6 +27,6 @@ export class AzureGPT extends GPT {
             throw new Error('apiVersion is required in params for azure!');
         }
 
-        this.openai = new AzureOpenAI(config)
+        this.openai = new AzureOpenAI(config);
     }
 }
