@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NPCContoller } from '../src/agent/npc/controller.js';
 
-function makeAgent(npc, promptGoalSetting = async () => null) {
+function makeAgent(npc, promptGoalSetting = () => Promise.resolve(null)) {
     return {
         prompter: {
             profile: { npc },
@@ -22,9 +22,9 @@ test('setGoal reports configured goal names instead of array indexes', async () 
             ],
             do_set_goal: true,
         },
-        async (_history, pastGoals) => {
+        (_history, pastGoals) => {
             observedPastGoals = pastGoals;
-            return null;
+            return Promise.resolve(null);
         }
     );
 
