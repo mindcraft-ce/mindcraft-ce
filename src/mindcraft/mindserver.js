@@ -12,13 +12,9 @@ import {
 } from './security.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Mindserver is:
-// - central hub for communication between all agent processes
-// - api to control from other languages and remote users
-// - host for webapp
-
 const CONTROL_ROOM = 'mindcraft:control';
 const AGENT_ROOM = 'mindcraft:agents';
+const CONTROL_COOKIE = 'mindcraft_control';
 
 let io;
 let server;
@@ -41,6 +37,33 @@ class AgentConnection {
     }
 }
 
+function parseCookies(header) {
+    const cookies = {};
+    for (const part of String(header || '').split(';')) {
+        const index = part.indexOf('=');
+        if (index === -1) continue;
+        const key = part.slice(0, index).trim();
+        const value = part.slice(index + 1).trim();
+        if (!key) continue;
+        try {
+            cookies[key] = decodeURIComponent(value);
+        } catch {
+            cookies[key] = value;
+        }
+    }
+    return cookies;
+}
+
+function providedControlToken(socket) {
+    return socket.handshake.auth?.controlToken
+        ?? parseCookies(socket.handshake.headers?.cookie)[CONTROL_COOKIE]
+        ?? null;
+}
+
+export function sanitizeDisplayText(value) {
+    return String(value ?? '').replaceAll('<', '＜');
+}
+
 export function registerAgent(settings, viewer_port, process_token) {
     const agentConnection = new AgentConnection(settings, viewer_port, process_token);
     agent_connections[settings.profile.name] = agentConnection;
@@ -59,7 +82,6 @@ function isAgentSocketAuthorized(socket, agentName) {
     return isAuthorizedControlRequest(socket.handshake.auth?.agentToken, connection.process_token);
 }
 
-// Initialize the server
 export function createMindServer(host_public = false, port = 8080) {
     const controlToken = resolveControlToken(host_public);
     const host = resolveMindServerBindHost(host_public);
@@ -67,9 +89,30 @@ export function createMindServer(host_public = false, port = 8080) {
     server = http.createServer(app);
     io = new Server(server);
 
+    app.get('/', (req, res, next) => {
+        const queryToken = typeof req.query?.token === 'string' ? req.query.token : null;
+        if (!queryToken) {
+            next();
+            return;
+        }
+        if (!controlToken || !isAuthorizedControlRequest(queryToken, controlToken)) {
+            res.status(401).send('Invalid MindServer control token.');
+            return;
+        }
+        const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        const attributes = [
+            `${CONTROL_COOKIE}=${encodeURIComponent(controlToken)}`,
+            'HttpOnly',
+            'SameSite=Strict',
+            'Path=/',
+        ];
+        if (secure) attributes.push('Secure');
+        res.setHeader('Set-Cookie', attributes.join('; '));
+        res.redirect(302, '/');
+    });
+
     app.use(express.static(path.join(__dirname, 'public')));
 
-    // Texture proxy: resolve item/block textures using minecraft-assets with version fallback
     app.get('/assets/item/:agent/:name.png', async (req, res) => {
         try {
             const agentName = req.params.agent;
@@ -116,7 +159,7 @@ export function createMindServer(host_public = false, port = 8080) {
             }
             res.setHeader('Content-Type', 'image/svg+xml');
             res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="100%" height="100%" fill="#444"/><text x="50%" y="55%" font-size="12" fill="#bbb" text-anchor="middle">?</text></svg>');
-        } catch (e) {
+        } catch {
             res.setHeader('Content-Type', 'image/svg+xml');
             res.status(500).send('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="100%" height="100%" fill="#444"/><text x="50%" y="55%" font-size="12" fill="#bbb" text-anchor="middle">!</text></svg>');
         }
@@ -127,13 +170,11 @@ export function createMindServer(host_public = false, port = 8080) {
         console.log('Client connected');
 
         const controlAuthorized = () => {
-            // Child-agent sockets use a separate credential and should not silently
-            // inherit control-plane privilege just because the server is loopback-only.
             const hasAgentCredential = typeof socket.handshake.auth?.agentToken === 'string';
-            const hasControlCredential = typeof socket.handshake.auth?.controlToken === 'string';
+            const hasControlCredential = typeof providedControlToken(socket) === 'string';
             if (hasAgentCredential && !hasControlCredential) return false;
             if (!controlToken) return !host_public;
-            return isAuthorizedControlRequest(socket.handshake.auth?.controlToken, controlToken);
+            return isAuthorizedControlRequest(providedControlToken(socket), controlToken);
         };
 
         const rejectControl = (callback) => {
@@ -318,7 +359,7 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('bot-output', (agentName, message) => {
             if (!requireAgent(agentName)) return;
-            io.to(CONTROL_ROOM).emit('bot-output', agentName, message);
+            io.to(CONTROL_ROOM).emit('bot-output', agentName, sanitizeDisplayText(message));
         });
 
         socket.on('listen-to-agents', () => {
