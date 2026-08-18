@@ -134,7 +134,7 @@ const sendAudioRequest = async (text, model, voice, url) => {
         model: model,
         voice: voice,
         input: text
-    }
+    };
 
     let config = {};
 
@@ -152,9 +152,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const base64 = buffer.toString("base64");
     return base64;
-}
+};
 
 export const TTSConfig = {
     sendAudioRequest: sendAudioRequest,
     baseUrl: 'https://api.openai.com/v1',
-}
+};
