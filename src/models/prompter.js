@@ -218,7 +218,7 @@ export class Prompter {
         if (generation.includes('</think>'))
             generation = generation.split('</think>').pop();
 
-        return generation.replace(/\*{3,}\s*$/g, '').trim();
+        return generation.trim();
     }
 
     async promptConvo(messages) {
