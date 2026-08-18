@@ -6,7 +6,13 @@ let agent;
 let agent_names = [];
 let agents_in_game = [];
 
-class Conversation {
+function runDetached(operation, context) {
+    Promise.resolve(operation).catch(error => {
+        console.error(`${context}:`, error);
+    });
+}
+
+export class Conversation {
     constructor(name) {
         this.name = name;
         this.active = false;
@@ -34,9 +40,13 @@ class Conversation {
         this.clearTimer();
         this.active = false;
         this.ignore_until_start = true;
-        const full_message = _compileInMessages(this);
-        if (full_message.message.trim().length > 0)
-            void agent.history.add(this.name, full_message.message);
+        const full_message = compileInMessages(this);
+        if (full_message.message.trim().length > 0) {
+            runDetached(
+                agent.history.add(this.name, full_message.message),
+                `Failed to archive queued conversation with ${this.name}`
+            );
+        }
         // add the full queued messages to history, but don't respond
 
         if (agent.last_sender === this.name)
@@ -85,7 +95,10 @@ class ConversationManager {
             if (this.awaiting_response && agent.isIdle()) {
                 wait_time += delta;
                 if (wait_time > this.wait_time_limit) {
-                    void agent.handleMessage('system', `${convo_partner} hasn't responded in ${this.wait_time_limit/1000} seconds, respond with a message to them or your own action.`);
+                    runDetached(
+                        agent.handleMessage('system', `${convo_partner} hasn't responded in ${this.wait_time_limit/1000} seconds, respond with a message to them or your own action.`),
+                        `Failed to prompt for stalled conversation with ${convo_partner}`
+                    );
                     wait_time = 0;
                     this.wait_time_limit*=2;
                 }
@@ -103,7 +116,10 @@ class ConversationManager {
                     }
                     if (!agent.self_prompter.isPaused()) {
                         this.endConversation(convo_partner);
-                        void agent.handleMessage('system', `${convo_partner} disconnected, conversation has ended.`);
+                        runDetached(
+                            agent.handleMessage('system', `${convo_partner} disconnected, conversation has ended.`),
+                            `Failed to report disconnected conversation partner ${convo_partner}`
+                        );
                     }
                     else {
                         this.endConversation(convo_partner);
@@ -155,7 +171,7 @@ class ConversationManager {
         const convo = this._getConvo(send_to);
 
         if (settings.chat_bot_messages && open_chat)
-            agent.openChat(`(To ${send_to}) ${message}`);
+            runDetached(agent.openChat(`(To ${send_to}) ${message}`), `Failed to mirror message to ${send_to}`);
 
         if (convo.ignore_until_start)
             return;
@@ -241,7 +257,7 @@ class ConversationManager {
             this._stopMonitor();
             this.activeConversation = null;
             if (agent.self_prompter.isPaused() && !this.inConversation()) {
-                void _resumeSelfPrompter();
+                runDetached(_resumeSelfPrompter(), 'Failed to resume self-prompting after conversation end');
             }
         }
     }
@@ -251,7 +267,7 @@ class ConversationManager {
             this.endConversation(sender);
         }
         if (agent.self_prompter.isPaused()) {
-            void _resumeSelfPrompter();
+            runDetached(_resumeSelfPrompter(), 'Failed to resume self-prompting after ending conversations');
         }
     }
 
@@ -319,10 +335,10 @@ async function _scheduleProcessInMessage(sender, received, convo) {
 function _processInMessageQueue(name) {
     const convo = convoManager._getConvo(name);
     convo.inMessageTimer = null;
-    _handleFullInMessage(name, _compileInMessages(convo));
+    _handleFullInMessage(name, compileInMessages(convo));
 }
 
-function _compileInMessages(convo) {
+export function compileInMessages(convo) {
     let pack = {};
     const messages = [];
     while (convo.in_queue.length > 0) {
@@ -348,7 +364,7 @@ function _handleFullInMessage(sender, received) {
     else if (received.start)
         agent.shut_up = false;
     convo.inMessageTimer = null;
-    void agent.handleMessage(sender, message);
+    runDetached(agent.handleMessage(sender, message), `Failed to handle queued conversation message from ${sender}`);
 }
 
 function _tagMessage(message) {
