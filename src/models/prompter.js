@@ -142,7 +142,7 @@ export class Prompter {
         return generation.trim();
     }
 
-    async _send(model, messages, prompt, timeoutMs) {
+    _send(model, messages, prompt, timeoutMs) {
         return sendWithResponseDeadline(model, messages, prompt, { timeoutMs });
     }
 
@@ -153,7 +153,7 @@ export class Prompter {
         for (let i = 0; i < 3; i++) {
             await this.checkCooldown();
             if (current_msg_time !== this.most_recent_msg_time) return '';
-            let prompt = await this.replaceStrings(this.profile.conversing, messages, this.convo_examples);
+            const prompt = await this.replaceStrings(this.profile.conversing, messages, this.convo_examples);
             let generation;
             try {
                 generation = await this._send(this.chat_model, messages, prompt, this.responseTimeoutMs);
@@ -216,7 +216,7 @@ export class Prompter {
     }
 
     async promptGoalSetting(messages, last_goals) {
-        let system_message = await this.replaceStrings(this.profile.goal_setting, messages);
+        const system_message = await this.replaceStrings(this.profile.goal_setting, messages);
         let user_message = 'Use the below info to determine what goal to target next\n\n$LAST_GOALS\n$STATS\n$INVENTORY\n$CONVO';
         user_message = await this.replaceStrings(user_message, messages, null, null, last_goals);
         const res = await this._send(this.chat_model, [{role: 'user', content: user_message}], system_message, this.responseTimeoutMs);
