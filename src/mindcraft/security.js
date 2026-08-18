@@ -27,9 +27,14 @@ export function resolveControlToken(hostPublic, token = process.env.MINDCRAFT_CO
 
 export function isAuthorizedControlRequest(providedToken, expectedToken) {
     const expected = normalizeControlToken(expectedToken);
-    if (!expected) return false;
+    if (!expected || typeof providedToken !== 'string') return false;
 
-    const provided = normalizeControlToken(providedToken);
+    let provided;
+    try {
+        provided = normalizeControlToken(providedToken);
+    } catch {
+        return false;
+    }
     if (!provided) return false;
 
     const expectedBuffer = Buffer.from(expected);
