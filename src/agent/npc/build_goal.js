@@ -1,7 +1,6 @@
 import { Vec3 } from 'vec3';
 import * as skills from '../library/skills.js';
 import * as world from '../library/world.js';
-import * as mc from '../../utils/mcdata.js';
 import { blockSatisfied, getTypeOfGeneric, rotateXZ } from './utils.js';
 
 
@@ -14,7 +13,7 @@ export class BuildGoal {
         if (!this.agent.isIdle())
             return false;
         let res = await this.agent.actions.runAction('BuildGoal', func);
-        return !res.interrupted;
+        return res.success && !res.interrupted && !res.timedout;
     }
 
     async executeNext(goal, position=null, orientation=null) {
@@ -26,6 +25,9 @@ export class BuildGoal {
                 position = world.getNearestFreeSpace(this.agent.bot, sizex - x, 16);
                 if (position) break;
             }
+        }
+        if (!position) {
+            return {missing: {}, acted: false, position: null, orientation};
         }
         if (orientation === null) {
             orientation = Math.floor(Math.random() * 4);
@@ -46,24 +48,24 @@ export class BuildGoal {
                     let world_pos = new Vec3(position.x + x, position.y + y, position.z + z);
                     let current_block = this.agent.bot.blockAt(world_pos);
 
-                    let res = null;
                     if (current_block !== null && !blockSatisfied(block_name, current_block)) {
                         acted = true;
 
                         if (current_block.name !== 'air') {
-                            res = await this.wrapSkill(async () => {
+                            const breakSucceeded = await this.wrapSkill(async () => {
                                 await skills.breakBlockAt(this.agent.bot, world_pos.x, world_pos.y, world_pos.z);
                             });
-                            if (!res) return {missing: missing, acted: acted, position: position, orientation: orientation};
+                            if (!breakSucceeded) return {missing: missing, acted: acted, position: position, orientation: orientation};
                         }
 
                         if (block_name !== 'air') {
                             let block_typed = getTypeOfGeneric(this.agent.bot, block_name);
                             if (inventory[block_typed] > 0) {
-                                res = await this.wrapSkill(async () => {
+                                const placementSucceeded = await this.wrapSkill(async () => {
                                     await skills.placeBlock(this.agent.bot, block_typed, world_pos.x, world_pos.y, world_pos.z);
                                 });
-                                if (!res) return {missing: missing, acted: acted, position: position, orientation: orientation};
+                                if (!placementSucceeded) return {missing: missing, acted: acted, position: position, orientation: orientation};
+                                inventory[block_typed]--;
                             } else {
                                 if (missing[block_typed] === undefined)
                                     missing[block_typed] = 0;
