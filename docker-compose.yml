@@ -5,9 +5,10 @@ services:
       SETTINGS_JSON: |
         {"auto_open_ui": false}
       # Bind inside the container so Docker can forward the service. Host-side
-      # publication remains loopback-only below, so this does not expose the
-      # control plane to the LAN unless the compose file is explicitly changed.
+      # publication remains loopback-only below, but a non-loopback process bind
+      # still requires an explicit control token.
       MINDCRAFT_BIND_HOST: 0.0.0.0
+      MINDCRAFT_CONTROL_TOKEN: "${MINDCRAFT_CONTROL_TOKEN:?Set MINDCRAFT_CONTROL_TOKEN before starting Mindcraft}"
     volumes:
       - ./settings.js:/app/settings.js
       - ./keys.json:/app/keys.json
