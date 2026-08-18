@@ -1,5 +1,5 @@
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
-import { appendFile } from 'fs/promises';
+import { readFileSync, mkdirSync, existsSync } from 'fs';
+import { appendFile, writeFile } from 'fs/promises';
 import settings from './settings.js';
 
 export class History {
@@ -95,7 +95,7 @@ export class History {
                 taskStart: this.agent.task.taskStartTime,
                 last_sender: this.agent.last_sender
             };
-            writeFileSync(this.memory_fp, JSON.stringify(data, null, 2));
+            await writeFile(this.memory_fp, JSON.stringify(data, null, 2));
             console.log('Saved memory to:', this.memory_fp);
         } catch (error) {
             console.error('Failed to save history:', error);
