@@ -11,7 +11,7 @@ export function normalizeControlToken(token) {
     }
     const normalized = token.trim();
     if (!normalized) return null;
-    if (/[/\r\n\0]/.test(normalized)) {
+    if (/[\r\n\0]/.test(normalized)) {
         throw new Error('MindServer control token contains invalid control characters.');
     }
     return normalized;
