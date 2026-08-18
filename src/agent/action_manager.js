@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { AsyncMutex } from '../utils/async_mutex.js';
 
 export class ActionManager {
     constructor(agent) {
@@ -11,31 +12,56 @@ export class ActionManager {
         this.resume_name = '';
         this.last_action_time = 0;
         this.recent_action_counter = 0;
+        this.actionMutex = new AsyncMutex();
+        this.stopPromise = null;
     }
 
     resumeAction(timeout) {
-        return this._executeResume(null, null, timeout);
+        return this.actionMutex.runExclusive(() => this._executeResume(null, null, timeout));
     }
 
     runAction(actionLabel, actionFn, { timeout, resume = false } = {}) {
-        if (resume) {
-            return this._executeResume(actionLabel, actionFn, timeout);
-        } else {
-            return this._executeAction(actionLabel, actionFn, timeout);
+        // Preserve the existing "new action interrupts current action" behavior,
+        // but let the mutex own who is allowed to mutate ActionManager state.
+        if (this.executing) {
+            console.log(`action "${actionLabel}" trying to interrupt current action "${this.currentActionLabel}"`);
+            void this.stop().catch(error => {
+                console.error('Failed to stop current action before queued action:', error);
+            });
         }
+
+        return this.actionMutex.runExclusive(() => {
+            if (resume) {
+                return this._executeResume(actionLabel, actionFn, timeout);
+            }
+            return this._executeAction(actionLabel, actionFn, timeout);
+        });
     }
 
     async stop() {
+        if (this.stopPromise) return this.stopPromise;
         if (!this.executing) return;
-        const timeout = setTimeout(() => {
-            this.agent.cleanKill('Code execution refused stop after 10 seconds. Killing process.');
-        }, 10000);
-        while (this.executing) {
-            this.agent.requestInterrupt();
-            console.log('waiting for code to finish executing...');
-            await new Promise(resolve => setTimeout(resolve, 300));
+
+        this.stopPromise = (async () => {
+            const timeout = setTimeout(() => {
+                this.agent.cleanKill('Code execution refused stop after 10 seconds. Killing process.');
+            }, 10000);
+            try {
+                while (this.executing) {
+                    this.agent.requestInterrupt();
+                    console.log('waiting for code to finish executing...');
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            } finally {
+                clearTimeout(timeout);
+            }
+        })();
+
+        try {
+            return await this.stopPromise;
+        } finally {
+            this.stopPromise = null;
         }
-        clearTimeout(timeout);
     }
 
     cancelResume() {
@@ -45,19 +71,18 @@ export class ActionManager {
 
     async _executeResume(actionLabel = null, actionFn = null, timeout = 10) {
         const new_resume = actionFn != null;
-        if (new_resume) { // start new resume
+        if (new_resume) {
             this.resume_func = actionFn;
             assert(actionLabel != null, 'actionLabel is required for new resume');
             this.resume_name = actionLabel;
         }
         if (this.resume_func != null && (this.agent.isIdle() || new_resume) && (!this.agent.self_prompter.isActive() || new_resume)) {
             this.currentActionLabel = this.resume_name;
-            let res = await this._executeAction(this.resume_name, this.resume_func, timeout);
+            const res = await this._executeAction(this.resume_name, this.resume_func, timeout);
             this.currentActionLabel = '';
             return res;
-        } else {
-            return { success: false, message: null, interrupted: false, timedout: false };
         }
+        return { success: false, message: null, interrupted: false, timedout: false };
     }
 
     async _executeAction(actionLabel, actionFn, timeout = 10) {
@@ -65,7 +90,7 @@ export class ActionManager {
         this.timedout = false;
         try {
             if (this.last_action_time > 0) {
-                let time_diff = Date.now() - this.last_action_time;
+                const time_diff = Date.now() - this.last_action_time;
                 if (time_diff < 20) {
                     this.recent_action_counter++;
                 }
@@ -74,7 +99,7 @@ export class ActionManager {
                 }
                 if (this.recent_action_counter > 3) {
                     console.warn('Fast action loop detected, cancelling resume.');
-                    this.cancelResume(); // likely cause of repetition
+                    this.cancelResume();
                 }
                 if (this.recent_action_counter > 5) {
                     console.error('Infinite action loop detected, shutting down.');
@@ -85,46 +110,35 @@ export class ActionManager {
             this.last_action_time = Date.now();
             console.log('executing code...\n');
 
-            // await current action to finish (executing=false), with 10 seconds timeout
-            // also tell agent.bot to stop various actions
-            if (this.executing) {
-                console.log(`action "${actionLabel}" trying to interrupt current action "${this.currentActionLabel}"`);
-            }
+            // A previous owner may still be finishing an externally requested stop.
             await this.stop();
 
-            // clear bot logs and reset interrupt code
             this.agent.clearBotLogs();
 
             this.executing = true;
             this.currentActionLabel = actionLabel;
             this.currentActionFn = actionFn;
 
-            // timeout in minutes
             if (timeout > 0) {
                 TIMEOUT = this._startTimeout(timeout);
             }
 
-            // start the action
             await actionFn();
 
-            // mark action as finished + cleanup
             this.executing = false;
             this.currentActionLabel = '';
             this.currentActionFn = null;
             clearTimeout(TIMEOUT);
 
-            // get bot activity summary
-            let output = this.getBotOutputSummary();
-            let interrupted = this.agent.bot.interrupt_code;
-            let timedout = this.timedout;
+            const output = this.getBotOutputSummary();
+            const interrupted = this.agent.bot.interrupt_code;
+            const timedout = this.timedout;
             this.agent.clearBotLogs();
 
-            // if not interrupted and not generating, emit idle event
             if (!interrupted) {
                 this.agent.bot.emit('idle');
             }
 
-            // return action status report
             return { success: true, message: output, interrupted, timedout };
         } catch (err) {
             this.executing = false;
@@ -138,13 +152,13 @@ export class ActionManager {
 
             const errString = err instanceof Error ? err.toString() : String(err);
             const stack = err instanceof Error && err.stack ? err.stack : '';
-            let message = this.getBotOutputSummary() +
+            const message = this.getBotOutputSummary() +
                 '!!Code threw exception!!\n' +
                 'Error: ' + errString + '\n' +
                 'Stack trace:\n' + stack + '\n';
 
-            let interrupted = this.agent.bot.interrupt_code;
-            let timedout = this.timedout;
+            const interrupted = this.agent.bot.interrupt_code;
+            const timedout = this.timedout;
             this.agent.clearBotLogs();
             if (!interrupted) {
                 this.agent.bot.emit('idle');
@@ -174,8 +188,7 @@ export class ActionManager {
             console.warn(`Code execution timed out after ${TIMEOUT_MINS} minutes. Attempting force stop.`);
             this.timedout = true;
             this.agent.history.add('system', `Code execution timed out after ${TIMEOUT_MINS} minutes. Attempting force stop.`);
-            await this.stop(); // last attempt to stop
+            await this.stop();
         }, TIMEOUT_MINS * 60 * 1000);
     }
-
 }
