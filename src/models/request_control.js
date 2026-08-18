@@ -15,6 +15,20 @@ export class RequestAbortedError extends Error {
     }
 }
 
+const activeControllers = new Set();
+
+export function abortActiveModelRequests(reason = 'Model requests cancelled during shutdown.') {
+    for (const controller of activeControllers) {
+        if (!controller.signal.aborted) {
+            controller.abort(reason);
+        }
+    }
+}
+
+export function activeModelRequestCount() {
+    return activeControllers.size;
+}
+
 export async function runAbortableRequest(operation, { timeoutMs = 120000, signal } = {}) {
     if (typeof operation !== 'function') {
         throw new TypeError('runAbortableRequest requires an operation function.');
@@ -24,14 +38,18 @@ export async function runAbortableRequest(operation, { timeoutMs = 120000, signa
     }
 
     const controller = new AbortController();
+    activeControllers.add(controller);
     let timedOut = false;
     let timeout;
     let externalAbort;
 
     const abortPromise = new Promise((_, reject) => {
         const rejectForAbort = () => {
-            if (timedOut) reject(new RequestTimeoutError(timeoutMs));
-            else reject(new RequestAbortedError(signal?.reason));
+            if (timedOut) {
+                reject(new RequestTimeoutError(timeoutMs));
+            } else {
+                reject(new RequestAbortedError(controller.signal.reason ?? signal?.reason));
+            }
         };
         controller.signal.addEventListener('abort', rejectForAbort, { once: true });
     });
@@ -57,6 +75,7 @@ export async function runAbortableRequest(operation, { timeoutMs = 120000, signa
         ]);
     } finally {
         clearTimeout(timeout);
+        activeControllers.delete(controller);
         if (signal && externalAbort) signal.removeEventListener('abort', externalAbort);
     }
 }
