@@ -4,9 +4,9 @@ import { SelfPrompter } from '../src/agent/self_prompter.js';
 
 function makePrompter(overrides = {}) {
     const agent = {
-        actions: { stop: async () => {} },
+        actions: { stop: () => Promise.resolve() },
         isIdle: () => true,
-        handleMessage: async () => true,
+        handleMessage: () => Promise.resolve(true),
         openChat: () => {},
         ...overrides,
     };
@@ -54,7 +54,7 @@ test('stop changes state immediately and waits for loop shutdown', async () => {
 
 test('loop failures are contained and transition self-prompting to stopped', async () => {
     const prompter = makePrompter({
-        handleMessage: async () => { throw new Error('boom'); },
+        handleMessage: () => Promise.reject(new Error('boom')),
     });
 
     await prompter.startLoop();
