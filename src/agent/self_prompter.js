@@ -1,6 +1,6 @@
-const STOPPED = 0
-const ACTIVE = 1
-const PAUSED = 2
+const STOPPED = 0;
+const ACTIVE = 1;
+const PAUSED = 2;
 
 export class SelfPrompter {
     constructor(agent) {
