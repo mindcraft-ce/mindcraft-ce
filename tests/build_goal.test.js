@@ -27,9 +27,9 @@ test('wrapSkill refuses to start while the agent is busy', async () => {
     const goal = new BuildGoal({
         isIdle: () => false,
         actions: {
-            runAction: async () => {
+            runAction: () => {
                 called = true;
-                return { success: true, interrupted: false, timedout: false };
+                return Promise.resolve({ success: true, interrupted: false, timedout: false });
             },
         },
     });
