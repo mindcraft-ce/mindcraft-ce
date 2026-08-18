@@ -14,6 +14,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_ROOM = 'mindcraft:control';
 const AGENT_ROOM = 'mindcraft:agents';
+const CONTROL_COOKIE = 'mindcraft_control';
 const STATE_POLL_INTERVAL_MS = 1000;
 const STATE_REQUEST_TIMEOUT_MS = 2000;
 
@@ -41,6 +42,33 @@ class AgentConnection {
     }
 }
 
+function parseCookies(header) {
+    const cookies = {};
+    for (const part of String(header || '').split(';')) {
+        const index = part.indexOf('=');
+        if (index === -1) continue;
+        const key = part.slice(0, index).trim();
+        const value = part.slice(index + 1).trim();
+        if (!key) continue;
+        try {
+            cookies[key] = decodeURIComponent(value);
+        } catch {
+            cookies[key] = value;
+        }
+    }
+    return cookies;
+}
+
+function providedControlToken(socket) {
+    return socket.handshake.auth?.controlToken
+        ?? parseCookies(socket.handshake.headers?.cookie)[CONTROL_COOKIE]
+        ?? null;
+}
+
+export function sanitizeDisplayText(value) {
+    return String(value ?? '').replaceAll('<', '＜');
+}
+
 export function registerAgent(settings, viewer_port, process_token) {
     agent_connections[settings.profile.name] = new AgentConnection(settings, viewer_port, process_token);
 }
@@ -64,6 +92,30 @@ export function createMindServer(host_public = false, port = 8080) {
     const app = express();
     server = http.createServer(app);
     io = new Server(server);
+
+    // Public-mode UI bootstrap: validate the token once, keep it out of JS, then
+    // redirect to a clean URL. The Socket.IO handshake receives the HttpOnly cookie.
+    app.get('/', (req, res, next) => {
+        const queryToken = typeof req.query?.token === 'string' ? req.query.token : null;
+        if (!queryToken) {
+            next();
+            return;
+        }
+        if (!controlToken || !isAuthorizedControlRequest(queryToken, controlToken)) {
+            res.status(401).send('Invalid MindServer control token.');
+            return;
+        }
+        const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        const attributes = [
+            `${CONTROL_COOKIE}=${encodeURIComponent(controlToken)}`,
+            'HttpOnly',
+            'SameSite=Strict',
+            'Path=/',
+        ];
+        if (secure) attributes.push('Secure');
+        res.setHeader('Set-Cookie', attributes.join('; '));
+        res.redirect(302, '/');
+    });
 
     app.use(express.static(path.join(__dirname, 'public')));
 
@@ -120,10 +172,10 @@ export function createMindServer(host_public = false, port = 8080) {
 
         const controlAuthorized = () => {
             const hasAgentCredential = typeof socket.handshake.auth?.agentToken === 'string';
-            const hasControlCredential = typeof socket.handshake.auth?.controlToken === 'string';
+            const hasControlCredential = typeof providedControlToken(socket) === 'string';
             if (hasAgentCredential && !hasControlCredential) return false;
             if (!controlToken) return !host_public;
-            return isAuthorizedControlRequest(socket.handshake.auth?.controlToken, controlToken);
+            return isAuthorizedControlRequest(providedControlToken(socket), controlToken);
         };
 
         const rejectControl = (callback) => {
@@ -285,7 +337,7 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('bot-output', (agentName, message) => {
             if (!requireAgent(agentName)) return;
-            io.to(CONTROL_ROOM).emit('bot-output', agentName, message);
+            io.to(CONTROL_ROOM).emit('bot-output', agentName, sanitizeDisplayText(message));
         });
 
         socket.on('listen-to-agents', () => {
