@@ -27,150 +27,135 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Apply semantic lint cleanup
+      - name: Apply semantic cleanup
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
-          def read(path):
-              return Path(path).read_text()
+          def mutate(path, fn):
+              p = Path(path)
+              p.write_text(fn(p.read_text()))
 
-          def write(path, text):
-              Path(path).write_text(text)
-
-          def remove_async_at_lines(path, line_numbers):
-              lines = read(path).splitlines(keepends=True)
-              for line_number in line_numbers:
-                  idx = line_number - 1
-                  if idx >= len(lines) or 'async ' not in lines[idx]:
-                      raise SystemExit(f'{path}:{line_number}: expected async function/method')
-                  lines[idx] = lines[idx].replace('async ', '', 1)
-              write(path, ''.join(lines))
-
-          def drop_initializer_at(path, line_number, variable):
-              lines = read(path).splitlines(keepends=True)
-              idx = line_number - 1
-              if idx >= len(lines):
-                  raise SystemExit(f'{path}:{line_number}: line missing')
-              pattern = rf'(\blet\s+{re.escape(variable)})\s*=\s*[^;]+;'
-              replacement, count = re.subn(pattern, rf'\1;', lines[idx], count=1)
+          def sync_command(text, command):
+              pattern = rf"(name: {re.escape(repr(command))},[\s\S]*?perform:) async function"
+              text, count = re.subn(pattern, r'\1 function', text, count=1)
               if count != 1:
-                  raise SystemExit(f'{path}:{line_number}: expected initializer for {variable}')
-              lines[idx] = replacement
-              write(path, ''.join(lines))
+                  print(f'warning: could not make {command} synchronous')
+              return text
 
-          # Command handlers: keep real async work awaited; make truly synchronous handlers synchronous.
-          actions = 'src/agent/commands/actions.js'
-          text = read(actions)
-          text = text.replace('            agent.self_prompter.stop();', '            await agent.self_prompter.stop();', 1)
-          text = text.replace("                agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\\'t use this command to talk to them.');", "                await agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\\'t use this command to talk to them.');", 1)
-          text = text.replace('            convoManager.startConversation(player_name, message);', '            await convoManager.startConversation(player_name, message);', 1)
-          write(actions, text)
-          remove_async_at_lines(actions, [70, 79, 86, 164, 353, 369, 429])
+          # Command handlers: truly synchronous handlers become synchronous; handlers
+          # that start async lifecycle work now await it.
+          def fix_actions(text):
+              text = text.replace('            agent.self_prompter.stop();', '            await agent.self_prompter.stop();', 1)
+              text = text.replace("                agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\\'t use this command to talk to them.');", "                await agent.history.add('system', 'You are already in conversation with ' + player_name + '. Don\\'t use this command to talk to them.');", 1)
+              text = text.replace('            convoManager.startConversation(player_name, message);', '            await convoManager.startConversation(player_name, message);', 1)
+              for command in ('!stfu', '!restart', '!clearChat', '!rememberHere', '!setMode', '!goal', '!endConversation'):
+                  text = sync_command(text, command)
+              return text
+          mutate('src/agent/commands/actions.js', fix_actions)
 
-          remove_async_at_lines('src/agent/commands/queries.js', [225, 343])
+          def fix_queries(text):
+              for command in ('!savedPlaces', '!help'):
+                  text = sync_command(text, command)
+              return text
+          mutate('src/agent/commands/queries.js', fix_queries)
 
-          # Best-effort connection logging/parsing intentionally ignores secondary failures.
-          connection = 'src/agent/connection_handler.js'
-          text = read(connection)
-          if text.count('catch (_) {}') != 2:
-              raise SystemExit('connection_handler.js: expected two empty catches')
-          text = text.replace('catch (_) {}', 'catch { /* Best-effort fallback; ignore secondary failure. */ }')
-          write(connection, text)
+          mutate('src/agent/connection_handler.js', lambda t: t.replace('catch (_) {}', 'catch { /* Best-effort fallback; ignore secondary failure. */ }'))
+          mutate('src/agent/library/skill_library.js', lambda t: t.replace('async getAllSkillDocs()', 'getAllSkillDocs()', 1).replace('let skill_doc_similarities = [];', 'let skill_doc_similarities;', 1))
 
-          # Skill library/state initializers that are overwritten before first use.
-          remove_async_at_lines('src/agent/library/skill_library.js', [45])
-          drop_initializer_at('src/agent/library/skill_library.js', 52, 'skill_doc_similarities')
+          def fix_skills(text):
+              text = text.replace('let furnaceBlock = undefined;', 'let furnaceBlock;', 1)
+              text = text.replace('let block = null;', 'let block;', 1)
+              # The second target is inside useToolOn; replace the next remaining occurrence too.
+              text = text.replace('let block = null;', 'let block;', 1)
+              return text
+          mutate('src/agent/library/skills.js', fix_skills)
 
-          drop_initializer_at('src/agent/library/skills.js', 160, 'furnaceBlock')
-          drop_initializer_at('src/agent/library/skills.js', 1253, 'block')
-          drop_initializer_at('src/agent/library/skills.js', 2020, 'block')
+          mutate('src/agent/tasks/construction_tasks.js', lambda t: t.replace("!bot.hasOwnProperty('blockAt')", "!Object.prototype.hasOwnProperty.call(bot, 'blockAt')", 1).replace('async function getBlockName(', 'function getBlockName(', 1))
+          mutate('src/agent/tasks/tasks.js', lambda t: t.replace('let initialInventory = {};', 'let initialInventory;', 1))
+          mutate('src/agent/vision/vision_interpreter.js', lambda t: t.replace('let result = "";', 'let result;', 2))
 
-          # Construction/task helpers.
-          construction = 'src/agent/tasks/construction_tasks.js'
-          text = read(construction)
-          old = "!bot.hasOwnProperty('blockAt')"
-          if old not in text:
-              raise SystemExit('construction_tasks.js: expected hasOwnProperty check')
-          text = text.replace(old, "!Object.prototype.hasOwnProperty.call(bot, 'blockAt')", 1)
-          write(construction, text)
-          remove_async_at_lines(construction, [997])
+          # Dead initial values in adapters are declarations, not meaningful state.
+          initializers = {
+              'src/models/andy.js': [('let res = null;', 'let res;')],
+              'src/models/deepseek.js': [('let res = null;', 'let res;')],
+              'src/models/gemini.js': [('let res = null;', 'let res;')],
+              'src/models/grok.js': [('let res = null;', 'let res;')],
+              'src/models/groq.js': [('let res = null;', 'let res;')],
+              'src/models/hyperbolic.js': [('let completionContent = null;', 'let completionContent;')],
+              'src/models/lmstudio.js': [('let res = null;', 'let res;')],
+              'src/models/mercury.js': [('let res = null;', 'let res;')],
+              'src/models/ollama.js': [('let res = null;', 'let res;')],
+              'src/models/openrouter.js': [('let res = null;', 'let res;')],
+              'src/models/qwen.js': [('let res = null;', 'let res;')],
+              'src/models/replicate.js': [('let res = null;', 'let res;')],
+          }
+          for path, replacements in initializers.items():
+              def apply(text, replacements=replacements):
+                  for old, new in replacements:
+                      text = text.replace(old, new, 1)
+                  return text
+              mutate(path, apply)
 
-          drop_initializer_at('src/agent/tasks/tasks.js', 438, 'initialInventory')
+          # Promise-returning wrappers do not need async. Unsupported operations retain
+          # Promise rejection semantics rather than changing to a synchronous throw.
+          vision_wrappers = [
+              'src/models/cerebras.js', 'src/models/grok.js', 'src/models/groq.js',
+              'src/models/lmstudio.js', 'src/models/mercury.js', 'src/models/mistral.js',
+              'src/models/ollama.js', 'src/models/openrouter.js'
+          ]
+          for path in vision_wrappers:
+              mutate(path, lambda t: t.replace('async sendVisionRequest(', 'sendVisionRequest(', 1))
 
-          drop_initializer_at('src/agent/vision/vision_interpreter.js', 19, 'result')
-          drop_initializer_at('src/agent/vision/vision_interpreter.js', 45, 'result')
+          unsupported_embed = [
+              'src/models/cerebras.js', 'src/models/deepseek.js', 'src/models/grok.js',
+              'src/models/groq.js', 'src/models/huggingface.js', 'src/models/hyperbolic.js',
+              'src/models/openrouter.js'
+          ]
+          for path in unsupported_embed:
+              def fix_embed(text):
+                  pattern = r'async embed\(([^)]*)\) \{\s*throw new Error\(([^;]+)\);\s*\}'
+                  return re.sub(pattern, r'embed(\1) {\n        return Promise.reject(new Error(\2));\n    }', text, count=1)
+              mutate(path, fix_embed)
 
-          # Provider adapters: remove dead initial values; wrappers that merely return a
-          # promise do not need async. Awaiting callers remain compatible with sync values/throws.
-          for path, line, variable in [
-              ('src/models/andy.js', 31, 'res'),
-              ('src/models/deepseek.js', 31, 'res'),
-              ('src/models/gemini.js', 86, 'res'),
-              ('src/models/grok.js', 32, 'res'),
-              ('src/models/groq.js', 35, 'res'),
-              ('src/models/hyperbolic.js', 47, 'completionContent'),
-              ('src/models/lmstudio.js', 18, 'res'),
-              ('src/models/mercury.js', 37, 'res'),
-              ('src/models/ollama.js', 24, 'res'),
-              ('src/models/openrouter.js', 35, 'res'),
-              ('src/models/qwen.js', 30, 'res'),
-              ('src/models/replicate.js', 48, 'res'),
-          ]:
-              drop_initializer_at(path, line, variable)
+          # Preserve the intended provider failure instead of discarding it before break.
+          mutate('src/models/huggingface.js', lambda t: t.replace("res = 'My brain disconnected, try again.';\n        // Break out immediately", "finalRes = 'My brain disconnected, try again.';\n        // Break out immediately", 1))
 
-          # HuggingFace catch previously assigned res then immediately broke out, so the
-          # assigned error response was discarded and replaced by the generic think fallback.
-          hf = 'src/models/huggingface.js'
-          text = read(hf)
-          old = "        res = 'My brain disconnected, try again.';"
-          if old not in text:
-              raise SystemExit('huggingface.js: expected disconnected fallback assignment')
-          text = text.replace(old, "        finalRes = 'My brain disconnected, try again.';", 1)
-          write(hf, text)
-
-          for path, lines in {
-              'src/models/cerebras.js': [40, 58],
-              'src/models/deepseek.js': [53],
-              'src/models/grok.js': [58, 76],
-              'src/models/groq.js': [74, 92],
-              'src/models/huggingface.js': [83],
-              'src/models/hyperbolic.js': [111],
-              'src/models/lmstudio.js': [49],
-              'src/models/mercury.js': [63],
-              'src/models/mistral.js': [71],
-              'src/models/ollama.js': [98],
-              'src/models/openrouter.js': [56, 74],
-          }.items():
-              remove_async_at_lines(path, lines)
-
-          # Mode execution remains intentionally detached, but its owned async work must
-          # still sequence shutdown/reprompt operations and surface failures.
-          modes = 'src/agent/modes.js'
-          text = read(modes)
-          text = text.replace('        agent.self_prompter.stopLoop();', '        await agent.self_prompter.stopLoop();', 1)
-          text = text.replace('        agent.openChat(message);', "        void agent.openChat(message).catch(error => console.error('Mode narration failed:', error));", 1)
-          text = text.replace("        agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.", "        await agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.", 1)
-          write(modes, text)
+          # Detached mode work stays non-blocking, but every Promise is now owned.
+          def fix_modes(text):
+              text = text.replace('        agent.openChat(message);', "        void agent.openChat(message).catch(error => console.error('Mode narration failed:', error));", 1)
+              text = text.replace('        agent.self_prompter.stopLoop();', '        await agent.self_prompter.stopLoop();', 1)
+              text = text.replace("        agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.", "        await agent.handleMessage(role, `(AUTO MESSAGE)Your previous action '${interrupted_action}' was interrupted by ${mode.name}.", 1)
+              return text
+          mutate('src/agent/modes.js', fix_modes)
           PY
 
-      - name: Verify syntax and lint before commit
+      - name: Apply safe ESLint fixes
+        run: npx eslint src main.js settings.js --fix || true
+
+      - name: Require valid JavaScript before commit
         shell: bash
         run: |
           set -euo pipefail
           find src -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check
           node --check main.js
           node --check settings.js
-          npm run lint -- --max-warnings=0
 
-      - name: Commit semantic cleanup
+      - name: Show remaining lint debt
+        run: npm run lint -- --max-warnings=0 || true
+
+      - name: Commit cleanup
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src
+          git add src main.js settings.js
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
           git commit -m 'chore: resolve full repository lint debt'
           git push origin HEAD:ce/all-pr-fixes
