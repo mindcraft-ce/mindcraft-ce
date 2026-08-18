@@ -5,11 +5,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as mindcraft from './mindcraft.js';
 import { readFileSync } from 'fs';
+import {
+    isAuthorizedControlRequest,
+    resolveControlToken,
+    resolveMindServerBindHost,
+} from './security.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Mindserver is:
 // - central hub for communication between all agent processes
-// - api to control from other languages and remote users 
+// - api to control from other languages and remote users
 // - host for webapp
 
 let io;
@@ -20,20 +25,21 @@ const agent_listeners = [];
 const settings_spec = JSON.parse(readFileSync(path.join(__dirname, 'public/settings_spec.json'), 'utf8'));
 
 class AgentConnection {
-    constructor(settings, viewer_port) {
+    constructor(settings, viewer_port, process_token) {
         this.socket = null;
         this.settings = settings;
         this.in_game = false;
         this.full_state = null;
         this.viewer_port = viewer_port;
+        this.process_token = process_token;
     }
     setSettings(settings) {
         this.settings = settings;
     }
 }
 
-export function registerAgent(settings, viewer_port) {
-    let agentConnection = new AgentConnection(settings, viewer_port);
+export function registerAgent(settings, viewer_port, process_token) {
+    let agentConnection = new AgentConnection(settings, viewer_port, process_token);
     agent_connections[settings.profile.name] = agentConnection;
 }
 
@@ -44,8 +50,16 @@ export function logoutAgent(agentName) {
     }
 }
 
+function isAgentSocketAuthorized(socket, agentName) {
+    const connection = agent_connections[agentName];
+    if (!connection?.process_token) return false;
+    return isAuthorizedControlRequest(socket.handshake.auth?.agentToken, connection.process_token);
+}
+
 // Initialize the server
 export function createMindServer(host_public = false, port = 8080) {
+    const controlToken = resolveControlToken(host_public);
+    const host = resolveMindServerBindHost(host_public);
     const app = express();
     server = http.createServer(app);
     io = new Server(server);
@@ -118,9 +132,37 @@ export function createMindServer(host_public = false, port = 8080) {
         let curAgentName = null;
         console.log('Client connected');
 
-        agentsStatusUpdate(socket);
+        const controlAuthorized = () => {
+            if (!controlToken) return !host_public;
+            return isAuthorizedControlRequest(socket.handshake.auth?.controlToken, controlToken);
+        };
+
+        const rejectControl = (callback) => {
+            const error = 'Unauthorized MindServer control request.';
+            if (typeof callback === 'function') callback({ success: false, error });
+            else socket.emit('control-error', { error });
+        };
+
+        const requireControl = (callback) => {
+            if (controlAuthorized()) return true;
+            rejectControl(callback);
+            return false;
+        };
+
+        const requireAgent = (agentName, callback) => {
+            if (isAgentSocketAuthorized(socket, agentName)) return true;
+            const error = `Unauthorized agent process '${agentName}'.`;
+            if (typeof callback === 'function') callback({ error });
+            else socket.emit('agent-auth-error', { error });
+            return false;
+        };
+
+        if (controlAuthorized()) {
+            agentsStatusUpdate(socket);
+        }
 
         socket.on('create-agent', async (settings, callback) => {
+            if (!requireControl(callback)) return;
             console.log('API create agent...');
             for (let key in settings_spec) {
                 if (!(key in settings)) {
@@ -159,6 +201,7 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('get-settings', (agentName, callback) => {
+            if (!controlAuthorized() && !requireAgent(agentName, callback)) return;
             if (agent_connections[agentName]) {
                 callback({ settings: agent_connections[agentName].settings });
             } else {
@@ -167,13 +210,14 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('connect-agent-process', (agentName) => {
-            if (agent_connections[agentName]) {
-                agent_connections[agentName].socket = socket;
-                agentsStatusUpdate();
-            }
+            if (!requireAgent(agentName)) return;
+            agent_connections[agentName].socket = socket;
+            curAgentName = agentName;
+            agentsStatusUpdate();
         });
 
         socket.on('login-agent', (agentName) => {
+            if (!requireAgent(agentName)) return;
             if (agent_connections[agentName]) {
                 agent_connections[agentName].socket = socket;
                 agent_connections[agentName].in_game = true;
@@ -186,7 +230,7 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('disconnect', () => {
-            if (agent_connections[curAgentName]) {
+            if (agent_connections[curAgentName]?.socket === socket) {
                 console.log(`Agent ${curAgentName} disconnected`);
                 agent_connections[curAgentName].in_game = false;
                 agent_connections[curAgentName].socket = null;
@@ -198,36 +242,43 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('chat-message', (agentName, json) => {
-            if (!agent_connections[agentName]) {
-                console.warn(`Agent ${agentName} tried to send a message but is not logged in`);
+            if (!curAgentName || !requireAgent(curAgentName)) return;
+            const target = agent_connections[agentName];
+            if (!target?.socket) {
+                console.warn(`Agent ${curAgentName} tried to send a message to unavailable agent ${agentName}`);
                 return;
             }
             console.log(`${curAgentName} sending message to ${agentName}: ${json.message}`);
-            agent_connections[agentName].socket.emit('chat-message', curAgentName, json);
+            target.socket.emit('chat-message', curAgentName, json);
         });
 
         socket.on('set-agent-settings', (agentName, settings) => {
+            if (!requireControl()) return;
             const agent = agent_connections[agentName];
             if (agent) {
                 agent.setSettings(settings);
-                agent.socket.emit('restart-agent');
+                agent.socket?.emit('restart-agent');
             }
         });
 
         socket.on('restart-agent', (agentName) => {
+            if (!requireControl()) return;
             console.log(`Restarting agent: ${agentName}`);
-            agent_connections[agentName].socket.emit('restart-agent');
+            agent_connections[agentName]?.socket?.emit('restart-agent');
         });
 
         socket.on('stop-agent', (agentName) => {
+            if (!requireControl()) return;
             mindcraft.stopAgent(agentName);
         });
 
         socket.on('start-agent', (agentName) => {
+            if (!requireControl()) return;
             mindcraft.startAgent(agentName);
         });
 
         socket.on('destroy-agent', (agentName) => {
+            if (!requireControl()) return;
             if (agent_connections[agentName]) {
                 mindcraft.destroyAgent(agentName);
                 delete agent_connections[agentName];
@@ -236,6 +287,7 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('stop-all-agents', () => {
+            if (!requireControl()) return;
             console.log('Killing all agents');
             for (let agentName in agent_connections) {
                 mindcraft.stopAgent(agentName);
@@ -243,6 +295,7 @@ export function createMindServer(host_public = false, port = 8080) {
         });
 
         socket.on('shutdown', () => {
+            if (!requireControl()) return;
             console.log('Shutting down');
             for (let agentName in agent_connections) {
                 mindcraft.stopAgent(agentName);
@@ -252,34 +305,33 @@ export function createMindServer(host_public = false, port = 8080) {
                 console.log('Exiting MindServer');
                 globalThis.process.exit(0);
             }, 2000);
-            
         });
 
-		socket.on('send-message', (agentName, data) => {
-			if (!agent_connections[agentName]) {
-				console.warn(`Agent ${agentName} not in game, cannot send message via MindServer.`);
+        socket.on('send-message', (agentName, data) => {
+            if (!requireControl()) return;
+            const agent = agent_connections[agentName];
+            if (!agent?.socket) {
+                console.warn(`Agent ${agentName} not in game, cannot send message via MindServer.`);
                 return;
-			}
-			try {
-                agent_connections[agentName].socket.emit('send-message', data);
-			} catch (error) {
-				console.error('Error: ', error);
-			}
-		});
+            }
+            try {
+                agent.socket.emit('send-message', data);
+            } catch (error) {
+                console.error('Error: ', error);
+            }
+        });
 
         socket.on('bot-output', (agentName, message) => {
+            if (!requireAgent(agentName)) return;
             io.emit('bot-output', agentName, message);
         });
 
         socket.on('listen-to-agents', () => {
+            if (!requireControl()) return;
             addListener(socket);
         });
     });
 
-    if (host_public) {
-        console.log('Public hosting not supported yet. Using localhost.');
-    }
-    const host = '0.0.0.0';
     server.listen(port, host, () => {
         console.log(`MindServer running on port ${port} on host ${host}`);
     });
@@ -288,6 +340,7 @@ export function createMindServer(host_public = false, port = 8080) {
 }
 
 function agentsStatusUpdate(socket) {
+    if (!io) return;
     if (!socket) {
         socket = io;
     }
@@ -295,7 +348,7 @@ function agentsStatusUpdate(socket) {
     for (let agentName in agent_connections) {
         const conn = agent_connections[agentName];
         agents.push({
-            name: agentName, 
+            name: agentName,
             in_game: conn.in_game,
             viewerPort: conn.viewer_port,
             socket_connected: !!conn.socket
@@ -313,7 +366,7 @@ function addListener(listener_socket) {
             const states = {};
             for (let agentName in agent_connections) {
                 let agent = agent_connections[agentName];
-                if (agent.in_game) {
+                if (agent.in_game && agent.socket) {
                     try {
                         const state = await new Promise((resolve) => {
                             agent.socket.emit('get-full-state', (s) => resolve(s));
@@ -332,7 +385,8 @@ function addListener(listener_socket) {
 }
 
 function removeListener(listener_socket) {
-    agent_listeners.splice(agent_listeners.indexOf(listener_socket), 1);
+    const index = agent_listeners.indexOf(listener_socket);
+    if (index !== -1) agent_listeners.splice(index, 1);
     if (agent_listeners.length === 0) {
         clearInterval(listenerInterval);
         listenerInterval = null;
