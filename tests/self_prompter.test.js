@@ -51,3 +51,15 @@ test('stop changes state immediately and waits for loop shutdown', async () => {
     assert.equal(prompter.loop_active, false);
     assert.equal(prompter.interrupt, false);
 });
+
+test('loop failures are contained and transition self-prompting to stopped', async () => {
+    const prompter = makePrompter({
+        handleMessage: async () => { throw new Error('boom'); },
+    });
+
+    await prompter.startLoop();
+
+    assert.equal(prompter.isStopped(), true);
+    assert.equal(prompter.loop_active, false);
+    assert.equal(prompter.loopPromise, null);
+});
