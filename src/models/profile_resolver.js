@@ -13,24 +13,19 @@ function readJson(filePath) {
 }
 
 export function resolveProfile(profile, baseProfileName, defaultsDir) {
-    const defaultProfile = readJson(path.join(defaultsDir, '_default.json'));
-    const matchedBase = Object.keys(BASE_PROFILE_FILES)
-        .find(name => String(baseProfileName).includes(name));
+    const normalizedBase = String(baseProfileName ?? '').trim().toLowerCase();
+    const baseProfileFile = BASE_PROFILE_FILES[normalizedBase];
 
-    if (!matchedBase) {
+    if (!baseProfileFile) {
         throw new Error(`Unknown base profile: ${baseProfileName}`);
     }
 
-    const baseProfile = readJson(path.join(defaultsDir, BASE_PROFILE_FILES[matchedBase]));
+    const defaultProfile = readJson(path.join(defaultsDir, '_default.json'));
+    const baseProfile = readJson(path.join(defaultsDir, baseProfileFile));
 
-    for (const [key, value] of Object.entries(defaultProfile)) {
-        if (baseProfile[key] === undefined)
-            baseProfile[key] = value;
-    }
-    for (const [key, value] of Object.entries(baseProfile)) {
-        if (profile[key] === undefined)
-            profile[key] = value;
-    }
-
-    return profile;
+    return {
+        ...defaultProfile,
+        ...baseProfile,
+        ...profile,
+    };
 }
