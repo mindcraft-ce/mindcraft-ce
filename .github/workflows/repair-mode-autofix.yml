@@ -5,6 +5,7 @@ on:
     branches: ['ce/all-pr-fixes']
     paths:
       - '.github/workflows/repair-mode-autofix.yml'
+      - 'src/agent/modes.js'
 
 permissions:
   contents: write
@@ -37,8 +38,6 @@ jobs:
           path = Path('src/agent/modes.js')
           text = path.read_text()
           text = text.replace('async function say(agent, message) {', 'function say(agent, message) {')
-          text = text.replace('await say(', 'say(')
-          text = text.replace('await execute(', 'execute(')
 
           for mode_name in ('self_preservation', 'unstuck', 'elbow_room'):
               pattern = rf"(name: '{mode_name}',.*?update:) async function"
@@ -62,7 +61,8 @@ jobs:
           PY
 
           node --check src/agent/modes.js
-          npx eslint src/agent/modes.js --max-warnings=0
+          npx eslint src/agent/modes.js --fix --max-warnings=0
+          node --check src/agent/modes.js
 
       - name: Commit repair
         shell: bash
