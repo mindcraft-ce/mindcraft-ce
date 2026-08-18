@@ -17,6 +17,14 @@ export function normalizeControlToken(token) {
     return normalized;
 }
 
+export function resolveControlToken(hostPublic, token = process.env.MINDCRAFT_CONTROL_TOKEN) {
+    const normalized = normalizeControlToken(token);
+    if (hostPublic && !normalized) {
+        throw new Error('Public MindServer hosting requires MINDCRAFT_CONTROL_TOKEN.');
+    }
+    return normalized;
+}
+
 export function isAuthorizedControlRequest(providedToken, expectedToken) {
     const expected = normalizeControlToken(expectedToken);
     if (!expected) return false;
