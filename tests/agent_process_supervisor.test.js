@@ -27,6 +27,21 @@ test('restart plan uses bounded exponential backoff', () => {
     assert.equal(plan.allowed, false);
 });
 
+test('spawned agents receive only their per-process MindServer credential', () => {
+    const child = new FakeChild();
+    let spawnOptions;
+    const supervisor = new AgentProcess('Andy', 8080, {
+        processToken: 'agent-secret',
+        spawnFn: (_exe, _args, options) => {
+            spawnOptions = options;
+            return child;
+        },
+    });
+
+    supervisor.start(false, null, 0);
+    assert.equal(spawnOptions.env.MINDCRAFT_AGENT_TOKEN, 'agent-secret');
+});
+
 test('ordinary terminal child failures do not exit the parent', () => {
     const child = new FakeChild();
     const exits = [];
