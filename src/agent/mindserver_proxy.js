@@ -1,7 +1,6 @@
 import { io } from 'socket.io-client';
-import convoManager from './conversation.js';
 import { setSettings } from './settings.js';
-import { getFullState } from './library/full_state.js';
+import rootSettings from '../../settings.js';
 
 // agent's individual connection to the mindserver
 // always connect to localhost
@@ -11,30 +10,59 @@ class MindServerProxy {
         if (MindServerProxy.instance) {
             return MindServerProxy.instance;
         }
-        
+
         this.socket = null;
         this.connected = false;
         this.agents = [];
+        this.convoManager = null;
+        this.getFullState = null;
         MindServerProxy.instance = this;
     }
 
     async connect(name, port) {
         if (this.connected) return;
-        
+
         this.name = name;
         this.socket = io(`http://localhost:${port}`);
 
         await new Promise((resolve, reject) => {
-            this.socket.on('connect', resolve);
-            this.socket.on('connect_error', (err) => {
-                console.error('Connection failed:', err);
-                reject(err);
+            this.socket.once('connect', resolve);
+            this.socket.once('connect_error', reject);
+        });
+
+        const response = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Settings request timed out after 5 seconds'));
+            }, 5000);
+
+            this.socket.emit('get-settings', name, (settingsResponse) => {
+                clearTimeout(timeout);
+                if (settingsResponse.error) {
+                    reject(new Error(settingsResponse.error));
+                    return;
+                }
+                resolve(settingsResponse);
             });
         });
 
+        setSettings(response.settings);
+        Object.assign(rootSettings, response.settings);
+
+        const [{ default: convoManager }, { getFullState }] = await Promise.all([
+            import('./conversation.js'),
+            import('./library/full_state.js'),
+        ]);
+        this.convoManager = convoManager;
+        this.getFullState = getFullState;
+
+        this._registerSocketHandlers();
         this.connected = true;
         console.log(name, 'connected to MindServer');
 
+        this.socket.emit('connect-agent-process', name);
+    }
+
+    _registerSocketHandlers() {
         this.socket.on('disconnect', () => {
             console.log('Disconnected from MindServer');
             this.connected = false;
@@ -44,12 +72,12 @@ class MindServerProxy {
         });
 
         this.socket.on('chat-message', (agentName, json) => {
-            convoManager.receiveFromBot(agentName, json);
+            this.convoManager.receiveFromBot(agentName, json);
         });
 
         this.socket.on('agents-status', (agents) => {
             this.agents = agents;
-            convoManager.updateAgents(agents);
+            this.convoManager.updateAgents(agents);
             if (this.agent?.task) {
                 console.log(this.agent.name, 'updating available agents');
                 this.agent.task.updateAvailableAgents(agents);
@@ -58,12 +86,12 @@ class MindServerProxy {
 
         this.socket.on('restart-agent', (agentName) => {
             console.log(`Restarting agent: ${agentName}`);
-            this.agent.cleanKill();
+            this.agent?.cleanKill();
         });
-		
+
         this.socket.on('send-message', (data) => {
             try {
-                this.agent.respondFunc(data.from, data.message);
+                this.agent?.respondFunc(data.from, data.message);
             } catch (error) {
                 console.error('Error: ', JSON.stringify(error, Object.getOwnPropertyNames(error)));
             }
@@ -71,29 +99,16 @@ class MindServerProxy {
 
         this.socket.on('get-full-state', (callback) => {
             try {
-                const state = getFullState(this.agent);
+                if (!this.agent || !this.getFullState) {
+                    callback(null);
+                    return;
+                }
+                const state = this.getFullState(this.agent);
                 callback(state);
             } catch (error) {
                 console.error('Error getting full state:', error);
                 callback(null);
             }
-        });
-
-        // Request settings and wait for response
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error('Settings request timed out after 5 seconds'));
-            }, 5000);
-
-            this.socket.emit('get-settings', name, (response) => {
-                clearTimeout(timeout);
-                if (response.error) {
-                    return reject(new Error(response.error));
-                }
-                setSettings(response.settings);
-                this.socket.emit('connect-agent-process', name);
-                resolve();
-            });
         });
     }
 
@@ -122,15 +137,12 @@ class MindServerProxy {
     }
 }
 
-// Create and export a singleton instance
 export const serverProxy = new MindServerProxy();
 
-// for chatting with other bots
 export function sendBotChatToServer(agentName, json) {
     serverProxy.getSocket().emit('chat-message', agentName, json);
 }
 
-// for sending general output to server for display
 export function sendOutputToServer(agentName, message) {
     serverProxy.getSocket().emit('bot-output', agentName, message);
 }
