@@ -46,6 +46,21 @@
         "description": "List of agents to only chat with. If empty, the bot will chat publicly",
         "default": []
     },
+    "allow_public_commands": {
+        "type": "boolean",
+        "description": "Allow any player to execute forced !commands directly. Disabled by default.",
+        "default": false
+    },
+    "command_users": {
+        "type": "array",
+        "description": "Players allowed to execute forced !commands directly.",
+        "default": []
+    },
+    "command_acl": {
+        "type": "object",
+        "description": "Optional per-command player allowlists keyed by command name.",
+        "default": {}
+    },
     "speak": {
         "type": "boolean",
         "description": "Whether to enable text-to-speech reading on the host machine",
