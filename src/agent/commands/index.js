@@ -1,6 +1,7 @@
 import { getBlockId, getItemId } from "../../utils/mcdata.js";
 import { actionsList } from './actions.js';
 import { queryList } from './queries.js';
+import { normalizePlacementItemName } from './placement_aliases.js';
 
 let suppressNoDomainWarning = true;
 
@@ -28,15 +29,6 @@ export function blacklistCommands(commands) {
 
 const commandRegex = /!(\w+)(?:\(((?:-?\d+(?:\.\d+)?|true|false|"[^"]*")(?:\s*,\s*(?:-?\d+(?:\.\d+)?|true|false|"[^"]*"))*)\))?/
 const argRegex = /-?\d+(?:\.\d+)?|true|false|"[^"]*"/g;
-
-// Some placeable blocks use a differently named inventory item.
-// Normalize these only for !placeHere so other block/item commands keep their
-// existing semantics.
-const placementItemAliases = {
-    tripwire: 'string',
-    potatoes: 'potato',
-    wheat: 'wheat_seeds',
-};
 
 export function containsCommand(message) {
     const commandMatch = message.match(commandRegex);
@@ -132,7 +124,7 @@ export function parseCommandMessage(message) {
         }
 
         if (commandName === '!placeHere' && param.type === 'BlockOrItemName')
-            arg = placementItemAliases[arg] ?? arg;
+            arg = normalizePlacementItemName(arg);
         
         //Convert to the correct type
         switch(param.type) {
