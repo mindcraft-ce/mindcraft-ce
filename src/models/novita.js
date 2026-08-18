@@ -50,13 +50,11 @@ export class Novita {
 
         if (res.includes('<think>')) {
             const start = res.indexOf('<think>');
-            const end = res.indexOf('</think>') + 8;
+            const end = res.indexOf('</think>');
             if (start !== -1) {
-                if (end !== -1) {
-                    res = res.substring(0, start) + res.substring(end);
-                } else {
-                    res = res.substring(0, start + 7);
-                }
+                res = end !== -1
+                    ? res.substring(0, start) + res.substring(end + 8)
+                    : res.substring(0, start);
             }
             res = res.trim();
         }
