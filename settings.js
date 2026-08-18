@@ -29,6 +29,9 @@ const settings = {
     "load_memory": false, // load memory from previous session
     "init_message": "Respond with hello world and your name", // sends to all on spawn
     "only_chat_with": [], // users that the bots listen to and send general messages to. if empty it will chat publicly
+    "allow_public_commands": false, // opt in to let any player execute forced !commands directly
+    "command_users": [], // players allowed to execute forced !commands directly
+    "command_acl": {}, // optional per-command player allowlists, e.g. { "!stats": ["Steve"] }
 
     "speak": false,
     // allows all bots to speak through text-to-speech. 
