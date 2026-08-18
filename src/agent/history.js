@@ -1,6 +1,7 @@
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync } from 'fs';
 import { appendFile } from 'fs/promises';
 import settings from './settings.js';
+import { atomicWriteJson } from '../utils/atomic_file.js';
 
 export class History {
     constructor(agent) {
@@ -55,6 +56,11 @@ export class History {
         }
     }
 
+    // Shutdown must never trigger summarization or another provider request.
+    addShutdownMessage(content) {
+        this.turns.push({ role: 'system', content });
+    }
+
     async add(name, content) {
         let role = 'assistant';
         if (name === 'system') {
@@ -76,17 +82,19 @@ export class History {
         }
     }
 
-    save() {
+    async save() {
         try {
+            const selfPrompter = this.agent.self_prompter;
             const data = {
                 memory: this.memory,
                 turns: this.turns,
-                self_prompting_state: this.agent.self_prompter.state,
-                self_prompt: this.agent.self_prompter.isStopped() ? null : this.agent.self_prompter.prompt,
-                taskStart: this.agent.task.taskStartTime,
+                self_prompting_state: selfPrompter?.state ?? 0,
+                self_prompt: !selfPrompter || selfPrompter.isStopped() ? null : selfPrompter.prompt,
+                taskStart: this.agent.task?.taskStartTime ?? null,
                 last_sender: this.agent.last_sender
             };
-            writeFileSync(this.memory_fp, JSON.stringify(data, null, 2));
+            await this.full_history_write;
+            await atomicWriteJson(this.memory_fp, data, 2);
             console.log('Saved memory to:', this.memory_fp);
         } catch (error) {
             console.error('Failed to save history:', error);
