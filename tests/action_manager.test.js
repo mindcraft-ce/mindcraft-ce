@@ -61,7 +61,7 @@ test('resumeAction reuses the stored resumable action', async () => {
 
     const first = await actions.runAction(
         'repeatable',
-        async () => { calls++; },
+        () => { calls++; },
         { timeout: -1, resume: true }
     );
     const resumed = await actions.resumeAction(-1);
