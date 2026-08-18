@@ -38,16 +38,14 @@ if (args.task_path) {
     }
 }
 
-// SETTINGS_JSON is the bulk override. Explicit typed environment variables below
-// intentionally take precedence over it.
-if (process.env.SETTINGS_JSON !== undefined) {
-    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
-}
+// Collect explicit typed environment overrides first. SETTINGS_JSON is applied as
+// a bulk override below, then these explicit values are applied last.
+const explicitEnvOverrides = {};
 if (process.env.MINECRAFT_PORT !== undefined) {
-    settings.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT', { min: -1, max: 65535 });
+    explicitEnvOverrides.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT', { min: -1, max: 65535 });
 }
 if (process.env.MINDSERVER_PORT !== undefined) {
-    settings.mindserver_port = parseIntegerEnv(process.env.MINDSERVER_PORT, 'MINDSERVER_PORT', { min: 1, max: 65535 });
+    explicitEnvOverrides.mindserver_port = parseIntegerEnv(process.env.MINDSERVER_PORT, 'MINDSERVER_PORT', { min: 1, max: 65535 });
 }
 if (process.env.PROFILES !== undefined) {
     const profiles = parseJsonEnv(process.env.PROFILES, 'PROFILES');
@@ -55,28 +53,32 @@ if (process.env.PROFILES !== undefined) {
         throw new Error('PROFILES must be a JSON array.');
     }
     if (profiles.length > 0) {
-        settings.profiles = profiles;
+        explicitEnvOverrides.profiles = profiles;
     }
 }
 if (process.env.INSECURE_CODING !== undefined) {
-    settings.allow_insecure_coding = parseBooleanEnv(process.env.INSECURE_CODING, 'INSECURE_CODING');
+    explicitEnvOverrides.allow_insecure_coding = parseBooleanEnv(process.env.INSECURE_CODING, 'INSECURE_CODING');
 }
 if (process.env.BLOCKED_ACTIONS !== undefined) {
     const blockedActions = parseJsonEnv(process.env.BLOCKED_ACTIONS, 'BLOCKED_ACTIONS');
     if (!Array.isArray(blockedActions)) {
         throw new Error('BLOCKED_ACTIONS must be a JSON array.');
     }
-    settings.blocked_actions = blockedActions;
+    explicitEnvOverrides.blocked_actions = blockedActions;
 }
 if (process.env.MAX_MESSAGES !== undefined) {
-    settings.max_messages = parseIntegerEnv(process.env.MAX_MESSAGES, 'MAX_MESSAGES', { min: 1 });
+    explicitEnvOverrides.max_messages = parseIntegerEnv(process.env.MAX_MESSAGES, 'MAX_MESSAGES', { min: 1 });
 }
 if (process.env.NUM_EXAMPLES !== undefined) {
-    settings.num_examples = parseIntegerEnv(process.env.NUM_EXAMPLES, 'NUM_EXAMPLES', { min: 0 });
+    explicitEnvOverrides.num_examples = parseIntegerEnv(process.env.NUM_EXAMPLES, 'NUM_EXAMPLES', { min: 0 });
 }
 if (process.env.LOG_ALL !== undefined) {
-    settings.log_all_prompts = parseBooleanEnv(process.env.LOG_ALL, 'LOG_ALL');
+    explicitEnvOverrides.log_all_prompts = parseBooleanEnv(process.env.LOG_ALL, 'LOG_ALL');
 }
+if (process.env.SETTINGS_JSON !== undefined) {
+    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
+}
+Object.assign(settings, explicitEnvOverrides);
 
 
 Mindcraft.init(false, settings.mindserver_port, settings.auto_open_ui);
