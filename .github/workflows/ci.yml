@@ -1,3 +1,4 @@
+# Batch validation is exercised in the maintainer fork before upstream merge.
 name: CI
 
 on:
