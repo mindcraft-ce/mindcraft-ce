@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
+import { resolveProfile } from './profile_resolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,32 +17,8 @@ const __dirname = path.dirname(__filename);
 export class Prompter {
     constructor(agent, profile) {
         this.agent = agent;
-        this.profile = profile;
         const defaults_dir = path.join(__dirname, '../../profiles/defaults');
-        let default_profile = JSON.parse(readFileSync(path.join(defaults_dir, '_default.json'), 'utf8'));
-        let base_fp = '';
-        if (settings.base_profile.includes('survival')) {
-            base_fp = path.join(defaults_dir, 'survival.json');
-        } else if (settings.base_profile.includes('assistant')) {
-            base_fp = path.join(defaults_dir, 'assistant.json');
-        } else if (settings.base_profile.includes('creative')) {
-            base_fp = path.join(defaults_dir, 'creative.json');
-        } else if (settings.base_profile.includes('god_mode')) {
-            base_fp = path.join(defaults_dir, 'god_mode.json');
-        }
-        let base_profile = JSON.parse(readFileSync(base_fp, 'utf8'));
-
-        // first use defaults to fill in missing values in the base profile
-        for (let key in default_profile) {
-            if (base_profile[key] === undefined)
-                base_profile[key] = default_profile[key];
-        }
-        // then use base profile to fill in missing values in the individual profile
-        for (let key in base_profile) {
-            if (this.profile[key] === undefined)
-                this.profile[key] = base_profile[key];
-        }
-        // base overrides default, individual overrides base
+        this.profile = resolveProfile(profile, settings.base_profile, defaults_dir);
 
         this.convo_examples = null;
         this.coding_examples = null;
@@ -51,7 +28,6 @@ export class Prompter {
         this.last_prompt_time = 0;
         this.awaiting_coding = false;
 
-        // for backwards compatibility, move max_tokens to params
         let max_tokens = null;
         if (this.profile.max_tokens)
             max_tokens = this.profile.max_tokens;
@@ -75,7 +51,6 @@ export class Prompter {
             this.vision_model = this.chat_model;
         }
 
-        
         let embedding_model_profile = null;
         if (this.profile.embedding) {
             try {
@@ -113,14 +88,11 @@ export class Prompter {
         try {
             this.convo_examples = new Examples(this.embedding_model, settings.num_examples);
             this.coding_examples = new Examples(this.embedding_model, settings.num_examples);
-            
-            // Wait for both examples to load before proceeding
             await Promise.all([
                 this.convo_examples.load(this.profile.conversation_examples),
                 this.coding_examples.load(this.profile.coding_examples),
                 this.skill_libary.initSkillLibrary()
             ]).catch(error => {
-                // Preserve error details
                 console.error('Failed to initialize examples. Error details:', error);
                 console.error('Stack trace:', error.stack);
                 throw error;
@@ -130,7 +102,7 @@ export class Prompter {
         } catch (error) {
             console.error('Failed to initialize examples:', error);
             console.error('Stack trace:', error.stack);
-            throw error; // Re-throw with preserved details
+            throw error;
         }
     }
 
@@ -171,7 +143,6 @@ export class Prompter {
         if (prompt.includes('$CONVO'))
             prompt = prompt.replaceAll('$CONVO', 'Recent conversation:\n' + stringifyTurns(messages));
         if (prompt.includes('$SELF_PROMPT')) {
-            // if active or paused, show the current goal
             let self_prompt = !this.agent.self_prompter.isStopped() ? `YOUR CURRENT ASSIGNED GOAL: "${this.agent.self_prompter.prompt}"\n` : '';
             prompt = prompt.replaceAll('$SELF_PROMPT', self_prompt);
         }
@@ -195,7 +166,6 @@ export class Prompter {
             }
         }
 
-        // check if there are any remaining placeholders with syntax $<word>
         let remaining = prompt.match(/\$[A-Z_]+/g);
         if (remaining !== null) {
             console.warn('Unknown prompt placeholders:', remaining.join(', '));
@@ -215,7 +185,7 @@ export class Prompter {
         this.most_recent_msg_time = Date.now();
         let current_msg_time = this.most_recent_msg_time;
 
-        for (let i = 0; i < 3; i++) { // try 3 times to avoid hallucinations
+        for (let i = 0; i < 3; i++) {
             await this.checkCooldown();
             if (current_msg_time !== this.most_recent_msg_time) {
                 return '';
@@ -233,13 +203,11 @@ export class Prompter {
                 }
                 console.log("Generated response:", generation);
                 await this._saveLog(prompt, messages, generation, 'conversation');
-
             } catch (error) {
                 console.error('Error during message generation or file writing:', error);
                 continue;
             }
 
-            // Check for hallucination or invalid output
             if (generation?.includes('(FROM OTHER BOT)')) {
                 console.warn('LLM hallucinated message as another bot. Trying again...');
                 continue;
@@ -308,7 +276,6 @@ export class Prompter {
     }
 
     async promptGoalSetting(messages, last_goals) {
-        // deprecated
         let system_message = this.profile.goal_setting;
         system_message = await this.replaceStrings(system_message, messages);
 
