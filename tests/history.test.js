@@ -13,7 +13,7 @@ test('archived history serializes concurrent appends as JSONL', async () => {
     try {
         const agent = {
             name: 'TestBot',
-            prompter: { promptMemSaving: async () => '' },
+            prompter: { promptMemSaving: () => Promise.resolve('') },
             self_prompter: { state: 0, isStopped: () => true, prompt: '' },
             task: { taskStartTime: 0 },
             last_sender: null
