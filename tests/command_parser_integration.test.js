@@ -34,6 +34,13 @@ test('command detection and truncation use structured command boundaries', () =>
     assert.equal(truncCommandMessage(message), 'do this !rememberHere("a, b")');
 });
 
+test('malformed structured arguments fail closed instead of becoming a different legacy command', () => {
+    const malformed = '!stop(foo)';
+    assert.equal(containsCommand(malformed), '!stop');
+    assert.match(parseCommandMessage(malformed), /Invalid command arguments/);
+    assert.equal(truncCommandMessage(malformed), malformed);
+});
+
 test('integrated command parsing rejects oversized input', () => {
     const oversized = '!rememberHere("' + 'x'.repeat(structuredCommandLimits.maxLength) + '")';
     assert.match(parseCommandMessage(oversized), /exceeds maximum length/);
