@@ -9,7 +9,7 @@ import mc from 'minecraft-protocol';
  * @param {boolean} verbose - Whether to print output on connection errors.
  * @returns {Promise<Object|null>}
  */
-export async function serverInfo(ip, port, timeout = 1000, verbose = false) {
+export function serverInfo(ip, port, timeout = 1000, verbose = false) {
     return new Promise((resolve) => {
         let settled = false;
         const finish = (value) => {
@@ -145,8 +145,6 @@ export async function findServers(ip, earlyExit = false, timeout = 100, options 
  */
 export async function getServer(host, port, version) {
     let server = null;
-    let serverString = '';
-    let serverVersion = '';
 
     if (port == -1) {
         console.log(`No port provided. Searching for LAN server on host ${host}...`);
@@ -164,12 +162,8 @@ export async function getServer(host, port, version) {
     if (server == null)
         throw new Error(`MC server not found. (Host: ${host}, Port: ${port}) Check the host and port in settings.js, and ensure the server is running and open to public or LAN.`);
 
-    serverString = `(Host: ${server.host}, Port: ${server.port}, Version: ${server.version})`;
-
-    if (version === 'auto')
-        serverVersion = server.version;
-    else
-        serverVersion = version;
+    const serverString = `(Host: ${server.host}, Port: ${server.port}, Version: ${server.version})`;
+    const serverVersion = version === 'auto' ? server.version : version;
 
     if (!serverVersion) {
         throw new Error(`MC server was found ${serverString}, but its Minecraft version could not be determined.`);
