@@ -43,7 +43,7 @@ export function installGracefulShutdown(agent, {
 
                 try {
                     if (agent.history?.addShutdownMessage) {
-                        agent.history.addShutdownMessage(msg);
+                        await agent.history.addShutdownMessage(msg);
                     } else if (agent.history?.add) {
                         await agent.history.add('system', msg);
                     }
@@ -75,6 +75,7 @@ export function installGracefulShutdown(agent, {
 
                 try {
                     await agent.history?.save?.();
+                    await agent.history?.flush?.();
                 } catch (error) {
                     console.error('Failed to flush history during shutdown:', error);
                 }
