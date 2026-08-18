@@ -94,6 +94,9 @@ export class SelfPrompter {
 
         try {
             await loopPromise;
+        } catch (error) {
+            this.state = STOPPED;
+            console.error('Self-prompt loop failed:', error);
         } finally {
             console.log('self prompt loop stopped');
             this.loop_active = false;
