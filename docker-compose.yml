@@ -10,7 +10,7 @@ services:
       MINDCRAFT_BIND_HOST: 0.0.0.0
     volumes:
       - ./settings.js:/app/settings.js
-      - ./keys.json:/app/keys.js
+      - ./keys.json:/app/keys.json
       - ./profiles:/app/profiles
       - ./bots:/app/bots
     ports:
