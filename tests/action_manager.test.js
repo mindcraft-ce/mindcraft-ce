@@ -41,9 +41,11 @@ test('thrown action errors preserve their stack trace', async () => {
     const actions = new ActionManager(agent);
     agent.actions = actions;
 
-    const result = await actions.runAction('throwing', async () => {
-        throw new Error('boom');
-    }, { timeout: -1 });
+    const result = await actions.runAction(
+        'throwing',
+        () => Promise.reject(new Error('boom')),
+        { timeout: -1 }
+    );
 
     assert.equal(result.success, false);
     assert.match(result.message, /Error: boom/);
