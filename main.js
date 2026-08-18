@@ -88,6 +88,7 @@ if (process.env.SETTINGS_JSON !== undefined) {
     }
 }
 
+
 Mindcraft.init(false, settings.mindserver_port, settings.auto_open_ui);
 
 for (let profile of settings.profiles) {
