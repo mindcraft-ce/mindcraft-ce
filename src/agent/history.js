@@ -10,6 +10,8 @@ export class History {
         this.memory_fp = `./bots/${this.name}/memory.json`;
         this.full_history_fp = undefined;
         this.full_history_write = Promise.resolve();
+        this.mutation_write = Promise.resolve();
+        this.save_write = Promise.resolve();
 
         mkdirSync(`./bots/${this.name}/histories`, { recursive: true });
         this.turns = [];
@@ -19,7 +21,17 @@ export class History {
     }
 
     getHistory() {
-        return JSON.parse(JSON.stringify(this.turns));
+        return structuredClone(this.turns);
+    }
+
+    _queueMutation(operation) {
+        const pending = this.mutation_write.then(operation);
+        // Keep the internal queue usable after an operation fails. The original
+        // promise is still returned so awaited callers receive the failure.
+        this.mutation_write = pending.catch(error => {
+            console.error(`History mutation failed for ${this.name}:`, error);
+        });
+        return pending;
     }
 
     async summarizeMemories(turns) {
@@ -47,21 +59,25 @@ export class History {
         const writeOperation = this.full_history_write.then(() =>
             appendFile(this.full_history_fp, lines + '\n', 'utf8')
         );
-        this.full_history_write = writeOperation.catch(() => {});
-
-        try {
-            await writeOperation;
-        } catch (err) {
-            console.error(`Error appending ${this.name}'s full history file: ${err.message}`);
-        }
+        this.full_history_write = writeOperation.catch(error => {
+            console.error(`Error appending ${this.name}'s full history file: ${error.message}`);
+        });
+        return writeOperation;
     }
 
-    // Shutdown must never trigger summarization or another provider request.
+    // Shutdown messages participate in the mutation queue but never trigger
+    // summarization/provider work.
     addShutdownMessage(content) {
-        this.turns.push({ role: 'system', content });
+        return this._queueMutation(() => {
+            this.turns.push({ role: 'system', content });
+        });
     }
 
-    async add(name, content) {
+    add(name, content) {
+        return this._queueMutation(() => this._add(name, content));
+    }
+
+    async _add(name, content) {
         let role = 'assistant';
         if (name === 'system') {
             role = 'system';
@@ -82,24 +98,41 @@ export class History {
         }
     }
 
-    async save() {
-        try {
-            const selfPrompter = this.agent.self_prompter;
-            const data = {
-                memory: this.memory,
-                turns: this.turns,
-                self_prompting_state: selfPrompter?.state ?? 0,
-                self_prompt: !selfPrompter || selfPrompter.isStopped() ? null : selfPrompter.prompt,
-                taskStart: this.agent.task?.taskStartTime ?? null,
-                last_sender: this.agent.last_sender
-            };
+    _snapshot() {
+        const selfPrompter = this.agent.self_prompter;
+        return structuredClone({
+            memory: this.memory,
+            turns: this.turns,
+            self_prompting_state: selfPrompter?.state ?? 0,
+            self_prompt: !selfPrompter || selfPrompter.isStopped() ? null : selfPrompter.prompt,
+            taskStart: this.agent.task?.taskStartTime ?? null,
+            last_sender: this.agent.last_sender
+        });
+    }
+
+    save() {
+        // Capture the mutation barrier that existed when save() was requested.
+        // Every persisted snapshot waits for that barrier and for the previous
+        // snapshot, preventing an older asynchronous write from landing last.
+        const mutationBarrier = this.mutation_write;
+        const writeOperation = this.save_write.then(async () => {
+            await mutationBarrier;
             await this.full_history_write;
+            const data = this._snapshot();
             await atomicWriteJson(this.memory_fp, data, 2);
             console.log('Saved memory to:', this.memory_fp);
-        } catch (error) {
+        });
+
+        this.save_write = writeOperation.catch(error => {
             console.error('Failed to save history:', error);
-            throw error;
-        }
+        });
+        return writeOperation;
+    }
+
+    async flush() {
+        await this.mutation_write;
+        await this.full_history_write;
+        await this.save_write;
     }
 
     load() {
