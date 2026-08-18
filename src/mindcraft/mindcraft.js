@@ -9,7 +9,7 @@ let agent_processes = {};
 let agent_count = 0;
 let mindserver_port = 8080;
 
-async function waitForServerListening(server) {
+export async function waitForServerListening(server) {
     if (server.listening) return;
 
     await new Promise((resolve, reject) => {
