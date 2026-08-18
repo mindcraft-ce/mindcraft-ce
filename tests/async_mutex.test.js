@@ -14,7 +14,7 @@ test('AsyncMutex serializes concurrent operations in arrival order', async () =>
             await delay(20);
             events.push('a:end');
         }),
-        mutex.runExclusive(async () => {
+        mutex.runExclusive(() => {
             events.push('b:start');
             events.push('b:end');
         }),
@@ -26,10 +26,10 @@ test('AsyncMutex serializes concurrent operations in arrival order', async () =>
 
 test('AsyncMutex releases ownership after a thrown operation', async () => {
     const mutex = new AsyncMutex();
-    await assert.rejects(mutex.runExclusive(async () => {
+    await assert.rejects(mutex.runExclusive(() => {
         throw new Error('boom');
     }), /boom/);
 
-    const value = await mutex.runExclusive(async () => 42);
+    const value = await mutex.runExclusive(() => 42);
     assert.equal(value, 42);
 });
