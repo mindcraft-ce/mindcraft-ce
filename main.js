@@ -38,7 +38,11 @@ if (args.task_path) {
     }
 }
 
-// these environment variables override certain settings
+// SETTINGS_JSON is the bulk override. Explicit typed environment variables below
+// intentionally take precedence over it.
+if (process.env.SETTINGS_JSON !== undefined) {
+    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
+}
 if (process.env.MINECRAFT_PORT !== undefined) {
     settings.port = parseIntegerEnv(process.env.MINECRAFT_PORT, 'MINECRAFT_PORT', { min: -1, max: 65535 });
 }
@@ -72,9 +76,6 @@ if (process.env.NUM_EXAMPLES !== undefined) {
 }
 if (process.env.LOG_ALL !== undefined) {
     settings.log_all_prompts = parseBooleanEnv(process.env.LOG_ALL, 'LOG_ALL');
-}
-if (process.env.SETTINGS_JSON !== undefined) {
-    Object.assign(settings, parseJsonObjectEnv(process.env.SETTINGS_JSON, 'SETTINGS_JSON'));
 }
 
 
