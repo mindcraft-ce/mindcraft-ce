@@ -46,6 +46,26 @@
         "description": "List of agents to only chat with. If empty, the bot will chat publicly",
         "default": []
     },
+    "allow_public_commands": {
+        "type": "boolean",
+        "description": "Allow any player to execute forced !commands directly. Disabled by default.",
+        "default": false
+    },
+    "command_users": {
+        "type": "array",
+        "description": "Authenticated player names allowed to execute forced !commands directly. Ignored in offline auth mode unless allow_offline_command_acl is explicitly enabled.",
+        "default": []
+    },
+    "command_acl": {
+        "type": "object",
+        "description": "Optional per-command authenticated-player allowlists keyed by command name. Ignored in offline auth mode unless allow_offline_command_acl is explicitly enabled.",
+        "default": {}
+    },
+    "allow_offline_command_acl": {
+        "type": "boolean",
+        "description": "Dangerous opt-in: trust spoofable offline-mode Minecraft usernames for command_users and command_acl authorization.",
+        "default": false
+    },
     "speak": {
         "type": "boolean",
         "description": "Whether to enable text-to-speech reading on the host machine",
@@ -119,7 +139,7 @@
     },
     "allow_insecure_coding": {
         "type": "boolean",
-        "description": "Whether to allow newAction command that let's LLM write/run code on host computer. Despite sandboxxing, it is potentially insecure.",
+        "description": "Whether to allow newAction command that lets the LLM write/run code on the host computer. Despite sandboxing, it is potentially insecure.",
         "default": false
     },
     "code_timeout_mins": {
