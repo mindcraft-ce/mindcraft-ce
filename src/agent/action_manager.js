@@ -13,11 +13,11 @@ export class ActionManager {
         this.recent_action_counter = 0;
     }
 
-    async resumeAction(timeout) {
+    resumeAction(timeout) {
         return this._executeResume(null, null, timeout);
     }
 
-    async runAction(actionLabel, actionFn, { timeout, resume = false } = {}) {
+    runAction(actionLabel, actionFn, { timeout, resume = false } = {}) {
         if (resume) {
             return this._executeResume(actionLabel, actionFn, timeout);
         } else {
