@@ -56,14 +56,13 @@ jobs:
           mapfile -d '' files < <(git diff --name-only --diff-filter=ACMR -z "${{ github.event.pull_request.base.sha }}...HEAD" -- '*.js')
           if (( ${#files[@]} > 0 )); then
             printf 'Linting changed files:\n%s\n' "${files[*]}"
-            npx eslint "${files[@]}"
+            npx eslint "${files[@]}" --max-warnings=0
           else
             echo 'No changed JavaScript files.'
           fi
 
-      - name: Full lint baseline (advisory until legacy debt is clean)
-        continue-on-error: true
-        run: npm run lint
+      - name: Full repository lint
+        run: npm run lint -- --max-warnings=0
 
       - name: Test
         run: npm test
