@@ -10,7 +10,7 @@ test('OpenAI-compatible finish_reason=length preserves partial response content'
     model.openai = {
         chat: {
             completions: {
-                create: async () => ({
+                create: () => Promise.resolve({
                     choices: [{
                         finish_reason: 'length',
                         message: { content: 'usable partial response' },
