@@ -119,13 +119,18 @@
     },
     "allow_insecure_coding": {
         "type": "boolean",
-        "description": "Whether to allow newAction command that let's LLM write/run code on host computer. Despite sandboxxing, it is potentially insecure.",
+        "description": "Whether to allow newAction command that lets LLM write/run code on host computer. Despite sandboxing, it is potentially insecure.",
         "default": false
     },
     "code_timeout_mins": {
         "type": "number",
         "description": "Number of minutes to allow code execution. -1 for no timeout",
         "default": -1
+    },
+    "block_place_delay": {
+        "type": "number",
+        "description": "Delay in milliseconds between block placements for generated actions.",
+        "default": 0
     },
     "task": {
         "type": "object",
