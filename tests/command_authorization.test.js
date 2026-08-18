@@ -6,14 +6,16 @@ test('player commands fail closed by default', () => {
     assert.equal(isPlayerCommandAuthorized('Steve', '!stop', {}), false);
 });
 
-test('global command users can execute commands', () => {
+test('global command users can execute commands when identity is trusted', () => {
     assert.equal(isPlayerCommandAuthorized('Steve', '!stop', {
+        auth: 'microsoft',
         command_users: ['Steve'],
     }), true);
 });
 
-test('command-specific ACLs authorize only configured users', () => {
+test('command-specific ACLs authorize only configured trusted users', () => {
     const settings = {
+        auth: 'microsoft',
         command_acl: {
             '!restart': ['Admin'],
         },
@@ -23,6 +25,23 @@ test('command-specific ACLs authorize only configured users', () => {
     assert.equal(isPlayerCommandAuthorized('Admin', '!newAction', settings), false);
 });
 
-test('public commands require an explicit opt-in', () => {
-    assert.equal(isPlayerCommandAuthorized('Anyone', '!stats', { allow_public_commands: true }), true);
+test('offline usernames do not satisfy ACLs unless explicitly trusted', () => {
+    const settings = {
+        auth: 'offline',
+        command_users: ['Steve'],
+        command_acl: { '!restart': ['Admin'] },
+    };
+    assert.equal(isPlayerCommandAuthorized('Steve', '!stop', settings), false);
+    assert.equal(isPlayerCommandAuthorized('Admin', '!restart', settings), false);
+
+    settings.allow_offline_command_acl = true;
+    assert.equal(isPlayerCommandAuthorized('Steve', '!stop', settings), true);
+    assert.equal(isPlayerCommandAuthorized('Admin', '!restart', settings), true);
+});
+
+test('public commands require an explicit opt-in and are independent of auth mode', () => {
+    assert.equal(isPlayerCommandAuthorized('Anyone', '!stats', {
+        auth: 'offline',
+        allow_public_commands: true,
+    }), true);
 });
