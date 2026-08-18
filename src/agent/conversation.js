@@ -198,7 +198,7 @@ class ConversationManager {
             await agent.self_prompter.pause();
         }
 
-        _scheduleProcessInMessage(sender, received, convo);
+        await _scheduleProcessInMessage(sender, received, convo);
     }
 
     responseScheduledFor(sender) {
@@ -241,7 +241,7 @@ class ConversationManager {
             this._stopMonitor();
             this.activeConversation = null;
             if (agent.self_prompter.isPaused() && !this.inConversation()) {
-                _resumeSelfPrompter();
+                await _resumeSelfPrompter();
             }
         }
     }
@@ -251,7 +251,7 @@ class ConversationManager {
             this.endConversation(sender);
         }
         if (agent.self_prompter.isPaused()) {
-            _resumeSelfPrompter();
+            await _resumeSelfPrompter();
         }
     }
 
