@@ -3,7 +3,6 @@ import { fileURLToPath } from 'url';
 import { logoutAgent } from '../mindcraft/mindserver.js';
 
 const init_agent_path = fileURLToPath(new URL('./init_agent.js', import.meta.url));
-
 const DEFAULT_RESTART_WINDOW_MS = 60_000;
 const DEFAULT_MAX_RESTARTS = 3;
 const DEFAULT_RESTART_DELAY_MS = 500;
@@ -15,19 +14,17 @@ export function nextRestartPlan(restartTimes, now, {
     baseDelayMs = DEFAULT_RESTART_DELAY_MS,
 } = {}) {
     const recent = restartTimes.filter(timestamp => now - timestamp < windowMs);
-    if (recent.length >= maxRestarts) {
-        return { allowed: false, delayMs: null, restartTimes: recent };
-    }
-    const delayMs = baseDelayMs * (2 ** recent.length);
+    if (recent.length >= maxRestarts) return { allowed: false, delayMs: null, restartTimes: recent };
     return {
         allowed: true,
-        delayMs,
+        delayMs: baseDelayMs * (2 ** recent.length),
         restartTimes: [...recent, now],
     };
 }
 
 export class AgentProcess {
     constructor(name, port, {
+        processToken = null,
         exitParentOnTerminalCode = false,
         spawnFn = spawn,
         exitFn = code => process.exit(code),
@@ -38,6 +35,7 @@ export class AgentProcess {
     } = {}) {
         this.name = name;
         this.port = port;
+        this.processToken = processToken;
         this.exitParentOnTerminalCode = exitParentOnTerminalCode;
         this.spawnFn = spawnFn;
         this.exitFn = exitFn;
@@ -45,7 +43,6 @@ export class AgentProcess {
         this.setTimer = setTimer;
         this.clearTimer = clearTimer;
         this.stopEscalationMs = stopEscalationMs;
-
         this.process = null;
         this.running = false;
         this.state = 'stopped';
@@ -58,7 +55,6 @@ export class AgentProcess {
 
     start(load_memory=false, init_message=null, count_id=0) {
         if (this.running) return;
-
         if (this.restartTimer) {
             this.clearTimer(this.restartTimer);
             this.restartTimer = null;
@@ -68,17 +64,17 @@ export class AgentProcess {
         this.intentionalStop = false;
         this.state = 'starting';
         const startedAt = this.now();
-
         const args = [init_agent_path, this.name, '-n', this.name, '-c', count_id];
-        if (load_memory)
-            args.push('-l', load_memory);
-        if (init_message)
-            args.push('-m', init_message);
+        if (load_memory) args.push('-l', load_memory);
+        if (init_message) args.push('-m', init_message);
         args.push('-p', this.port);
 
+        const env = { ...process.env };
+        if (this.processToken) env.MINDCRAFT_AGENT_TOKEN = this.processToken;
         const agentProcess = this.spawnFn(process.execPath, args, {
             stdio: 'inherit',
             stderr: 'inherit',
+            env,
         });
 
         this.process = agentProcess;
@@ -87,12 +83,10 @@ export class AgentProcess {
 
         agentProcess.on('exit', (code, signal) => {
             if (this.process !== agentProcess) return;
-
             if (this.stopEscalationTimer) {
                 this.clearTimer(this.stopEscalationTimer);
                 this.stopEscalationTimer = null;
             }
-
             this.process = null;
             this.running = false;
             logoutAgent(this.name);
@@ -105,23 +99,18 @@ export class AgentProcess {
                 this.start(true, 'Agent process restarted.', this.count_id);
                 return;
             }
-
             if (this.intentionalStop || signal === 'SIGINT' || signal === 'SIGTERM' || code === 0) {
                 this.intentionalStop = false;
                 this.state = 'stopped';
                 return;
             }
-
             if (code != null && code > 1 && this.exitParentOnTerminalCode) {
                 this.state = 'stopped';
                 console.log(`Agent ${this.name} finished task with terminal code ${code}.`);
                 this.exitFn(code);
                 return;
             }
-
-            if (this.now() - startedAt >= DEFAULT_RESTART_WINDOW_MS) {
-                this.restartTimes = [];
-            }
+            if (this.now() - startedAt >= DEFAULT_RESTART_WINDOW_MS) this.restartTimes = [];
             this._scheduleRestart();
         });
 
@@ -138,7 +127,6 @@ export class AgentProcess {
             console.error(`Agent ${this.name} exceeded its restart budget and will remain stopped.`);
             return;
         }
-
         this.state = 'restarting';
         console.log(`Restarting agent ${this.name} in ${plan.delayMs} ms...`);
         this.restartTimer = this.setTimer(() => {
@@ -167,7 +155,6 @@ export class AgentProcess {
             this.state = 'stopped';
             return;
         }
-
         this.intentionalStop = true;
         this.state = 'stopping';
         const agentProcess = this.process;
@@ -180,7 +167,6 @@ export class AgentProcess {
             this.clearTimer(this.restartTimer);
             this.restartTimer = null;
         }
-
         if (this.running && this.process) {
             console.log(`Restart requested for agent ${this.name}.`);
             this.restartRequested = true;
@@ -191,7 +177,6 @@ export class AgentProcess {
             this._armStopEscalation(agentProcess);
             return;
         }
-
         this.restartRequested = false;
         this.intentionalStop = false;
         this.start(true, 'Agent process restarted.', this.count_id);
