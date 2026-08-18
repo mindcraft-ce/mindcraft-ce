@@ -23,16 +23,21 @@ export class Camera extends EventEmitter {
         this.canvas = createCanvas(this.width, this.height);
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas });
         this.viewer = new Viewer(this.renderer);
-        this.ready = this._init().then(() => {
-            this.emit('ready');
-        });
+        this.initError = null;
+        this.ready = this._init();
+        void this.ready.then(
+            () => this.emit('ready'),
+            (error) => {
+                this.initError = error;
+                console.error('Camera initialization failed:', error);
+            }
+        );
     }
 
     async _init () {
         const botPos = this.bot.entity.position;
         const center = new Vec3(botPos.x, botPos.y+this.bot.entity.height, botPos.z);
         this.viewer.setVersion(this.bot.version);
-        // Load world
         const worldView = new WorldView(this.bot.world, this.viewDistance, center);
         this.viewer.listen(worldView);
         worldView.listenToBot(this.bot);
@@ -41,9 +46,6 @@ export class Camera extends EventEmitter {
     }
 
     async capture() {
-        // Camera construction starts world loading asynchronously. A capture can
-        // be requested immediately after construction, so wait for initialization
-        // before dereferencing worldView.
         await this.ready;
 
         const center = new Vec3(this.bot.entity.position.x, this.bot.entity.position.y+this.bot.entity.height, this.bot.entity.position.z);
