@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { History } from '../src/agent/history.js';
 
-test('archived history is appended as JSONL', async () => {
+test('archived history serializes concurrent appends as JSONL', async () => {
     const originalCwd = process.cwd();
     const dir = mkdtempSync(path.join(tmpdir(), 'mindcraft-history-'));
     process.chdir(dir);
@@ -20,8 +20,10 @@ test('archived history is appended as JSONL', async () => {
         };
         const history = new History(agent);
 
-        await history.appendFullHistory([{ role: 'user', content: 'one' }]);
-        await history.appendFullHistory([{ role: 'assistant', content: 'two' }]);
+        await Promise.all([
+            history.appendFullHistory([{ role: 'user', content: 'one' }]),
+            history.appendFullHistory([{ role: 'assistant', content: 'two' }]),
+        ]);
 
         const lines = readFileSync(history.full_history_fp, 'utf8').trim().split('\n').map(JSON.parse);
         assert.deepEqual(lines, [
