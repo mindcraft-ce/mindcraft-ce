@@ -4,7 +4,7 @@ import { ProviderErrorKind, withProviderRetries } from '../src/models/provider_e
 
 test('withProviderRetries retries transient failures and returns the eventual result', async () => {
     let attempts = 0;
-    const result = await withProviderRetries(async () => {
+    const result = await withProviderRetries(() => {
         attempts++;
         if (attempts < 3) {
             const error = new Error('temporarily unavailable');
@@ -21,7 +21,7 @@ test('withProviderRetries retries transient failures and returns the eventual re
 test('withProviderRetries does not retry non-retryable failures', async () => {
     let attempts = 0;
     await assert.rejects(
-        withProviderRetries(async () => {
+        withProviderRetries(() => {
             attempts++;
             const error = new Error('Unauthorized');
             error.status = 401;
@@ -35,7 +35,7 @@ test('withProviderRetries does not retry non-retryable failures', async () => {
 test('cancellation interrupts retry backoff immediately', async () => {
     const controller = new AbortController();
     let attempts = 0;
-    const pending = withProviderRetries(async () => {
+    const pending = withProviderRetries(() => {
         attempts++;
         const error = new Error('temporarily unavailable');
         error.status = 503;
