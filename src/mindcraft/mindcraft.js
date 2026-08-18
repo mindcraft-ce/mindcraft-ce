@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { createMindServer, registerAgent, numStateListeners } from './mindserver.js';
 import { AgentProcess } from '../process/agent_process.js';
 import { getServer } from './mcserver.js';
@@ -6,7 +7,7 @@ import open from 'open';
 
 let mindserver;
 let connected = false;
-let agent_processes = {};
+const agent_processes = {};
 let agent_count = 0;
 let mindserver_port = 8080;
 
@@ -68,8 +69,10 @@ export async function createAgent(inputSettings) {
         }
 
         const resolvedSettings = freezeResolvedAgentSettings(settings);
-        registerAgent(resolvedSettings, viewer_port);
+        const processToken = randomBytes(32).toString('hex');
+        registerAgent(resolvedSettings, viewer_port, processToken);
         const agentProcess = new AgentProcess(agent_name, mindserver_port, {
+            processToken,
             exitParentOnTerminalCode: resolvedSettings.task != null,
         });
         agentProcess.start(load_memory, init_message, agentIndex);
