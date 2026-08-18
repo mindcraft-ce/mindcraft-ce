@@ -1,11 +1,13 @@
 const STOPPED = 0
 const ACTIVE = 1
 const PAUSED = 2
+
 export class SelfPrompter {
     constructor(agent) {
         this.agent = agent;
         this.state = STOPPED;
         this.loop_active = false;
+        this.loopPromise = null;
         this.interrupt = false;
         this.prompt = '';
         this.idle_time = 0;
@@ -21,9 +23,9 @@ export class SelfPrompter {
         }
         this.state = ACTIVE;
         this.prompt = prompt;
-        if (!this.loop_active)
+        if (!this.loopPromise)
             this.interrupt = false;
-        this.startLoop();
+        void this.startLoop();
     }
 
     isActive() {
@@ -55,18 +57,12 @@ export class SelfPrompter {
         this.state = PAUSED;
     }
 
-    async startLoop() {
-        if (this.loop_active) {
-            console.warn('Self-prompt loop is already active. Ignoring request.');
-            return;
-        }
-        console.log('starting self-prompt loop')
-        this.loop_active = true;
+    async _runLoop() {
         let no_command_count = 0;
         const MAX_NO_COMMAND = 3;
         while (!this.interrupt) {
             const msg = `You are self-prompting with the goal: '${this.prompt}'. Your next response MUST contain a command with this syntax: !commandName. Respond:`;
-            
+
             let used_command = await this.agent.handleMessage('system', msg, -1);
             if (!used_command) {
                 no_command_count++;
@@ -83,8 +79,27 @@ export class SelfPrompter {
                 await new Promise(r => setTimeout(r, this.cooldown));
             }
         }
-        console.log('self prompt loop stopped')
-        this.loop_active = false;
+    }
+
+    async startLoop() {
+        if (this.loopPromise) {
+            console.warn('Self-prompt loop is already active. Ignoring request.');
+            return this.loopPromise;
+        }
+
+        console.log('starting self-prompt loop');
+        this.loop_active = true;
+        const loopPromise = this._runLoop();
+        this.loopPromise = loopPromise;
+
+        try {
+            await loopPromise;
+        } finally {
+            console.log('self prompt loop stopped');
+            this.loop_active = false;
+            if (this.loopPromise === loopPromise)
+                this.loopPromise = null;
+        }
     }
 
     update(delta) {
@@ -96,7 +111,7 @@ export class SelfPrompter {
 
             if (this.idle_time >= this.cooldown) {
                 console.log('Restarting self-prompting...');
-                this.startLoop();
+                void this.startLoop();
                 this.idle_time = 0;
             }
         }
@@ -106,12 +121,14 @@ export class SelfPrompter {
     }
 
     async stopLoop() {
-        if (this.loop_active)
-            console.log('stopping self-prompt loop')
+        if (this.loopPromise)
+            console.log('stopping self-prompt loop');
         this.interrupt = true;
-        while (this.loop_active) {
-            await new Promise(r => setTimeout(r, 100));
-        }
+
+        const activeLoop = this.loopPromise;
+        if (activeLoop)
+            await activeLoop;
+
         this.interrupt = false;
     }
 
