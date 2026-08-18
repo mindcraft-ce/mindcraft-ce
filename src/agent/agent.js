@@ -17,6 +17,7 @@ import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
+import { commandAuthorizationFailure, isPlayerCommandAuthorized } from './command_authorization.js';
 
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
@@ -94,7 +95,7 @@ export class Agent {
             console.log(this.name, 'logged in!');
             serverProxy.login();
             
-            // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
+            // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/fabrictailor)
             if (this.prompter.profile.skin)
                 this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
             else
@@ -275,6 +276,12 @@ export class Agent {
             if (user_command_name) {
                 if (!commandExists(user_command_name)) {
                     this.routeResponse(source, `Command '${user_command_name}' does not exist.`);
+                    return false;
+                }
+                if (!isPlayerCommandAuthorized(source, user_command_name, settings)) {
+                    const failure = commandAuthorizationFailure(source, user_command_name);
+                    console.warn(failure);
+                    this.routeResponse(source, failure);
                     return false;
                 }
                 this.routeResponse(source, `*${source} used ${user_command_name.substring(1)}*`);
