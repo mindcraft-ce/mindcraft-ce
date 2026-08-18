@@ -5,9 +5,10 @@ import { logoutAgent } from '../mindcraft/mindserver.js';
 const init_agent_path = fileURLToPath(new URL('./init_agent.js', import.meta.url));
 
 export class AgentProcess {
-    constructor(name, port) {
+    constructor(name, port, process_token) {
         this.name = name;
         this.port = port;
+        this.process_token = process_token;
     }
 
     start(load_memory=false, init_message=null, count_id=0) {
@@ -26,14 +27,18 @@ export class AgentProcess {
         const agentProcess = spawn(process.execPath, args, {
             stdio: 'inherit',
             stderr: 'inherit',
+            env: {
+                ...process.env,
+                MINDCRAFT_AGENT_TOKEN: this.process_token,
+            },
         });
-        
+
         let last_restart = Date.now();
         agentProcess.on('exit', (code, signal) => {
             console.log(`Agent process exited with code ${code} and signal ${signal}`);
             this.running = false;
             logoutAgent(this.name);
-            
+
             if (code > 1) {
                 console.log(`Ending task`);
                 process.exit(code);
@@ -50,7 +55,7 @@ export class AgentProcess {
                 last_restart = Date.now();
             }
         });
-    
+
         agentProcess.on('error', (err) => {
             console.error('Agent process error:', err);
         });
@@ -66,7 +71,7 @@ export class AgentProcess {
     forceRestart() {
         if (this.running && this.process && !this.process.killed) {
             console.log(`Agent process for ${this.name} is still running. Attempting to force restart.`);
-            
+
             const restartTimeout = setTimeout(() => {
                 console.warn(`Agent ${this.name} did not stop in time. It might be stuck.`);
             }, 5000); // 5 seconds to exit

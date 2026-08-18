@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { createMindServer, registerAgent, numStateListeners } from './mindserver.js';
 import { AgentProcess } from '../process/agent_process.js';
 import { getServer } from './mcserver.js';
@@ -39,7 +40,8 @@ export async function createAgent(settings) {
     let agent_name = settings.profile.name;
     const agentIndex = agent_count++;
     const viewer_port = 3000 + agentIndex;
-    registerAgent(settings, viewer_port);
+    const process_token = randomBytes(32).toString('hex');
+    registerAgent(settings, viewer_port, process_token);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
 
@@ -57,7 +59,7 @@ export async function createAgent(settings) {
             console.warn(`Attempting to connect anyway...`);
         }
 
-        const agentProcess = new AgentProcess(agent_name, mindserver_port);
+        const agentProcess = new AgentProcess(agent_name, mindserver_port, process_token);
         agentProcess.start(load_memory, init_message, agentIndex);
         agent_processes[settings.profile.name] = agentProcess;
     } catch (error) {
