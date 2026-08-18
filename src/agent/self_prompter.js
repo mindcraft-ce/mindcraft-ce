@@ -8,6 +8,7 @@ export class SelfPrompter {
         this.state = STOPPED;
         this.loop_active = false;
         this.loopPromise = null;
+        this.restartAfterStop = false;
         this.interrupt = false;
         this.prompt = '';
         this.idle_time = 0;
@@ -23,8 +24,15 @@ export class SelfPrompter {
         }
         this.state = ACTIVE;
         this.prompt = prompt;
-        if (!this.loopPromise)
-            this.interrupt = false;
+
+        if (this.loopPromise) {
+            // A newer start request wins over an in-flight stop/pause. Let the
+            // owned loop unwind first, then start a fresh loop exactly once.
+            this.restartAfterStop = true;
+            return;
+        }
+
+        this.interrupt = false;
         void this.startLoop();
     }
 
@@ -96,12 +104,20 @@ export class SelfPrompter {
             await loopPromise;
         } catch (error) {
             this.state = STOPPED;
+            this.restartAfterStop = false;
             console.error('Self-prompt loop failed:', error);
         } finally {
             console.log('self prompt loop stopped');
             this.loop_active = false;
             if (this.loopPromise === loopPromise)
                 this.loopPromise = null;
+
+            const shouldRestart = this.restartAfterStop && this.state === ACTIVE;
+            this.restartAfterStop = false;
+            if (shouldRestart) {
+                this.interrupt = false;
+                void this.startLoop();
+            }
         }
     }
 
@@ -137,6 +153,7 @@ export class SelfPrompter {
 
     async stop(stop_action=true) {
         this.state = STOPPED;
+        this.restartAfterStop = false;
         this.interrupt = true;
         if (stop_action)
             await this.agent.actions.stop();
@@ -145,6 +162,7 @@ export class SelfPrompter {
 
     async pause() {
         this.state = PAUSED;
+        this.restartAfterStop = false;
         this.interrupt = true;
         await this.agent.actions.stop();
         await this.stopLoop();
