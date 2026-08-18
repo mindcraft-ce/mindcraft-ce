@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, 'ce/**']
+  pull_request:
+    branches: [develop, ce/ci-validation-workflow]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Syntax-check JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check
+          if [ -d tests ]; then
+            find tests -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check
+          fi
+          node --check main.js
+          node --check settings.js
+
+      - name: Lint (advisory until baseline is clean)
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Test
+        run: npm test
