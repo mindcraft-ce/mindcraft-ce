@@ -4,7 +4,7 @@ on:
   push:
     branches: [develop, 'ce/**']
   pull_request:
-    branches: [develop, ce/ci-validation-workflow]
+    branches: [develop, 'ce/**']
 
 permissions:
   contents: read
