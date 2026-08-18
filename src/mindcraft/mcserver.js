@@ -76,18 +76,37 @@ function checkPort(ip, port, timeout) {
     });
 }
 
+export function resolveScanOptions(options = {}) {
+    const startPort = options.startPort ?? 49000;
+    const endPort = options.endPort ?? 65000;
+    const concurrency = options.concurrency ?? 64;
+    const pingTimeout = options.pingTimeout ?? 200;
+
+    for (const [name, value] of Object.entries({ startPort, endPort, concurrency, pingTimeout })) {
+        if (!Number.isInteger(value))
+            throw new Error(`${name} must be an integer.`);
+    }
+    if (startPort < 1 || endPort > 65535 || startPort > endPort)
+        throw new Error('Scan port range must be within 1..65535 and startPort must not exceed endPort.');
+    if (concurrency < 1 || concurrency > 512)
+        throw new Error('concurrency must be between 1 and 512.');
+    if (pingTimeout < 1)
+        throw new Error('pingTimeout must be positive.');
+
+    return { startPort, endPort, concurrency, pingTimeout };
+}
+
 /**
  * Scans the normal Minecraft LAN port range using bounded concurrency.
  * @param {string} ip - The IP address to scan.
  * @param {boolean} earlyExit - Whether to stop once a server is found.
  * @param {number} timeout - Per-port TCP timeout in ms.
+ * @param {Object} options - Optional scan range/concurrency/ping timeout overrides.
  * @returns {Promise<Array>}
  */
-export async function findServers(ip, earlyExit = false, timeout = 100) {
+export async function findServers(ip, earlyExit = false, timeout = 100, options = {}) {
     const servers = [];
-    const startPort = 49000;
-    const endPort = 65000;
-    const concurrency = 64;
+    const { startPort, endPort, concurrency, pingTimeout } = resolveScanOptions(options);
     let nextPort = startPort;
     let stop = false;
 
@@ -99,7 +118,7 @@ export async function findServers(ip, earlyExit = false, timeout = 100) {
             const openPort = await checkPort(ip, port, timeout);
             if (!openPort || stop) continue;
 
-            const server = await serverInfo(ip, openPort, 200, false);
+            const server = await serverInfo(ip, openPort, pingTimeout, false);
             if (!server || stop) continue;
 
             servers.push(server);
