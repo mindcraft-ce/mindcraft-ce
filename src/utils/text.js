@@ -41,38 +41,46 @@ export function wordOverlapScore(text1, text2) {
 // - system messages are treated as user messages and prefixed with SYSTEM:
 // - combines repeated messages from users
 // - separates repeat assistant messages with filler user messages
+// This function is intentionally pure: callers can safely reuse their original
+// history after provider-specific formatting.
 export function strictFormat(turns) {
     let prev_role = null;
-    let messages = [];
-    let filler = {role: 'user', content: '_'};
-    for (let msg of turns) {
-        if (typeof msg.content === 'string')  {
-            msg.content = msg.content.trim();
-        }
+    const messages = [];
+    const filler = () => ({role: 'user', content: '_'});
+
+    for (const source of turns) {
+        const msg = {
+            ...source,
+            content: typeof source.content === 'string' ? source.content.trim() : source.content,
+        };
+
         if (msg.role === 'system') {
             msg.role = 'user';
             msg.content = 'SYSTEM: ' + msg.content;
         }
+
         if (msg.role === prev_role && msg.role === 'assistant') {
-            // insert empty user message to separate assistant messages
-            messages.push(filler);
+            messages.push(filler());
             messages.push(msg);
         }
         else if (msg.role === prev_role) {
-            // combine new message with previous message instead of adding a new one
-            messages[messages.length-1].content += '\n' + msg.content;
+            const index = messages.length - 1;
+            messages[index] = {
+                ...messages[index],
+                content: messages[index].content + '\n' + msg.content,
+            };
         }
         else {
             messages.push(msg);
         }
         prev_role = msg.role;
-        
     }
+
     if (messages.length > 0 && messages[0].role !== 'user') {
-        messages.unshift(filler); // anthropic requires user message to start
+        messages.unshift(filler()); // anthropic requires user message to start
     }
     if (messages.length === 0) {
-        messages.push(filler);
+        messages.push(filler());
     }
     return messages;
 }
