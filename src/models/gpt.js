@@ -2,13 +2,25 @@ import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
 
+export function normalizeApiKeyAlias(apiKeyAlias) {
+    if (apiKeyAlias == null || apiKeyAlias === '')
+        return 'OPENAI_API_KEY';
+    if (typeof apiKeyAlias !== 'string')
+        throw new Error('api_key_alias must be a string.');
+
+    const alias = apiKeyAlias.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(alias))
+        throw new Error('api_key_alias must be a valid environment/key identifier.');
+    return alias;
+}
+
 export class GPT {
     static prefix = 'openai';
     constructor(model_name, url, params, api_key_alias=null) {
         this.model_name = model_name;
         this.params = params;
         this.url = url; // store so that we know whether a custom URL has been set
-        this.api_key_alias = api_key_alias || 'OPENAI_API_KEY';
+        this.api_key_alias = normalizeApiKeyAlias(api_key_alias);
 
         let config = {};
         if (url)
