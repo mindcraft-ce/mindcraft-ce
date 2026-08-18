@@ -1,7 +1,6 @@
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
-import { NPCData } from './npc/data.js';
+import { appendFile } from 'fs/promises';
 import settings from './settings.js';
-
 
 export class History {
     constructor(agent) {
@@ -9,6 +8,7 @@ export class History {
         this.name = agent.name;
         this.memory_fp = `./bots/${this.name}/memory.json`;
         this.full_history_fp = undefined;
+        this.full_history_write = Promise.resolve();
 
         mkdirSync(`./bots/${this.name}/histories`, { recursive: true });
 
@@ -21,7 +21,7 @@ export class History {
         this.max_messages = settings.max_messages;
 
         // Number of messages to remove from current history and save into memory
-        this.summary_chunk_size = 5; 
+        this.summary_chunk_size = 5;
         // chunking reduces expensive calls to promptMemSaving and appendFullHistory
         // and improves the quality of the memory summary
     }
@@ -31,7 +31,7 @@ export class History {
     }
 
     async summarizeMemories(turns) {
-        console.log("Storing memories...");
+        console.log('Storing memories...');
         this.memory = await this.agent.prompter.promptMemSaving(turns);
 
         if (this.memory.length > 500) {
@@ -39,22 +39,28 @@ export class History {
             this.memory += '...(Memory truncated to 500 chars. Compress it more next time)';
         }
 
-        console.log("Memory updated to: ", this.memory);
+        console.log('Memory updated to: ', this.memory);
     }
 
     async appendFullHistory(to_store) {
         if (this.full_history_fp === undefined) {
             const string_timestamp = new Date().toLocaleString().replace(/[/:]/g, '-').replace(/ /g, '').replace(/,/g, '_');
-            this.full_history_fp = `./bots/${this.name}/histories/${string_timestamp}.json`;
-            writeFileSync(this.full_history_fp, '[]', 'utf8');
+            this.full_history_fp = `./bots/${this.name}/histories/${string_timestamp}.jsonl`;
         }
+
+        const lines = to_store.map(turn => JSON.stringify(turn)).join('\n');
+        if (lines.length === 0)
+            return;
+
+        const writeOperation = this.full_history_write.then(() =>
+            appendFile(this.full_history_fp, lines + '\n', 'utf8')
+        );
+        this.full_history_write = writeOperation.catch(() => {});
+
         try {
-            const data = readFileSync(this.full_history_fp, 'utf8');
-            let full_history = JSON.parse(data);
-            full_history.push(...to_store);
-            writeFileSync(this.full_history_fp, JSON.stringify(full_history, null, 4), 'utf8');
+            await writeOperation;
         } catch (err) {
-            console.error(`Error reading ${this.name}'s full history file: ${err.message}`);
+            console.error(`Error appending ${this.name}'s full history file: ${err.message}`);
         }
     }
 
@@ -79,7 +85,7 @@ export class History {
         }
     }
 
-    async save() {
+    save() {
         try {
             const data = {
                 memory: this.memory,
