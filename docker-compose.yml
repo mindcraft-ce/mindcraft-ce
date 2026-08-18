@@ -4,18 +4,19 @@ services:
     environment:
       SETTINGS_JSON: |
         {"auto_open_ui": false}
+      MINDCRAFT_BIND_HOST: 0.0.0.0
     volumes:
       - ./settings.js:/app/settings.js
       - ./keys.json:/app/keys.json
       - ./profiles:/app/profiles
       - ./bots:/app/bots
     ports:
-      - "3000-3003:3000-3003" # see the view from the camera mounted on your bot head: http://localhost:3000/
-      - 8080 # Mindserver port
+      - "127.0.0.1:3000-3003:3000-3003" # bot viewers: http://localhost:3000/
+      - "127.0.0.1:8080:8080" # MindServer UI/control plane
     extra_hosts:
-    - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"
 
-  viaproxy: #use this service to connect to an unsupported minecraft server versions. more info: ./services/viaproxy/README.md
+  viaproxy: # use this service to connect to unsupported Minecraft server versions
     image: ghcr.io/viaversion/viaproxy:latest
     volumes:
       - ./services/viaproxy:/app/run
