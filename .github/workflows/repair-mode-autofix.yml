@@ -1,0 +1,66 @@
+name: Repair Mode Autofix
+
+on:
+  push:
+    branches: ['ce/all-pr-fixes']
+    paths:
+      - '.github/workflows/repair-mode-autofix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ce/all-pr-fixes
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Restore non-blocking mode semantics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/agent/modes.js')
+          text = path.read_text()
+          text = text.replace('async function say(agent, message) {', 'function say(agent, message) {')
+          text = text.replace('await say(', 'say(')
+          text = text.replace('await execute(', 'execute(')
+          old = 'async function execute(mode, agent, func, timeout=-1) {'
+          new = '''function execute(mode, agent, func, timeout=-1) {
+              void executeMode(mode, agent, func, timeout).catch(error => {
+                  mode.active = false;
+                  console.error(`Mode ${mode.name} failed:`, error);
+              });
+          }
+
+          async function executeMode(mode, agent, func, timeout=-1) {'''
+          if old not in text:
+              raise SystemExit('execute() signature not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
+          node --check src/agent/modes.js
+          npx eslint src/agent/modes.js --max-warnings=0
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/agent/modes.js
+          git commit -m 'fix: preserve non-blocking mode execution semantics'
+          git push origin HEAD:ce/all-pr-fixes
