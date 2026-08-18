@@ -20,7 +20,7 @@ export function shouldRetryPromptError(error) {
     return true;
 }
 
-export async function sendWithResponseDeadline(
+export function sendWithResponseDeadline(
     model,
     turns,
     systemMessage,
