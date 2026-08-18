@@ -1,11 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
-import {
-    RequestAbortedError,
-    RequestTimeoutError,
-    runAbortableRequest,
-} from './request_control.js';
+import { runAbortableRequest } from './request_control.js';
+import { classifyProviderError } from './provider_error.js';
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 120000;
 
@@ -21,12 +18,11 @@ export class Claude {
             ? configured
             : DEFAULT_REQUEST_TIMEOUT_MS;
 
-        let config = {};
+        const config = {};
         if (url)
             config.baseURL = url;
 
         config.apiKey = getKey('ANTHROPIC_API_KEY');
-
         this.anthropic = new Anthropic(config);
     }
 
@@ -34,28 +30,26 @@ export class Claude {
         const messages = strictFormat(turns);
         let res = null;
         try {
-            console.log(`Awaiting anthropic response from ${this.model_name}...`)
+            console.log(`Awaiting anthropic response from ${this.model_name}...`);
             const params = { ...(this.params || {}) };
             if (!params.max_tokens) {
                 if (params.thinking?.budget_tokens) {
                     params.max_tokens = params.thinking.budget_tokens + 1000;
-                    // max_tokens must be greater than thinking.budget_tokens
                 } else {
                     params.max_tokens = 4096;
                 }
             }
             const resp = await runAbortableRequest(
                 requestSignal => this.anthropic.messages.create({
-                    model: this.model_name || "claude-sonnet-4-6",
+                    model: this.model_name || 'claude-sonnet-4-6',
                     system: systemMessage,
-                    messages: messages,
+                    messages,
                     ...params
                 }, { signal: requestSignal }),
                 { timeoutMs: this.requestTimeoutMs, signal }
             );
 
-            console.log('Received.')
-            // get first content of type text
+            console.log('Received.');
             const textContent = resp.content.find(content => content.type === 'text');
             if (textContent) {
                 res = textContent.text;
@@ -65,15 +59,12 @@ export class Claude {
             }
         }
         catch (err) {
-            if (err instanceof RequestTimeoutError || err instanceof RequestAbortedError) {
-                throw err;
+            if (String(err?.message).includes('does not support image input')) {
+                return 'Vision is only supported by certain models.';
             }
-            if (err.message.includes("does not support image input")) {
-                res = "Vision is only supported by certain models.";
-            } else {
-                res = "My brain disconnected, try again.";
-            }
-            console.log(err);
+            const providerError = classifyProviderError(err);
+            console.log(providerError);
+            throw providerError;
         }
         return res;
     }
@@ -81,17 +72,17 @@ export class Claude {
     async sendVisionRequest(turns, systemMessage, imageBuffer, requestOptions = {}) {
         const imageMessages = [...turns];
         imageMessages.push({
-            role: "user",
+            role: 'user',
             content: [
                 {
-                    type: "text",
+                    type: 'text',
                     text: systemMessage
                 },
                 {
-                    type: "image",
+                    type: 'image',
                     source: {
-                        type: "base64",
-                        media_type: "image/jpeg",
+                        type: 'base64',
+                        media_type: 'image/jpeg',
                         data: imageBuffer.toString('base64')
                     }
                 }
@@ -101,7 +92,7 @@ export class Claude {
         return this.sendRequest(imageMessages, systemMessage, '***', requestOptions);
     }
 
-    async embed(text) {
+    async embed(_text) {
         throw new Error('Embeddings are not supported by Claude.');
     }
 }
