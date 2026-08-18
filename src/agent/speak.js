@@ -22,10 +22,10 @@ export function speak(text, speak_model) {
     }
 
     speakingQueue.push(item);
-    if (!isSpeaking) processQueue();
+    if (!isSpeaking) void processQueue();
 }
 
-async function fetchRemoteAudio(txt, model) {
+function fetchRemoteAudio(txt, model) {
     function getModelUrl(prov) {
         if (prov === 'openai') return gptTTSConfig.baseUrl;
         if (prov === 'google') return geminiTTSConfig.baseUrl;
@@ -63,7 +63,7 @@ function cleanSystemTtsText(txt) {
 
 function finishQueueItem() {
     isSpeaking = false;
-    processQueue();
+    void processQueue();
 }
 
 function spawnSystemTts(txt) {
@@ -154,7 +154,11 @@ async function processQueue() {
             const finish = async () => {
                 if (finished) return;
                 finished = true;
-                try { await fs.unlink(tmpPath); } catch {}
+                try {
+                    await fs.unlink(tmpPath);
+                } catch {
+                    // Best-effort cleanup after playback.
+                }
                 finishQueueItem();
             };
             player.on('error', async (err) => {
