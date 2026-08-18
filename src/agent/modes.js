@@ -1,10 +1,10 @@
 import * as skills from './library/skills.js';
 import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
-import settings from './settings.js'
+import settings from './settings.js';
 import convoManager from './conversation.js';
 
-async function say(agent, message) {
+function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
     if (agent.shut_up || !settings.narrate_behavior) return;
     agent.openChat(message);
@@ -29,7 +29,7 @@ const modes_list = [
         on: true,
         active: false,
         fall_blocks: ['sand', 'gravel', 'concrete_powder'], // includes matching substrings like 'sandstone' and 'red_sand'
-        update: async function (agent) {
+        update: function (agent) {
             const bot = agent.bot;
             let block = bot.blockAt(bot.entity.position);
             let blockAbove = bot.blockAt(bot.entity.position.offset(0, 1, 0));
@@ -99,7 +99,7 @@ const modes_list = [
         last_time: Date.now(),
         max_stuck_time: 20,
         prev_dig_block: null,
-        update: async function (agent) {
+        update: function (agent) {
             if (agent.isIdle()) { 
                 this.prev_location = null;
                 this.stuck_time = 0;
@@ -123,7 +123,7 @@ const modes_list = [
                 say(agent, 'I\'m stuck!');
                 this.stuck_time = 0;
                 execute(this, agent, async () => {
-                    const crashTimeout = setTimeout(() => { agent.cleanKill("Got stuck and couldn't get unstuck") }, 10000);
+                    const crashTimeout = setTimeout(() => { agent.cleanKill("Got stuck and couldn't get unstuck"); }, 10000);
                     await skills.moveAway(bot, 5);
                     clearTimeout(crashTimeout);
                     say(agent, 'I\'m free.');
@@ -242,7 +242,7 @@ const modes_list = [
         on: true,
         active: false,
         distance: 0.5,
-        update: async function (agent) {
+        update: function (agent) {
             const player = world.getNearestEntityWhere(agent.bot, entity => entity.type === 'player', this.distance);
             if (player) {
                 execute(this, agent, async () => {
@@ -303,7 +303,14 @@ const modes_list = [
     }
 ];
 
-async function execute(mode, agent, func, timeout=-1) {
+function execute(mode, agent, func, timeout=-1) {
+    void executeMode(mode, agent, func, timeout).catch(error => {
+        mode.active = false;
+        console.error(`Mode ${mode.name} failed:`, error);
+    });
+}
+
+async function executeMode(mode, agent, func, timeout=-1) {
     if (agent.self_prompter.isActive())
         agent.self_prompter.stopLoop();
     let interrupted_action = agent.actions.currentActionLabel;
