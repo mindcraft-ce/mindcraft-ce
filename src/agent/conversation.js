@@ -36,7 +36,7 @@ class Conversation {
         this.ignore_until_start = true;
         const full_message = _compileInMessages(this);
         if (full_message.message.trim().length > 0)
-            agent.history.add(this.name, full_message.message);
+            void agent.history.add(this.name, full_message.message);
         // add the full queued messages to history, but don't respond
 
         if (agent.last_sender === this.name)
@@ -85,7 +85,7 @@ class ConversationManager {
             if (this.awaiting_response && agent.isIdle()) {
                 wait_time += delta;
                 if (wait_time > this.wait_time_limit) {
-                    agent.handleMessage('system', `${convo_partner} hasn't responded in ${this.wait_time_limit/1000} seconds, respond with a message to them or your own action.`);
+                    void agent.handleMessage('system', `${convo_partner} hasn't responded in ${this.wait_time_limit/1000} seconds, respond with a message to them or your own action.`);
                     wait_time = 0;
                     this.wait_time_limit*=2;
                 }
@@ -103,7 +103,7 @@ class ConversationManager {
                     }
                     if (!agent.self_prompter.isPaused()) {
                         this.endConversation(convo_partner);
-                        agent.handleMessage('system', `${convo_partner} disconnected, conversation has ended.`);
+                        void agent.handleMessage('system', `${convo_partner} disconnected, conversation has ended.`);
                     }
                     else {
                         this.endConversation(convo_partner);
@@ -241,7 +241,7 @@ class ConversationManager {
             this._stopMonitor();
             this.activeConversation = null;
             if (agent.self_prompter.isPaused() && !this.inConversation()) {
-                await _resumeSelfPrompter();
+                void _resumeSelfPrompter();
             }
         }
     }
@@ -251,7 +251,7 @@ class ConversationManager {
             this.endConversation(sender);
         }
         if (agent.self_prompter.isPaused()) {
-            await _resumeSelfPrompter();
+            void _resumeSelfPrompter();
         }
     }
 
@@ -348,7 +348,7 @@ function _handleFullInMessage(sender, received) {
     else if (received.start)
         agent.shut_up = false;
     convo.inMessageTimer = null;
-    agent.handleMessage(sender, message);
+    void agent.handleMessage(sender, message);
 }
 
 function _tagMessage(message) {
