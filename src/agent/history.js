@@ -85,7 +85,7 @@ export class History {
         }
     }
 
-    async save() {
+    save() {
         try {
             const data = {
                 memory: this.memory,
