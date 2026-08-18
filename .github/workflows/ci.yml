@@ -9,12 +9,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -35,7 +42,20 @@ jobs:
           node --check main.js
           node --check settings.js
 
-      - name: Lint (advisory until baseline is clean)
+      - name: Lint changed JavaScript
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(git diff --name-only --diff-filter=ACMR -z "${{ github.event.pull_request.base.sha }}...HEAD" -- '*.js')
+          if (( ${#files[@]} > 0 )); then
+            printf 'Linting changed files:\n%s\n' "${files[*]}"
+            npx eslint "${files[@]}"
+          else
+            echo 'No changed JavaScript files.'
+          fi
+
+      - name: Full lint baseline (advisory until legacy debt is clean)
         continue-on-error: true
         run: npm run lint
 
