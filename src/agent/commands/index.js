@@ -173,13 +173,10 @@ export function parseCommandMessage(message) {
     if (message.length > structuredCommandLimits.maxLength)
         return `Command exceeds maximum length of ${structuredCommandLimits.maxLength} characters.`;
 
-    let parsed = null;
+    let parsed;
     try {
         parsed = parseStructuredCommand(message);
     } catch (error) {
-        // If a command uses parenthesized structured syntax but its arguments are
-        // malformed, fail closed. Falling back here can reinterpret e.g.
-        // !stop(foo) as a valid zero-argument !stop command.
         return error instanceof Error ? error.message : 'Command is incorrectly formatted';
     }
 
@@ -211,7 +208,6 @@ export function truncCommandMessage(message) {
         try {
             return truncateToStructuredCommand(message);
         } catch {
-            // Preserve the original malformed command for parseCommandMessage to reject.
             return message;
         }
     }
@@ -240,7 +236,7 @@ function numParams(command) {
     return commandParams(command).length;
 }
 
-export async function executeCommand(agent, message) {
+export function executeCommand(agent, message) {
     const parsed = parseCommandMessage(message);
     if (typeof parsed === 'string') return parsed;
 
