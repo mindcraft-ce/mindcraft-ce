@@ -5,8 +5,6 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Dynamically discover model classes in this directory.
-// Each model class must export a static `prefix` string.
 const apiMap = await (async () => {
     const map = {};
     const files = (await fs.readdir(__dirname))
@@ -34,7 +32,6 @@ export function selectAPI(profile) {
     if (typeof profile === 'string' || profile instanceof String) {
         profile = {model: profile};
     }
-    // backwards compatibility with local->ollama
     if (profile.api?.includes('local') || profile.model?.includes('local')) {
         profile.api = 'ollama';
         if (profile.model) {
@@ -47,13 +44,12 @@ export function selectAPI(profile) {
             profile.api = api;
         }
         else {
-            // check for some common models that do not require prefixes
-            if (profile.model.includes('gpt') || profile.model.includes('o1')|| profile.model.includes('o3'))
+            if (profile.model.includes('gpt') || profile.model.includes('o1') || profile.model.includes('o3'))
                 profile.api = 'openai';
             else if (profile.model.includes('claude'))
                 profile.api = 'anthropic';
             else if (profile.model.includes('gemini'))
-                profile.api = "google";
+                profile.api = 'google';
             else if (profile.model.includes('grok'))
                 profile.api = 'xai';
             else if (profile.model.includes('mistral'))
@@ -64,26 +60,23 @@ export function selectAPI(profile) {
                 profile.api = 'qwen';
         }
         if (!profile.api) {
-            throw new Error('Unknown model:', profile.model);
+            throw new Error(`Unknown model: ${profile.model}`);
         }
     }
     if (!apiMap[profile.api]) {
-        throw new Error('Unknown api:', profile.api);
+        throw new Error(`Unknown api: ${profile.api}`);
     }
-    let model_name = profile.model.replace(profile.api + '/', ''); // remove prefix
-    profile.model = model_name === "" ? null : model_name; // if model is empty, set to null
+    const model_name = profile.model.replace(profile.api + '/', '');
+    profile.model = model_name === '' ? null : model_name;
     return profile;
 }
 
 export function createModel(profile) {
-    if (!!apiMap[profile.model]) {
-        // if the model value is an api (instead of a specific model name)
-        // then set model to null so it uses the default model for that api
+    if (apiMap[profile.model]) {
         profile.model = null;
     }
     if (!apiMap[profile.api]) {
-        throw new Error('Unknown api:', profile.api);
+        throw new Error(`Unknown api: ${profile.api}`);
     }
-    const model = new apiMap[profile.api](profile.model, profile.url, profile.params);
-    return model;
+    return new apiMap[profile.api](profile.model, profile.url, profile.params, profile.api_key_alias);
 }
