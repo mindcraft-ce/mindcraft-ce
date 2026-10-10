@@ -309,17 +309,11 @@ function requestAgentState(agentName, agent) {
             return;
         }
 
-        let settled = false;
-        const timeout = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            reject(new Error(`Timed out waiting for ${agentName} state`));
-        }, STATE_REQUEST_TIMEOUT_MS);
-
-        agent.socket.emit('get-full-state', (state) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
+        agent.socket.timeout(STATE_REQUEST_TIMEOUT_MS).emit('get-full-state', (error, state) => {
+            if (error) {
+                reject(new Error(`Timed out waiting for ${agentName} state`, { cause: error }));
+                return;
+            }
             resolve(state);
         });
     });
