@@ -88,10 +88,10 @@ function spawnSystemTts(txt) {
     }
 
     if (isMac) {
-        return spawn('say', [cleanText], { stdio: 'ignore' });
+        return spawn('say', ['--', cleanText], { stdio: 'ignore' });
     }
 
-    return spawn('espeak', [cleanText], { stdio: 'ignore' });
+    return spawn('espeak', ['--', cleanText], { stdio: 'ignore' });
 }
 
 async function processQueue() {
