@@ -73,3 +73,12 @@ export function isAuthorizedControlRequest(providedToken, expectedToken) {
     if (expectedBuffer.length !== providedBuffer.length) return false;
     return timingSafeEqual(expectedBuffer, providedBuffer);
 }
+
+// Clients run alongside MindServer; wildcard binds need a concrete local address.
+export function mindServerClientUrl(port, hostPublic = false, bindHost = process.env.MINDCRAFT_BIND_HOST) {
+    let host = resolveMindServerBindHost(hostPublic, bindHost);
+    if (host === '0.0.0.0') host = '127.0.0.1';
+    if (host === '::') host = '::1';
+    if (isIP(host) === 6) host = `[${host}]`;
+    return `http://${host}:${port}`;
+}

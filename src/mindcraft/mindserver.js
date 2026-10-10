@@ -88,6 +88,17 @@ export function createMindServer(host_public = false, port = 8080) {
     const app = express();
     server = http.createServer(app);
     io = new Server(server);
+    let shutdownRequested = false;
+    const shutdown = () => {
+        if (shutdownRequested) return;
+        shutdownRequested = true;
+        console.log('Shutting down');
+        for (const agentName in agent_connections) mindcraft.stopAgent(agentName);
+        setTimeout(() => {
+            console.log('Exiting MindServer');
+            globalThis.process.exit(0);
+        }, 2000);
+    };
 
     app.get('/', (req, res, next) => {
         const queryToken = typeof req.query?.token === 'string' ? req.query.token : null;
@@ -333,14 +344,18 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('shutdown', () => {
             if (!requireControl()) return;
-            console.log('Shutting down');
-            for (const agentName in agent_connections) {
-                mindcraft.stopAgent(agentName);
+            shutdown();
+        });
+
+        // Task agents may end their run without receiving operator credentials.
+        socket.on('finish-task', (agentName) => {
+            if (!requireAgent(agentName)) return;
+            const agent = agent_connections[agentName];
+            if (curAgentName !== agentName || agent.socket !== socket || !agent.settings.task) {
+                socket.emit('agent-auth-error', { error: 'Only a connected task agent can finish a task run.' });
+                return;
             }
-            setTimeout(() => {
-                console.log('Exiting MindServer');
-                globalThis.process.exit(0);
-            }, 2000);
+            shutdown();
         });
 
         socket.on('send-message', (agentName, data) => {

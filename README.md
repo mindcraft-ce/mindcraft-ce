@@ -312,15 +312,23 @@ The `initial_inventory` is what the bot will have at the start of the episode, `
 
 If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](docs/minecollab.md#installation)
 
+## MindServer access
+
+MindServer binds to `127.0.0.1` by default. Set `MINDCRAFT_BIND_HOST` to choose another address; a non-loopback address requires `MINDCRAFT_CONTROL_TOKEN`. Keep this token private because it authorizes agent management, messaging, and shutdown.
+
+When a token is configured, open `http://localhost:8080/?token=<your-token>` once to authorize the UI. MindServer stores an HttpOnly cookie and redirects to `/`. Automatic UI startup supplies the token for you. Agent processes use separate credentials and can end a configured task run without operator access.
+
 ## Docker Container
 
 If you intend to `allow_insecure_coding`, it is a good idea to run the app in a docker container to reduce risks of running unknown code. This is strongly recommended before connecting to remote servers, although still does not guarantee complete safety.
 
 ```bash
-docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 8080:8080 -p 3000-3003:3000-3003 -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
+docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 127.0.0.1:8080:8080 -p 127.0.0.1:3000-3003:3000-3003 -e MINDCRAFT_BIND_HOST=0.0.0.0 -e MINDCRAFT_CONTROL_TOKEN -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
 ```
 or simply
 ```bash
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
 docker-compose up --build
 ```
 

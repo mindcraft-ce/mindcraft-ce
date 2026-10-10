@@ -1,9 +1,10 @@
 import { io } from 'socket.io-client';
 import { setSettings } from './settings.js';
 import rootSettings from '../../settings.js';
+import { mindServerClientUrl } from '../mindcraft/security.js';
 
 // agent's individual connection to the mindserver
-// always connect to localhost
+// connect to the configured local MindServer address
 
 class MindServerProxy {
     constructor() {
@@ -27,7 +28,7 @@ class MindServerProxy {
         if (!agentToken) {
             throw new Error('Missing MINDCRAFT_AGENT_TOKEN for MindServer agent authentication.');
         }
-        this.socket = io(`http://localhost:${port}`, {
+        this.socket = io(mindServerClientUrl(port), {
             auth: { agentToken },
         });
 
@@ -146,7 +147,7 @@ class MindServerProxy {
     }
 
     shutdown() {
-        this.socket.emit('shutdown');
+        this.socket.emit('finish-task', this.name);
     }
 
     getSocket() {

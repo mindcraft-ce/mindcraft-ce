@@ -3,6 +3,7 @@ import { createMindServer, registerAgent, numStateListeners } from './mindserver
 import { AgentProcess } from '../process/agent_process.js';
 import { getServer } from './mcserver.js';
 import open from 'open';
+import { mindServerClientUrl, resolveControlToken } from './security.js';
 
 let mindserver;
 let connected = false;
@@ -39,13 +40,18 @@ export async function init(host_public=false, port=8080, auto_open_ui=true) {
     }
     mindserver = createMindServer(host_public, port);
     await waitForServerListening(mindserver);
-    mindserver_port = port;
+    mindserver_port = mindserver.address().port;
     connected = true;
     if (auto_open_ui) {
         setTimeout(() => {
             // check if browser listener is already open
             if (numStateListeners() === 0) {
-                open('http://localhost:'+port);
+                const url = new URL(mindServerClientUrl(mindserver_port, host_public));
+                const token = resolveControlToken(host_public);
+                if (token) url.searchParams.set('token', token);
+                void open(url.href).catch(() => {
+                    console.error('Could not open the MindServer UI automatically.');
+                });
             }
         }, 3000);
     }
