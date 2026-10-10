@@ -316,7 +316,7 @@ If you want more optimization and automatic launching of the minecraft world, yo
 
 MindServer binds to `127.0.0.1` by default. Set `MINDCRAFT_BIND_HOST` to choose another address; a non-loopback address requires `MINDCRAFT_CONTROL_TOKEN`. Keep this token private because it authorizes agent management, messaging, and shutdown.
 
-When a token is configured, open `http://localhost:8080/?token=<your-token>` once to authorize the UI. MindServer stores an HttpOnly cookie and redirects to `/`. Automatic UI startup supplies the token for you. Agent processes use separate credentials and can end a configured task run without operator access.
+When a token is configured, open `http://localhost:8080/?token=<your-token>` once to authorize the UI. MindServer stores an HttpOnly cookie and redirects to `/`. Automatic UI startup supplies the token for you. Socket.IO control clients supply `auth: { controlToken: "<your-token>" }` when connecting; the Python client reads the token from the environment. Agent processes use separate credentials and can end a configured task run without operator access.
 
 ## Docker Container
 
