@@ -24,13 +24,12 @@ export class AgentProcess {
             args.push('-m', init_message);
         args.push('-p', this.port);
 
+        const agentEnv = { ...process.env, MINDCRAFT_AGENT_TOKEN: this.process_token };
+        delete agentEnv.MINDCRAFT_CONTROL_TOKEN;
         const agentProcess = spawn(process.execPath, args, {
             stdio: 'inherit',
             stderr: 'inherit',
-            env: {
-                ...process.env,
-                MINDCRAFT_AGENT_TOKEN: this.process_token,
-            },
+            env: agentEnv,
         });
 
         let last_restart = Date.now();
