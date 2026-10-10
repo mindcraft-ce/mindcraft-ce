@@ -16,7 +16,8 @@ export function speak(text, speak_model) {
     if (model === 'system') {
         item.ready = Promise.resolve();
     } else {
-        item.ready = fetchRemoteAudio(text, model)
+        item.ready = Promise.resolve()
+            .then(() => fetchRemoteAudio(text, model))
             .then(data => { item.audioData = data; })
             .catch(err => { item.error = err; });
     }
@@ -120,7 +121,14 @@ async function processQueue() {
 
     if (model === 'system') {
         // Never interpolate model-controlled text into shell source or a command line.
-        const player = spawnSystemTts(txt);
+        let player;
+        try {
+            player = spawnSystemTts(txt);
+        } catch (error) {
+            console.error('TTS error', error);
+            finishQueueItem();
+            return;
+        }
         let finished = false;
         const finish = () => {
             if (finished) return;
@@ -170,8 +178,6 @@ async function processQueue() {
             const player = spawn('ffplay', ['-nodisp', '-autoexit', 'pipe:0'], {
                 stdio: ['pipe', 'ignore', 'ignore']
             });
-            player.stdin.write(Buffer.from(audioData, 'base64'));
-            player.stdin.end();
             let finished = false;
             const finish = () => {
                 if (finished) return;
@@ -183,6 +189,12 @@ async function processQueue() {
                 finish();
             });
             player.on('exit', finish);
+            player.stdin.on('error', (err) => {
+                console.error('[TTS] ffplay input error', err);
+                player.kill();
+                finish();
+            });
+            player.stdin.end(Buffer.from(audioData, 'base64'));
         }
     } catch (e) {
         console.error('[TTS] Audio error', e);
