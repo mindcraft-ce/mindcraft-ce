@@ -1,9 +1,10 @@
 import { io } from 'socket.io-client';
 import { setSettings } from './settings.js';
 import rootSettings from '../../settings.js';
+import { mindServerClientUrl } from '../mindcraft/security.js';
 
 // agent's individual connection to the mindserver
-// always connect to localhost
+// connect to the configured local MindServer address
 
 class MindServerProxy {
     constructor() {
@@ -23,7 +24,13 @@ class MindServerProxy {
         if (this.connected) return;
 
         this.name = name;
-        this.socket = io(`http://localhost:${port}`);
+        const agentToken = process.env.MINDCRAFT_AGENT_TOKEN;
+        if (!agentToken) {
+            throw new Error('Missing MINDCRAFT_AGENT_TOKEN for MindServer agent authentication.');
+        }
+        this.socket = io(mindServerClientUrl(port), {
+            auth: { agentToken },
+        });
 
         await new Promise((resolve, reject) => {
             this.socket.once('connect', resolve);
@@ -76,6 +83,10 @@ class MindServerProxy {
             if (this.agent) {
                 this.agent.cleanKill('Disconnected from MindServer. Killing agent process.');
             }
+        });
+
+        this.socket.on('agent-auth-error', ({ error } = {}) => {
+            console.error(error || 'MindServer rejected agent authentication.');
         });
 
         this.socket.on('chat-message', (agentName, json) => {
@@ -136,7 +147,7 @@ class MindServerProxy {
     }
 
     shutdown() {
-        this.socket.emit('shutdown');
+        this.socket.emit('finish-task', this.name);
     }
 
     getSocket() {

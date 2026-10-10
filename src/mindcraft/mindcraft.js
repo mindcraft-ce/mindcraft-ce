@@ -1,7 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { createMindServer, registerAgent, numStateListeners } from './mindserver.js';
 import { AgentProcess } from '../process/agent_process.js';
 import { getServer } from './mcserver.js';
 import open from 'open';
+import { mindServerClientUrl, resolveControlToken } from './security.js';
 
 let mindserver;
 let connected = false;
@@ -38,13 +40,18 @@ export async function init(host_public=false, port=8080, auto_open_ui=true) {
     }
     mindserver = createMindServer(host_public, port);
     await waitForServerListening(mindserver);
-    mindserver_port = port;
+    mindserver_port = mindserver.address().port;
     connected = true;
     if (auto_open_ui) {
         setTimeout(() => {
             // check if browser listener is already open
             if (numStateListeners() === 0) {
-                open('http://localhost:'+port);
+                const url = new URL(mindServerClientUrl(mindserver_port, host_public));
+                const token = resolveControlToken(host_public);
+                if (token) url.searchParams.set('token', token);
+                void open(url.href).catch(() => {
+                    console.error('Could not open the MindServer UI automatically.');
+                });
             }
         }, 3000);
     }
@@ -62,7 +69,8 @@ export async function createAgent(settings) {
     let agent_name = settings.profile.name;
     const agentIndex = agent_count++;
     const viewer_port = 3000 + agentIndex;
-    registerAgent(settings, viewer_port);
+    const process_token = randomBytes(32).toString('hex');
+    registerAgent(settings, viewer_port, process_token);
     let load_memory = settings.load_memory || false;
     let init_message = settings.init_message || null;
 
@@ -80,7 +88,7 @@ export async function createAgent(settings) {
             console.warn(`Attempting to connect anyway...`);
         }
 
-        const agentProcess = new AgentProcess(agent_name, mindserver_port);
+        const agentProcess = new AgentProcess(agent_name, mindserver_port, process_token);
         agentProcess.start(load_memory, init_message, agentIndex);
         agent_processes[settings.profile.name] = agentProcess;
     } catch (error) {
