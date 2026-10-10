@@ -174,6 +174,11 @@ You can configure the agent's name, model, and prompts in their profile like `an
       <td><a href="https://ollama.com/library">docs</a></td>
     </tr>
     <tr>
+      <td><pre>ollama_cloud</pre></td>
+      <td><pre>OLLAMA_API_KEY</pre></td>
+      <td><a href="https://docs.ollama.com/cloud">docs</a></td>
+    </tr>
+    <tr>
       <td><pre>qwen</pre></td>
       <td><pre>QWEN_API_KEY</pre></td>
       <td><a href="https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api">Intl.</a>/<a href="https://help.aliyun.com/zh/model-studio/getting-started/models">cn</a></td>
@@ -239,6 +244,18 @@ You can configure the agent's name, model, and prompts in their profile like `an
 </details>
 
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
+
+### Ollama Cloud and local Ollama
+
+Use `ollama/modelname` for a local Ollama server (default: `http://127.0.0.1:11434`),
+with no API key required. Use `ollama_cloud/modelname` for direct Ollama Cloud
+access and set `OLLAMA_API_KEY` in `keys.json` or your environment. `ollamacloud/`
+and `ollama-cloud/` are also accepted prefixes.
+
+Cloud models accessed through a signed-in local Ollama server still use `ollama/`;
+the local server handles authentication. Use the model name recognized by the
+server you connect to. See the example profiles for [local Ollama](profiles/ollama.json)
+and [Ollama Cloud](profiles/ollama_cloud.json).
 
 For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
 Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
@@ -365,7 +382,7 @@ All apis have default models and urls, so those fields are optional. The `params
 
 Embedding models are used to embed and efficiently select relevant examples for conversation and coding.
 
-Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`
+Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`, `ollama` (local)
 
 If you try to use an unsupported model, then it will default to a simple word-overlap method. Expect reduced performance. We recommend using supported embedding APIs.
 
