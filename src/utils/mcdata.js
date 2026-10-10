@@ -90,6 +90,7 @@ export const WOOL_COLORS = [
 
 
 export function initBot(username) {
+    mc_version = settings.minecraft_version;
     const options = {
         username: username,
         host: settings.host,
@@ -162,11 +163,15 @@ export function initBot(username) {
         bot.acceptResourcePack();
     });
 
-    bot.once('login', () => {
+bot.once('login', () => {
+    if (!settings.minecraft_version || settings.minecraft_version === 'auto') {
         mc_version = bot.version;
-        mcdata = minecraftData(mc_version);
-        Item = prismarine_items(mc_version);
-    });
+    } else {
+        mc_version = settings.minecraft_version;
+    }
+    mcdata = minecraftData(mc_version);
+    Item = prismarine_items(mc_version);
+});
 
     return bot;
 }

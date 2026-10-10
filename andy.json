@@ -1,7 +1,7 @@
 {
     "name": "andy",
 
-    "model": "andy/auto/mindcraft",
-    "embedding": "andy/auto/mindcraft"
+    "model": "ollama_cloud/glm-5.3-flash:cloud",
+    "embedding": "openrouter/perplexity/pplx-embed-v1-0.6b"
 
 }

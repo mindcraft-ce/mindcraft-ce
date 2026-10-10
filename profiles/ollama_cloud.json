@@ -1,0 +1,5 @@
+{
+    "name": "andy",
+    "model": "ollama_cloud/gpt-oss:120b",
+    "vision_model": "ollama_cloud/gemma4:31b"
+}

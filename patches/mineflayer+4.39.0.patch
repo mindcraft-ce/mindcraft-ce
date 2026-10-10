@@ -1,0 +1,57 @@
+diff --git a/node_modules/mineflayer/lib/plugins/inventory.js b/node_modules/mineflayer/lib/plugins/inventory.js
+--- a/node_modules/mineflayer/lib/plugins/inventory.js
++++ b/node_modules/mineflayer/lib/plugins/inventory.js
+@@ -478,6 +478,14 @@
+     // crafting area, including picking up the result (which consumes the
+     // ingredients). Waiting for that resync on result clicks too keeps
+     // follow-up clicks and close_window from racing ahead of the craft.
++    if (bot.supportFeature('stateIdUsed') &&
++      ((window.type === 'minecraft:inventory' && slot >= 0 && slot <= 4) ||
++       (window.type === 'minecraft:crafting' && slot >= 0 && slot <= 9))) {
++      // Modern servers need not change the result slot for every click.
++      // Confirm the click with a full authoritative window snapshot instead.
++      await syncWindow(window)
++      return
++    }
+     if (window.type === 'minecraft:inventory') {
+       if (slot >= 0 && slot <= 4) {
+         await once(bot.inventory, 'updateSlot:0')
+diff --git a/node_modules/mineflayer/lib/plugins/craft.js b/node_modules/mineflayer/lib/plugins/craft.js
+--- a/node_modules/mineflayer/lib/plugins/craft.js
++++ b/node_modules/mineflayer/lib/plugins/craft.js
+@@ -20,10 +20,11 @@
+         await craftOnce(recipe, craftingTable)
+       }
+ 
++      await bot._syncWindow(windowCraftingTable || bot.inventory)
++
+       if (windowCraftingTable) {
+         // The last put-away click is unconfirmed; closing on a wrong model
+         // leaves items the server never placed.
+-        await bot._syncWindow(windowCraftingTable)
+         await bot.closeWindow(windowCraftingTable)
+         windowCraftingTable = undefined
+       }
+@@ -32,7 +33,7 @@
+         bot.closeWindow(windowCraftingTable)
+         windowCraftingTable = undefined
+       }
+-      throw new Error(err)
++      throw err
+     }
+   }
+ 
+diff --git a/node_modules/mineflayer/lib/plugins/fishing.js b/node_modules/mineflayer/lib/plugins/fishing.js
+--- a/node_modules/mineflayer/lib/plugins/fishing.js
++++ b/node_modules/mineflayer/lib/plugins/fishing.js
+@@ -58,4 +58,10 @@
+   }
+ 
+   bot.fish = fish
++  bot.stopFishing = () => {
++    if (fishingTask.done) return
++    bot.activateItem()
++    fishingTask.cancel(new Error('Fishing cancelled'))
++    lastBobber = null
++  }
+ }

@@ -7,21 +7,24 @@ export class Ollama {
         this.params = params;
         this.url = url || 'http://127.0.0.1:11434';
         this.chat_endpoint = '/api/chat';
-        this.embedding_endpoint = '/api/embeddings';
+        this.embedding_endpoint = '/api/embed';
     }
 
-    async sendRequest(turns, systemMessage) {
+    async sendRequest(turns, systemMessage, imageBuffer = null) {
         let model = this.model_name || 'sweaterdog/andy-4:micro-q8_0';
-        let messages = strictFormat(turns);
+        let messages = strictFormat(turns.map(turn => ({ ...turn })));
         messages.unshift({ role: 'system', content: systemMessage });
+        if (imageBuffer) {
+            messages.push({ role: 'user', content: systemMessage, images: [imageBuffer.toString('base64')] });
+        }
         const maxAttempts = 5;
         let attempt = 0;
         let finalRes = null;
 
         while (attempt < maxAttempts) {
             attempt++;
-            console.log(`Awaiting local response... (model: ${model}, attempt: ${attempt})`);
-            let res = null;
+            console.log(`Awaiting ${this.constructor.prefix} response... (model: ${model}, attempt: ${attempt})`);
+            let res;
             try {
                 let apiResponse = await this.send(this.chat_endpoint, {
                     model: model,
@@ -29,15 +32,14 @@ export class Ollama {
                     stream: false,
                     ...(this.params || {})
                 });
-                if (apiResponse) {
-                    res = apiResponse['message']['content'];
-                } else {
-                    res = 'No response data.';
+                if (typeof apiResponse?.message?.content !== 'string') {
+                    throw new Error('Ollama returned no chat message.');
                 }
+                res = apiResponse.message.content;
             } catch (err) {
                 if (err.message.toLowerCase().includes('context length') && turns.length > 1) {
                     console.log('Context length exceeded, trying again with shorter context.');
-                    return await this.sendRequest(turns.slice(1), systemMessage);
+                    return await this.sendRequest(turns.slice(1), systemMessage, imageBuffer);
                 } else {
                     console.log(err);
                     res = 'My brain disconnected, try again.';
@@ -72,44 +74,26 @@ export class Ollama {
         let model = this.model_name || 'embeddinggemma';
         let body = { model: model, input: text };
         let res = await this.send(this.embedding_endpoint, body);
-        return res['embedding'];
+        const embedding = res?.embeddings?.[0];
+        if (!Array.isArray(embedding)) throw new Error('Ollama returned no embedding.');
+        return embedding;
     }
 
     async send(endpoint, body) {
         const url = new URL(endpoint, this.url);
         let method = 'POST';
-        let headers = new Headers();
+        let headers = new Headers({ 'Content-Type': 'application/json' });
+        if (this.apiKey) headers.set('Authorization', `Bearer ${this.apiKey}`);
         const request = new Request(url, { method, headers, body: JSON.stringify(body) });
-        let data = null;
-        try {
-            const res = await fetch(request);
-            if (res.ok) {
-                data = await res.json();
-            } else {
-                throw new Error(`Ollama Status: ${res.status}`);
-            }
-        } catch (err) {
-            console.error('Failed to send Ollama request.');
-            console.error(err);
+        const res = await fetch(request);
+        if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            throw new Error(`Ollama status ${res.status}${data?.error ? ': ' + data.error : ''}`);
         }
-        return data;
+        return await res.json();
     }
 
     async sendVisionRequest(messages, systemMessage, imageBuffer) {
-        const imageMessages = [...messages];
-        imageMessages.push({
-            role: "user",
-            content: [
-                { type: "text", text: systemMessage },
-                {
-                    type: "image_url",
-                    image_url: {
-                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
-                    }
-                }
-            ]
-        });
-        
-        return this.sendRequest(imageMessages, systemMessage);
+        return await this.sendRequest(messages, systemMessage, imageBuffer);
     }
 }

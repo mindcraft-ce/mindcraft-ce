@@ -1,8 +1,16 @@
 diff --git a/node_modules/mineflayer-pvp/lib/PVP.js b/node_modules/mineflayer-pvp/lib/PVP.js
-index 758c2b3..7c7220e 100644
 --- a/node_modules/mineflayer-pvp/lib/PVP.js
 +++ b/node_modules/mineflayer-pvp/lib/PVP.js
-@@ -48,7 +48,7 @@ class PVP {
+@@ -26,6 +26,8 @@
+         this.timeToNextAttack = 0;
+         this.wasInRange = false;
+         this.blockingExplosion = false;
++        this.attackRequestId = 0;
++        this.followGoal = undefined;
+         /**
+          * How close the bot will attempt to get to the target when when pursuing it.
+          */
+@@ -48,7 +50,7 @@
          this.meleeAttackRate = new TimingSolver_1.MaxDamageOffset();
          this.bot = bot;
          this.movements = new mineflayer_pathfinder_1.Movements(bot, require('minecraft-data')(bot.version));
@@ -10,4 +18,77 @@ index 758c2b3..7c7220e 100644
 +        this.bot.on('physicsTick', () => this.update());
          this.bot.on('entityGone', e => { if (e === this.target)
              this.stop(); });
+     }
+@@ -61,7 +63,11 @@
+         return __awaiter(this, void 0, void 0, function* () {
+             if (target === this.target)
+                 return;
+-            yield this.stop();
++            const stopping = this.stop();
++            const requestId = ++this.attackRequestId;
++            yield stopping;
++            if (requestId !== this.attackRequestId)
++                return;
+             this.target = target;
+             this.timeToNextAttack = 0;
+             if (!this.target)
+@@ -69,7 +75,8 @@
+             const pathfinder = this.bot.pathfinder;
+             if (this.movements)
+                 pathfinder.setMovements(this.movements);
+-            pathfinder.setGoal(new mineflayer_pathfinder_1.goals.GoalFollow(this.target, this.followRange), true);
++            this.followGoal = new mineflayer_pathfinder_1.goals.GoalFollow(this.target, this.followRange);
++            pathfinder.setGoal(this.followGoal, true);
+             // @ts-expect-error
+             this.bot.emit('startedAttacking');
+         });
+@@ -79,17 +86,25 @@
+      */
+     stop() {
+         return __awaiter(this, void 0, void 0, function* () {
++            this.attackRequestId++;
+             if (this.target == null)
+                 return;
+             this.target = undefined;
++            const goal = this.followGoal;
++            this.followGoal = undefined;
+             const pathfinder = this.bot.pathfinder;
+-            pathfinder.stop();
+-            try {
+-                yield this.onceWithTimeout('path_stop', 5000);
+-            }
+-            catch (err) {
+-                this.bot.removeAllListeners('path_stop');
+-                pathfinder.setGoal(null);
++            if (goal && pathfinder.goal === goal) {
++                // Register before stopping: an idle path can stop synchronously.
++                const stopped = this.onceWithTimeout('path_stop', 5000);
++                pathfinder.stop();
++                try {
++                    yield stopped;
++                }
++                catch (err) {
++                    // A cancelled attack must never clear a newer action's goal.
++                    if (pathfinder.goal === goal)
++                        pathfinder.setGoal(null);
++                }
+             }
+             // @ts-expect-error
+             this.bot.emit('stoppedAttacking');
+@@ -127,11 +142,15 @@
+      * @returns void
+      */
+     forceStop() {
++        this.attackRequestId++;
+         if (this.target == null)
+             return;
+         this.target = undefined;
++        const goal = this.followGoal;
++        this.followGoal = undefined;
+         const pathfinder = this.bot.pathfinder;
+-        pathfinder.setGoal(null);
++        if (goal && pathfinder.goal === goal)
++            pathfinder.setGoal(null);
+         // @ts-expect-error
+         this.bot.emit('stoppedAttacking');
      }
