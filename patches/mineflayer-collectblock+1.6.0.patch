@@ -1,0 +1,30 @@
+diff --git a/node_modules/mineflayer-collectblock/lib/CollectBlock.js b/node_modules/mineflayer-collectblock/lib/CollectBlock.js
+--- a/node_modules/mineflayer-collectblock/lib/CollectBlock.js
++++ b/node_modules/mineflayer-collectblock/lib/CollectBlock.js
+@@ -28,7 +28,16 @@
+             switch (closest.constructor.name) {
+                 case 'Block': {
+                     const goal = new mineflayer_pathfinder_1.goals.GoalLookAtBlock(closest.position, bot.world);
+-                    yield bot.pathfinder.goto(goal);
++                    try {
++                        yield bot.pathfinder.goto(goal);
++                    }
++                    catch (err) {
++                        if (err.name !== 'NoPath') throw err;
++                        // A buried block has no visible face in the current world.
++                        // Tunnel next to it first, then check reach and line of sight again.
++                        yield bot.pathfinder.goto(new mineflayer_pathfinder_1.goals.GoalGetToBlock(closest.position.x, closest.position.y, closest.position.z));
++                        yield bot.pathfinder.goto(goal);
++                    }
+                     yield mineBlock(bot, closest, options);
+                     // TODO: options.ignoreNoPath
+                     break;
+@@ -190,8 +199,6 @@
+                 throw (0, Util_1.error)('UnresolvedDependency', 'The mineflayer-collectblock plugin relies on the mineflayer-tool plugin to run!');
+             }
+             if (this.movements != null) {
+-                this.movements.dontMineUnderFallingBlock = false;
+-                this.movements.dontCreateFlow = false;
+                 this.bot.pathfinder.setMovements(this.movements);
+             }
+             if (!optionsFull.append)
