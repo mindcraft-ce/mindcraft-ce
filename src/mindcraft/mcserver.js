@@ -1,4 +1,5 @@
 import net from 'net';
+import { resolveSrv } from 'dns/promises';
 import mc from 'minecraft-protocol';
 
 /**
@@ -12,10 +13,13 @@ import mc from 'minecraft-protocol';
 export function serverInfo(ip, port, timeout = 1000, verbose = false) {
     return new Promise((resolve) => {
         let settled = false;
+        let pingClient;
         const finish = (value) => {
             if (settled) return;
             settled = true;
             clearTimeout(timeoutId);
+            // Settling the scan must also release the protocol connection.
+            pingClient?.socket?.destroy();
             resolve(value);
         };
 
@@ -25,10 +29,32 @@ export function serverInfo(ip, port, timeout = 1000, verbose = false) {
             finish(null);
         }, timeout);
 
+        const connect = (client) => {
+            pingClient = client;
+            const openSocket = (host, targetPort) => {
+                if (!settled)
+                    client.setSocket(net.createConnection({ host, port: targetPort }));
+            };
+
+            // Preserve minecraft-protocol's SRV lookup for default-port domains.
+            if (Number(port) === 25565 && net.isIP(ip) === 0 && ip !== 'localhost') {
+                resolveSrv(`_minecraft._tcp.${ip}`).then(records => {
+                    const target = records[0];
+                    openSocket(target?.name || ip, target?.port || port);
+                }, () => openSocket(ip, port)).catch(() => finish(null));
+            } else {
+                openSocket(ip, port);
+            }
+        };
+
         mc.ping({
             host: ip,
-            port
+            port,
+            closeTimeout: timeout,
+            noPongTimeout: timeout,
+            connect,
         }, (err, response) => {
+            if (settled) return;
             if (err) {
                 if (verbose)
                     console.error(`Error pinging server ${ip}:${port}`, err);
