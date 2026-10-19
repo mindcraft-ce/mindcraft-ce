@@ -174,6 +174,11 @@ You can configure the agent's name, model, and prompts in their profile like `an
       <td><a href="https://ollama.com/library">docs</a></td>
     </tr>
     <tr>
+      <td><pre>ollama_cloud</pre></td>
+      <td><pre>OLLAMA_API_KEY</pre></td>
+      <td><a href="https://docs.ollama.com/cloud">docs</a></td>
+    </tr>
+    <tr>
       <td><pre>qwen</pre></td>
       <td><pre>QWEN_API_KEY</pre></td>
       <td><a href="https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api">Intl.</a>/<a href="https://help.aliyun.com/zh/model-studio/getting-started/models">cn</a></td>
@@ -240,6 +245,18 @@ You can configure the agent's name, model, and prompts in their profile like `an
 
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
 
+### Ollama Cloud and local Ollama
+
+Use `ollama/modelname` for a local Ollama server (default: `http://127.0.0.1:11434`),
+with no API key required. Use `ollama_cloud/modelname` for direct Ollama Cloud
+access and set `OLLAMA_API_KEY` in `keys.json` or your environment. `ollamacloud/`
+and `ollama-cloud/` are also accepted prefixes.
+
+Cloud models accessed through a signed-in local Ollama server still use `ollama/`;
+the local server handles authentication. Use the model name recognized by the
+server you connect to. See the example profiles for [local Ollama](profiles/ollama.json)
+and [Ollama Cloud](profiles/ollama_cloud.json).
+
 For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
 Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
 
@@ -295,15 +312,23 @@ The `initial_inventory` is what the bot will have at the start of the episode, `
 
 If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](docs/minecollab.md#installation)
 
+## MindServer access
+
+MindServer binds to `127.0.0.1` by default. Set `MINDCRAFT_BIND_HOST` to choose another address; a non-loopback address requires `MINDCRAFT_CONTROL_TOKEN`. Keep this token private because it authorizes agent management, messaging, and shutdown.
+
+When a token is configured, open `http://localhost:8080/?token=<your-token>` once to authorize the UI. MindServer stores an HttpOnly cookie and redirects to `/`. Automatic UI startup supplies the token for you. Socket.IO control clients supply `auth: { controlToken: "<your-token>" }` when connecting; the Python client reads the token from the environment. Agent processes use separate credentials and can end a configured task run without operator access.
+
 ## Docker Container
 
 If you intend to `allow_insecure_coding`, it is a good idea to run the app in a docker container to reduce risks of running unknown code. This is strongly recommended before connecting to remote servers, although still does not guarantee complete safety.
 
 ```bash
-docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 8080:8080 -p 3000-3003:3000-3003 -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
+docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 127.0.0.1:8080:8080 -p 127.0.0.1:3000-3003:3000-3003 -e MINDCRAFT_BIND_HOST=0.0.0.0 -e MINDCRAFT_CONTROL_TOKEN -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
 ```
 or simply
 ```bash
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
 docker-compose up --build
 ```
 
@@ -365,7 +390,7 @@ All apis have default models and urls, so those fields are optional. The `params
 
 Embedding models are used to embed and efficiently select relevant examples for conversation and coding.
 
-Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`
+Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`, `ollama` (local)
 
 If you try to use an unsupported model, then it will default to a simple word-overlap method. Expect reduced performance. We recommend using supported embedding APIs.
 

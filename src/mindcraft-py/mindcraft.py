@@ -42,7 +42,13 @@ class Mindcraft:
         time.sleep(2) # Give server time to start before connecting
 
         try:
-            self.sio.connect(f'http://localhost:{self.port}')
+            bind_host = os.environ.get('MINDCRAFT_BIND_HOST', '').strip() or '127.0.0.1'
+            client_host = {'0.0.0.0': '127.0.0.1', '::': '::1'}.get(bind_host, bind_host)
+            if ':' in client_host:
+                client_host = f'[{client_host}]'
+            token = os.environ.get('MINDCRAFT_CONTROL_TOKEN', '').strip()
+            auth = {'controlToken': token} if token else {}
+            self.sio.connect(f'http://{client_host}:{self.port}', auth=auth)
             self.connected = True
             print("Connected to MindServer. Mindcraft is initialized.")
         except socketio.exceptions.ConnectionError as e:

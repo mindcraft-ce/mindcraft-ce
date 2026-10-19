@@ -74,6 +74,40 @@ export class Andy {
         }
         return finalRes;
     }
+    
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+        const payloadMessages = [
+            { role: 'system', content: systemMessage },
+            ...strictFormat(messages),
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: systemMessage },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
+                        }
+                    }
+                ]
+            }
+        ];
+
+        const data = await this.send(this.chat_endpoint, {
+            model: this.model_name,
+            messages: payloadMessages,
+            stream: false,
+            ...(this.params || {})
+        });
+
+        const content = data?.choices?.[0]?.message?.content;
+
+        if (typeof content !== 'string') {
+            throw new Error('Andy vision API returned no text');
+        }
+
+        return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    }
 
     async embed(text) {
         const embeddings = await this.embedMany([text]);

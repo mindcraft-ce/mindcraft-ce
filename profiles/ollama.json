@@ -1,0 +1,5 @@
+{
+    "name": "andy",
+    "model": "ollama/llama3.2",
+    "embedding": "ollama/embeddinggemma"
+}
