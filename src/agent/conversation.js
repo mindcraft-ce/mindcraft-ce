@@ -20,9 +20,12 @@ export class Conversation {
         this.blocked = false;
         this.in_queue = [];
         this.inMessageTimer = null;
+        this.responseGeneration = 0;
     }
 
     clearTimer() {
+        // Invalidate decisions still waiting on a model or self-prompter pause.
+        this.responseGeneration++;
         if (this.inMessageTimer) {
             clearTimeout(this.inMessageTimer);
             this.inMessageTimer = null;
@@ -144,11 +147,12 @@ class ConversationManager {
     async startConversation(send_to, message) {
         const convo = this._getConvo(send_to);
         convo.reset();
+        const generation = convo.responseGeneration;
 
         if (agent.self_prompter.isActive()) {
             await agent.self_prompter.pause();
         }
-        if (convo.active)
+        if (convo.responseGeneration !== generation || convo.active)
             return;
         convo.active = true;
         this.activeConversation = convo;
@@ -207,6 +211,8 @@ class ConversationManager {
         }
 
         this._clearMonitorTimeouts();
+        convo.clearTimer();
+        const generation = convo.responseGeneration;
         convo.queue(received);
 
         // responding to conversation takes priority over self prompting
@@ -214,7 +220,9 @@ class ConversationManager {
             await agent.self_prompter.pause();
         }
 
-        await _scheduleProcessInMessage(sender, received, convo);
+        if (convo.responseGeneration !== generation)
+            return;
+        await _scheduleProcessInMessage(sender, received, convo, generation);
     }
 
     responseScheduledFor(sender) {
@@ -295,12 +303,16 @@ The logic is as follows:
 const talkOverActions = ['stay', 'followPlayer', 'mode:']; // all mode actions
 const fastDelay = 200;
 const longDelay = 5000;
-async function _scheduleProcessInMessage(sender, received, convo) {
-    convo.clearTimer();
+async function _scheduleProcessInMessage(sender, received, convo, generation) {
     let otherAgentBusy = containsCommand(received.message);
 
     const scheduleResponse = (delay) => {
-        convo.inMessageTimer = setTimeout(() => _processInMessageQueue(sender), delay);
+        if (convo.responseGeneration !== generation || convo.ignore_until_start)
+            return;
+        convo.inMessageTimer = setTimeout(() => {
+            if (convo.responseGeneration === generation)
+                _processInMessageQueue(sender);
+        }, delay);
     };
 
     if (!agent.isIdle() && otherAgentBusy) {
@@ -335,6 +347,8 @@ async function _scheduleProcessInMessage(sender, received, convo) {
 function _processInMessageQueue(name) {
     const convo = convoManager._getConvo(name);
     convo.inMessageTimer = null;
+    if (convo.ignore_until_start || convo.in_queue.length === 0)
+        return;
     _handleFullInMessage(name, compileInMessages(convo));
 }
 
