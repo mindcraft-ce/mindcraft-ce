@@ -28,7 +28,7 @@ export class Andy {
         while (attempt < maxAttempts) {
             attempt++;
             console.log(`Awaiting Andy API response... (model: ${model}, attempt: ${attempt})`);
-            let res = null;
+            let res;
             try {
                 const data = await this.send(this.chat_endpoint, {
                     model,
@@ -45,10 +45,16 @@ export class Andy {
                 if (err.message.toLowerCase().includes('context length') && turns.length > 1) {
                     console.log('Context length exceeded, trying again with shorter context.');
                     return await this.sendRequest(turns.slice(1), systemMessage);
-                } else {
-                    console.log(err);
-                    res = 'My brain disconnected, try again.';
                 }
+                console.log(err);
+                const retryable = err.status === 429 || (err.status >= 500 && err.status < 600) || !err.status;
+                if (retryable && attempt < maxAttempts) {
+                    const delayMs = Math.min(1000 * 2 ** (attempt - 1), 10000);
+                    console.log(`Andy API request failed (${err.status ?? 'network error'}), retrying in ${delayMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+                res = 'My brain disconnected, try again.';
             }
 
             const hasOpenTag = res.includes('<think>');
@@ -166,7 +172,9 @@ export class Andy {
         });
         const res = await fetch(request);
         if (!res.ok) {
-            throw new Error(`Andy API status: ${res.status}`);
+            const err = new Error(`Andy API status: ${res.status}`);
+            err.status = res.status;
+            throw err;
         }
         return await res.json();
     }

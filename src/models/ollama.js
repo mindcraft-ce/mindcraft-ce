@@ -40,10 +40,16 @@ export class Ollama {
                 if (err.message.toLowerCase().includes('context length') && turns.length > 1) {
                     console.log('Context length exceeded, trying again with shorter context.');
                     return await this.sendRequest(turns.slice(1), systemMessage, imageBuffer);
-                } else {
-                    console.log(err);
-                    res = 'My brain disconnected, try again.';
                 }
+                console.log(err);
+                const retryable = err.status === 429 || (err.status >= 500 && err.status < 600) || !err.status;
+                if (retryable && attempt < maxAttempts) {
+                    const delayMs = Math.min(1000 * 2 ** (attempt - 1), 10000);
+                    console.log(`Ollama request failed (${err.status ?? 'network error'}), retrying in ${delayMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+                res = 'My brain disconnected, try again.';
             }
 
             const hasOpenTag = res.includes("<think>");
@@ -88,7 +94,9 @@ export class Ollama {
         const res = await fetch(request);
         if (!res.ok) {
             const data = await res.json().catch(() => null);
-            throw new Error(`Ollama status ${res.status}${data?.error ? ': ' + data.error : ''}`);
+            const err = new Error(`Ollama status ${res.status}${data?.error ? ': ' + data.error : ''}`);
+            err.status = res.status;
+            throw err;
         }
         return await res.json();
     }
