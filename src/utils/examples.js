@@ -53,8 +53,15 @@ export class Examples {
             return [];
 
         let turn_text = this.turnsToText(turns);
+        let embedding = null;
         if (this.model !== null) {
-            let embedding = await this.model.embed(turn_text);
+            try {
+                embedding = await this.model.embed(turn_text);
+            } catch (err) {
+                console.warn('Error with embedding model, using word-overlap instead.');
+            }
+        }
+        if (embedding !== null) {
             this.examples.sort((a, b) => 
                 cosineSimilarity(embedding, this.embeddings[this.turnsToText(b)]) -
                 cosineSimilarity(embedding, this.embeddings[this.turnsToText(a)])
@@ -75,7 +82,7 @@ export class Examples {
 
         console.log('selected examples:');
         for (let example of selected_examples) {
-            console.log('Example:', example[0].content)
+            console.log('Example:', example[0].content);
         }
 
         let msg = 'Examples of how to respond:\n';
