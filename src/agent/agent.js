@@ -530,6 +530,7 @@ export class Agent {
     
 
     cleanKill(msg='Killing agent process...', code=1) {
+        console.error(`[cleanKill] ${this.name}: ${msg} (exit code ${code})`);
         this.history.add('system', msg);
         this.bot.chat(code > 1 ? 'Restarting.': 'Exiting.');
         this.history.save();
