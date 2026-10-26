@@ -50,7 +50,7 @@ export class GroqCloudAPI {
 
             let completion = await this.groq.chat.completions.create({
                 "messages": messages,
-                "model": this.model_name || "qwen/qwen3-32b",
+                "model": this.model_name || "openai/gpt-oss-120b",
                 "stream": false,
                 "stop": stop_seq,
                 ...(this.params || {})
