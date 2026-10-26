@@ -25,8 +25,9 @@ export class ActionManager {
 
     async stop() {
         if (!this.executing) return;
+        const stuckActionLabel = this.currentActionLabel;
         const timeout = setTimeout(() => {
-            this.agent.cleanKill('Code execution refused stop after 10 seconds. Killing process.');
+            this.agent.cleanKill(`Code execution refused stop after 10 seconds (stuck action: "${stuckActionLabel}"). Killing process.`);
         }, 10000);
         while (this.executing) {
             this.agent.requestInterrupt();
