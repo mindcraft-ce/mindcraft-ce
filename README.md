@@ -29,14 +29,14 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementat
 |--------|-------|--------|--------------|
 | `stable` | Production ready | Stable | Confirmed working snapshot |
 | [`develop`](#develop) | Active development | Beta | Upstream + extra/unique content |
-| [`agent-system`](#agent-system) | AI tooling | Experimental | Function calling, RAG, tool-based prompting |
+| [`agent-system`](#agent-system) | AI tooling | Experimental | Native tools, Brain/Task/RP, narration and model routing |
 
 > [!Warning]
 > Some of the new features may not work right, proceed at your own risk. If you encounter problems, consider contributing by submitting a pull request to the corresponding branch.
 
 ## Develop
 
-This is the default branch, but you can still access it [here](https://github.com/mindcraft-ce/mindcraft-ce/tree/develop).
+This is the default development branch. Native tools and the optional Brain/Task/RP system are maintained separately on [agent-system](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system).
 
 ### 🦙 Andy API
 The [Andy API](https://andy.mindcraft-ce.com/) is Mindcraft CE's OpenAI-compatible model gateway. The current public service is a standalone gateway while the integrated Mindcraft compute-pool and Unleashed platform continue development. Mindcraft CE uses it by default through `andy/auto` in `andy.json`, and it remains usable by ordinary OpenAI-compatible clients.
@@ -58,23 +58,9 @@ The public endpoint and API contract are documented here independently of the ga
 
 ## Agent System
 
-You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system) branch.
+The [agent-system branch](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system) integrates develop with native function calling, optional Brain/Task/RP supervision, plain-language progress narration and configurable model routing. These features are not enabled by this develop checkout; follow that branch's README and settings for setup.
 
-### 🔧 Function Calling
-- **`use_function_calling`** — New tool-based AI interaction system in `settings.js`
-- Enables structured tool calls instead of text-based commands
-- Supported across Claude, GPT, Gemini, Grok, DeepSeek, and Mistral models
-
-### 🧠 RAG System (Retrieval-Augmented Generation)
-- **LanceDB Integration** — Vector database for intelligent context retrieval
-- **RAGManager** — New class for handling memory and knowledge retrieval
-
-### 🛠️ Tool-Based Prompting
-- Modular prompt system with separate XML templates:
-  - `conversing.xml`, `coding.xml`, `bot_responder.xml`
-  - `image_analysis.xml`, `saving_memory.xml`
-- `_default.tools.json` — New tool-based profile configuration
-- `_default.commands.json` — Legacy command-based system (still supported)
+The former experimental RAG implementation has been removed from the agent-system work. ACP/subscription integration and retrieval-augmented memory are deferred. Existing skill documentation, wiki lookup and example embeddings remain separate features.
 
 ### 👁️ Enhanced Vision & Models
 - Improved vision request handling across all model providers
@@ -83,19 +69,14 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 ### 🎯 Other Improvements
 - 🐳 Docker support with improved container configuration
 - 📊 Multi-agent MineCollab framework
-- 🌐 OpenRouter integration for 100+ models
-
-### 🚧 Coming Soon
-- **Model Provider Repositories** — Install and update model providers from external repositories via `model_provider_repositories` in `settings.js`
-- **Tools Repositories** — Extend bot capabilities with community-created tools via `tools_provider_repositories` in `settings.js`
-- Both support auto-install/update and manual management through the Mindserver UI
+- 🌐 OpenRouter-compatible model configuration
 
 # Getting Started
 ## Requirements
 
 - [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to and including v1.21.11)
-- [Node.js Installed](https://nodejs.org/) (Node.js 22 LTS, v22.13 or newer)
-- At least one API key from a supported API provider. See [supported APIs](#model-customization). OpenAI is the default.
+- [Node.js Installed](https://nodejs.org/) (use Node 22, v22.13 or newer)
+- An available model from a [supported provider](#model-customization). The default profile uses Andy API; local Ollama and LM Studio are also supported. Provider credentials are needed only when your chosen service requires them.
 
 > [!Important]
 > If installing node on windows, ensure you check `Automatically install the necessary tools`
@@ -108,11 +89,11 @@ You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcr
 
 2. Download the [latest release](https://github.com/mindcraft-ce/mindcraft-ce/releases/latest) and unzip it, or clone the repository.
 
-3. Rename `keys.example.json` to `keys.json` and fill in your API keys (you only need one). The desired model is set in `andy.json` or other profiles. For other models refer to the table below.
+3. Copy `keys.example.json` to `keys.json` and fill in credentials required by your chosen provider. Set the model in `andy.json` or another profile. The default Andy configuration and local providers do not require a paid API key.
 
 4. In terminal/command prompt, run `npm install` from the installed directory
 
-5. Start a minecraft world and open it to LAN on localhost port `55916`
+5. Start a Minecraft Java server or open a world to LAN. Set `host`, `port` and `auth` in `settings.js` to match it; a LAN world's displayed port can change each time. The sample configuration uses `localhost:55916`.
 
 6. Run `node main.js` from the installed directory
 
@@ -124,7 +105,7 @@ If you encounter issues, check the [FAQ](docs/FAQ.md#common-issues) or find supp
 
 You can configure project details in `settings.js`. [See file.](settings.js)
 
-You can configure the agent's name, model, and prompts in their profile like `andy.json`. The model can be specified with the `model` field, with values like `model: "gemini-3.1-pro"`. You will need the correct API key for the API provider you choose. See all supported APIs below.
+You can configure the agent's name, model, and prompts in a profile such as `andy.json`. Use a provider/model string such as `"model": "ollama/your-installed-model"`, or a model object as shown below. Provide credentials when the selected provider requires them. See the supported APIs below.
 
 <details>
 <summary><strong>⭐ VIEW SUPPORTED APIs ⭐</strong></summary>
@@ -257,8 +238,7 @@ the local server handles authentication. Use the model name recognized by the
 server you connect to. See the example profiles for [local Ollama](profiles/ollama.json)
 and [Ollama Cloud](profiles/ollama_cloud.json).
 
-For local models, we recommend you use **LM Studio** for the Andy series of models. Ollama breaks current models, and should be avoided.
-Please see our [huggingface page for more info.](https://huggingface.co/collections/Mindcraft-CE)
+For Andy model downloads and model-specific setup, see the [Mindcraft CE Hugging Face collection](https://huggingface.co/collections/Mindcraft-CE). Use the exact model name installed in your chosen local server.
 
 ## Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:
@@ -390,7 +370,7 @@ All apis have default models and urls, so those fields are optional. The `params
 
 Embedding models are used to embed and efficiently select relevant examples for conversation and coding.
 
-Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`, `ollama` (local)
+Embedding adapters include `andy`, `openai`, `google`, `replicate`, `huggingface`, `novita` and `ollama` (local). The selected model must support embeddings; direct Ollama Cloud does not provide this adapter's embedding interface.
 
 If you try to use an unsupported model, then it will default to a simple word-overlap method. Expect reduced performance. We recommend using supported embedding APIs.
 
@@ -400,7 +380,7 @@ Voice synthesis models are used to narrate bot responses and specified with `spe
 
 ## Specifying Profiles via Command Line
 
-By default, the program will use the profiles specified in `settings.js`. You can specify one or more agent profiles using the `--profiles` argument: `node main.js --profiles ./profiles/andy.json ./profiles/jill.json`
+By default, the program will use the profiles specified in `settings.js`. You can specify one or more agent profiles using the `--profiles` argument: `node main.js --profiles ./andy.json ./profiles/claude.json`
 
 
 # Contributing
