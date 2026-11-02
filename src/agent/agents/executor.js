@@ -15,6 +15,7 @@ export class ExecutorCodeAgent {
     }
 
     async executeTask(task, context) {
+        if (!settings.allow_insecure_coding) throw new Error('Code execution is disabled');
         log.info(`Task: ${task}`);
 
         let lastError = null;
@@ -31,8 +32,8 @@ export class ExecutorCodeAgent {
             try {
                 const messages = await this._buildMessages(task, context, lastError);
                 const model = this.agent.prompter.code_model || this.agent.prompter.chat_model;
-                const [generation] = await model.sendRequest(
-                    messages, null, null, executorCodeAgentResponseFormat
+                const [generation] = await this.agent.prompter.requestTools(
+                    messages.slice(1), messages[0].content, [], executorCodeAgentResponseFormat, model
                 );
                 response = this._parseResponse(generation);
             } catch (error) {
@@ -73,7 +74,7 @@ export class ExecutorCodeAgent {
         }
 
         if (systemPrompt.includes('$AUGMENT_DOCS')) {
-            const augments = listAugments();
+            const augments = listAugments(this.agent);
             const augmentDocs = augments.length > 0
                 ? augments.map(a => `- ${a.name}: ${a.description}`).join('\n')
                 : 'No augments registered yet.';
@@ -93,6 +94,7 @@ export class ExecutorCodeAgent {
     }
 
     async _executeCode(functionBody) {
+        if (!settings.allow_insecure_coding) throw new Error('Code execution is disabled');
         const agent = this.agent;
         const bot = agent.bot;
 

@@ -7,6 +7,7 @@ RUN apt-get update && \
     # git \
     # unzip \
     python3 \
+    python-is-python3 \
     python3-pip \
     # tmux \
     xvfb \
@@ -27,9 +28,10 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+COPY package*.json .
+COPY patches ./patches
+RUN npm ci
 
 COPY . .
 
-CMD ["sh", "start.sh"]
+CMD ["npm", "start"]

@@ -1,7 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
-import { responseFormatSchema } from './_response_format.js';
 
 
 export class Gemini {
@@ -35,7 +34,7 @@ export class Gemini {
         this.genAI = new GoogleGenAI({apiKey: getKey('GEMINI_API_KEY')});
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
+    async sendRequest(turns, systemMessage) {
         console.log('Awaiting Google API response...');
 
         turns = strictFormat(turns);
@@ -53,25 +52,17 @@ export class Gemini {
             safetySettings: this.safetySettings,
             config: {
                 systemInstruction: systemMessage,
-                tools: [{functionDeclarations: tools}],
                 ...(this.params || {})
             }
         });
         const response = await result.text;
-        let function_calls = [];
-        for (const tool_call of result.functionCalls || []) {
-            function_calls.push({
-                name: tool_call.name,
-                arguments: tool_call.args
-            });
-        }
 
         console.log('Received.');
 
-        return [response, function_calls];
+        return response;
     }
 
-    async sendVisionRequest(turns, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
+    async sendVisionRequest(turns, systemMessage, imageBuffer) {
         const imagePart = {
             inlineData: {
                 data: imageBuffer.toString('base64'),
@@ -93,7 +84,6 @@ export class Gemini {
         })
 
         let res = null;
-        let function_calls = [];
         try {
             console.log('Awaiting Google API vision response...');
             const result = await this.genAI.models.generateContent({
@@ -103,19 +93,10 @@ export class Gemini {
                 generationConfig: {
                     ...(this.params || {})
                 },
-                systemInstruction: systemMessage,
-                config: {
-                tools: [{functionDeclarations: tools}]
-                }
+                systemInstruction: systemMessage
             });
             res = await result.text;
             console.log('Received.');
-            for (const tool_call of result.functionCalls || []) {
-                function_calls.push({
-                    name: tool_call.name,
-                    arguments: tool_call.args
-                });
-            }
         } catch (err) {
             console.log(err);
             if (err.message.includes("Image input modality is not enabled for models/")) {
@@ -124,8 +105,7 @@ export class Gemini {
                 res = "An unexpected error occurred, please try again.";
             }
         }
-
-        return res, function_calls;
+        return res;
     }
 
     async embed(text) {

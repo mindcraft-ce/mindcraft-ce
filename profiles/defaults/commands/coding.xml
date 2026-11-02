@@ -5,8 +5,8 @@
     <instructions>
         Given the conversation, use the provided skills and world functions to write a js codeblock that controls the mineflayer bot.
         <syntax>
-            ``` 
-            // write code here 
+            ```
+            // write code here
             ```
         </syntax>
         <rules>

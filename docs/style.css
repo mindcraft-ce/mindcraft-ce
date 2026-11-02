@@ -1,0 +1,394 @@
+/* ============================================================
+   Mindcraft CE — MkDocs Material overrides
+   Matches the mindcraft-ce.com visual identity:
+   deep-dark bg, blue/purple gradient, glassmorphism cards,
+   floating orbs, Inter font.
+   ============================================================ */
+
+/* ── Google Fonts ─────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ── Dark mode tokens (slate) ────────────────────────────── */
+:root,
+[data-md-color-scheme="slate"] {
+  --primary:     #4a90e2;
+  --secondary:   #8a63d2;
+  --bg:          #04040f;
+  --surface:     rgba(10, 10, 28, 0.75);
+  --border:      rgba(255, 255, 255, 0.07);
+  --text:        #b0bec5;
+  --heading:     #ffffff;
+  --font-mono:   'Fira Code', 'Monaco', 'Consolas', monospace;
+
+  /* Material token overrides */
+  --md-primary-fg-color:              #4a90e2;
+  --md-primary-fg-color--light:       #6aaef5;
+  --md-primary-fg-color--dark:        #3070c0;
+  --md-accent-fg-color:               #8a63d2;
+  --md-default-bg-color:              #04040f;
+  --md-default-fg-color:              #b0bec5;
+  --md-default-fg-color--light:       rgba(176, 190, 197, 0.7);
+  --md-default-fg-color--lighter:     rgba(176, 190, 197, 0.4);
+  --md-default-fg-color--lightest:    rgba(176, 190, 197, 0.12);
+  --md-code-bg-color:                 rgba(0, 0, 0, 0.4);
+  --md-code-fg-color:                 #e6e6e6;
+  --md-typeset-a-color:               #4a90e2;
+  --md-typeset-color:                 #b0bec5;
+
+  /* GitHub-flavored admonition icons */
+  --md-admonition-icon--important:
+    url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>');
+  --md-admonition-icon--caution:
+    url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>');
+  --md-admonition-icon--tip:
+    url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v.25a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75v-.25Z"/></svg>');
+  --md-admonition-icon--note:
+    url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>');
+}
+
+
+/* ── Font ─────────────────────────────────────────────────── */
+body,
+.md-typeset {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ── Background: deep dark + subtle grid ─────────────────── */
+body {
+  background-color: #04040f;
+  background-image:
+    linear-gradient(rgba(74, 144, 226, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 144, 226, 0.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Floating orb — top left */
+body::before {
+  content: '';
+  position: fixed;
+  top: -30%;
+  left: -20%;
+  width: 70vw;
+  height: 70vw;
+  background: radial-gradient(circle, rgba(74, 144, 226, 0.13) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  animation: orb-float-1 22s ease-in-out infinite;
+}
+
+/* Floating orb — bottom right */
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -30%;
+  right: -20%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(138, 99, 210, 0.13) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  animation: orb-float-2 28s ease-in-out infinite;
+}
+
+@keyframes orb-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(4%, 8%) scale(1.05); }
+  66%       { transform: translate(-3%, 5%) scale(0.97); }
+}
+@keyframes orb-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-4%, -8%) scale(1.05); }
+  66%       { transform: translate(3%, -4%) scale(0.97); }
+}
+
+/* ── Header / nav bar ─────────────────────────────────────── */
+.md-header {
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 40px rgba(0, 0, 0, 0.4);
+}
+
+.md-tabs {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Main content area: glassmorphism panel ──────────────── */
+.md-main__inner {
+  position: relative;
+}
+
+.md-content__inner {
+  background: rgba(10, 10, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  padding: 2.5rem 3rem !important;
+  margin-bottom: 2rem;
+}
+
+/* ── Headings ─────────────────────────────────────────────── */
+.md-typeset h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff 0%, #4a90e2 55%, #8a63d2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  border: none;
+  padding-bottom: 0;
+  margin-bottom: 0.4em;
+}
+
+.md-typeset h1::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #4a90e2, #8a63d2);
+  margin: 0.5rem auto 0;
+  border-radius: 2px;
+  /* reset gradient text styles so this renders as a block */
+  -webkit-text-fill-color: initial;
+}
+
+.md-typeset h2 {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.3em;
+}
+
+.md-typeset h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #4a90e2;
+  border-bottom: 2px solid #4a90e2;
+  padding-bottom: 6px;
+  display: inline-block;
+}
+
+.md-typeset h4 { color: #ffffff; }
+
+/* ── Links ────────────────────────────────────────────────── */
+.md-typeset a            { color: #4a90e2; text-decoration: none; }
+.md-typeset a:hover      { color: #8a63d2; }
+
+/* ── Inline code ──────────────────────────────────────────── */
+.md-typeset code:not(.highlight code) {
+  background: rgba(74, 144, 226, 0.1);
+  color: #90caf9;
+  border: 1px solid rgba(74, 144, 226, 0.2);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  padding: 0.1em 0.4em;
+}
+
+/* ── Code blocks ──────────────────────────────────────────── */
+.md-typeset pre {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.md-typeset pre > code {
+  font-family: var(--font-mono);
+  color: #e6e6e6;
+}
+
+/* Copy button — themed to match dark surface */
+.md-clipboard {
+  color: rgba(255, 255, 255, 0.35);
+  transition: color 0.2s ease;
+}
+.md-clipboard:hover,
+.md-clipboard:focus {
+  color: #4a90e2;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+.md-typeset table:not([class]) {
+  background: rgba(10, 10, 28, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+.md-typeset table:not([class]) th {
+  background: rgba(74, 144, 226, 0.07);
+  color: #ffffff;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.md-typeset table:not([class]) td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #b0bec5;
+}
+.md-typeset table:not([class]) tr:last-child td { border-bottom: none; }
+.md-typeset table:not([class]) tr:hover td      { background: rgba(255, 255, 255, 0.03); }
+
+/* ── Blockquotes ──────────────────────────────────────────── */
+.md-typeset blockquote {
+  border-left: 4px solid #4a90e2;
+  background: rgba(74, 144, 226, 0.06);
+  padding: 0.6rem 1.2rem;
+  border-radius: 0 8px 8px 0;
+  color: #b0bec5;
+}
+
+/* ── Admonitions ──────────────────────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  border: 0.075rem solid #448aff;
+  background: rgba(10, 10, 28, 0.75);
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+}
+
+/* NOTE — blue */
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-color: #448aff;
+}
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary {
+  background-color: rgba(68, 138, 255, 0.1);
+}
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before {
+  background-color: #448aff;
+  -webkit-mask-image: var(--md-admonition-icon--note);
+          mask-image: var(--md-admonition-icon--note);
+}
+
+/* TIP — green */
+.md-typeset .admonition.tip,
+.md-typeset details.tip {
+  border-color: #3fb950;
+}
+.md-typeset .tip > .admonition-title,
+.md-typeset .tip > summary {
+  background-color: rgba(63, 185, 80, 0.1);
+}
+.md-typeset .tip > .admonition-title::before,
+.md-typeset .tip > summary::before {
+  background-color: #3fb950;
+  -webkit-mask-image: var(--md-admonition-icon--tip);
+          mask-image: var(--md-admonition-icon--tip);
+}
+
+/* IMPORTANT — purple */
+.md-typeset .admonition.important,
+.md-typeset details.important {
+  border-color: rgb(130, 80, 223);
+  background-color: rgba(130, 80, 223, 0.1);
+}
+.md-typeset .important > .admonition-title,
+.md-typeset .important > summary {
+  background-color: rgba(130, 80, 223, 0.1);
+}
+.md-typeset .important > .admonition-title::before,
+.md-typeset .important > summary::before {
+  background-color: rgb(130, 80, 223);
+  -webkit-mask-image: var(--md-admonition-icon--important);
+          mask-image: var(--md-admonition-icon--important);
+}
+
+/* WARNING — orange */
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-color: #ff9100;
+}
+.md-typeset .warning > .admonition-title,
+.md-typeset .warning > summary {
+  background-color: rgba(255, 145, 0, 0.1);
+}
+.md-typeset .warning > .admonition-title::before,
+.md-typeset .warning > summary::before {
+  background-color: #ff9100;
+}
+
+/* CAUTION — red */
+.md-typeset .admonition.caution,
+.md-typeset details.caution {
+  border-color: rgb(207, 34, 46);
+  background-color: rgba(207, 34, 46, 0.1);
+}
+.md-typeset .caution > .admonition-title,
+.md-typeset .caution > summary {
+  background-color: rgba(207, 34, 46, 0.1);
+}
+.md-typeset .caution > .admonition-title::before,
+.md-typeset .caution > summary::before {
+  background-color: rgb(207, 34, 46);
+  -webkit-mask-image: var(--md-admonition-icon--caution);
+          mask-image: var(--md-admonition-icon--caution);
+}
+
+/* ── Lists ───────────────────────────────────────────────── */
+.md-typeset ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+.md-typeset ul ul {
+  list-style-type: circle;
+}
+.md-typeset ul ul ul {
+  list-style-type: square;
+}
+.md-typeset ul ul,
+.md-typeset ul ol,
+.md-typeset ol ul,
+.md-typeset ol ol {
+  padding-left: 1.5em;
+  margin: 0.25em 0;
+  display: block;
+}
+
+/* ── Badges / shields.io inline images ───────────────────── */
+.md-typeset p > a > img,
+.md-typeset p > img {
+  display: inline;
+  vertical-align: middle;
+  margin: 0 2px;
+  border-radius: 3px;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.md-footer {
+  background: rgba(4, 4, 15, 0.6);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ── Search box ───────────────────────────────────────────── */
+.md-search__form {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar              { width: 8px; height: 8px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover  { background: #4a90e2; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 76.1875em) {
+  .md-content__inner {
+    padding: 1.5rem !important;
+  }
+
+  /* On mobile, backdrop-filter on header creates a stacking context
+     that traps the drawer. Use solid bg instead. */
+  .md-header {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(0, 0, 0, 0.92) !important;
+  }
+}

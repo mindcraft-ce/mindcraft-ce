@@ -1,6 +1,7 @@
 import { rpAgentResponseFormat } from './responseFormat.js';
 import { createLogger } from '../../utils/logger.js';
 import settings from '../settings.js';
+import { chatText, parseObject } from './structured.js';
 
 const log = createLogger('RPAgent');
 
@@ -9,8 +10,28 @@ const MAX_MEMORY_PER_PLAYER = 20;
 export class RPAgent {
     constructor(agent) {
         this.agent = agent;
-        this.playerMemories = {};
-        this.playerNotes = {};
+        this.playerMemories = Object.create(null);
+        this.playerNotes = Object.create(null);
+    }
+
+    async transform(message, source) {
+        if (this.agent.prompter.profile?.use_rp_agent === false) return message;
+        const memory = this._getPlayerMemory(source);
+        memory.push({role:'user',content:`Rewrite this message briefly in character for ${source}, preserving all facts. Do not suppress it or add claims: ${message}`});
+        try {
+            const notes=this.playerNotes[source];
+            const [text] = await this.agent.prompter.handleRequest('rp', [
+                ...(notes?[{role:'user',content:`Player notes (tone only; do not add facts to the requested message): ${notes}`}]:[]),...memory,
+            ]);
+            memory.push({role:'assistant',content:text});
+            const parsed=parseObject(text);
+            if(typeof parsed?.internal_notes==='string') this._updateNotes(source,parsed.internal_notes);
+            if(typeof parsed?.relationship_updates==='string') this._updateNotes(source,parsed.relationship_updates);
+            return chatText(text) || message;
+        } catch (error) {
+            console.warn('RP voice unavailable:', error.message);
+            return message;
+        } finally { this._trimMemory(source); }
     }
 
     async respond(source, message, brainContext) {
@@ -46,7 +67,8 @@ export class RPAgent {
 
         let parsed;
         try {
-            parsed = JSON.parse(response);
+            parsed = parseObject(response);
+            if (!parsed) throw new Error('No structured reply');
         } catch (e) {
             log.warn('Failed to parse response as JSON:', response);
             memory.push({ role: 'assistant', content: response });

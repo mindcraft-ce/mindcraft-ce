@@ -1,16 +1,54 @@
 import minecraftData from 'minecraft-data';
 import settings from '../agent/settings.js';
+import { guardBotActions } from '../agent/action_context.js';
 import { createBot } from 'mineflayer';
 import prismarine_items from 'prismarine-item';
 import { pathfinder } from 'mineflayer-pathfinder';
 import { plugin as pvp } from 'mineflayer-pvp';
 import { plugin as collectblock } from 'mineflayer-collectblock';
-import { plugin as autoEat } from 'mineflayer-auto-eat';
+import { loader as autoEat } from 'mineflayer-auto-eat';
 import plugin from 'mineflayer-armor-manager';
 const armorManager = plugin;
 let mc_version = settings.minecraft_version;
 let mcdata = null;
 let Item = null;
+
+const FABRIC_REGISTRY_SYNC = 'fabric:registry/sync';
+const FABRIC_REGISTRY_SYNC_COMPLETE = 'fabric:registry/sync/complete';
+
+/**
+ * Completes Fabric API's configuration-phase registry handshake.
+ *
+ * Fabric servers advertise the serverbound completion channel through
+ * minecraft:register. Advertising the matching clientbound sync channel lets
+ * Fabric send its registry map; Mineflayer can then finish configuration after
+ * acknowledging that map. Servers without Fabric API are left untouched.
+ */
+function enableFabricRegistrySync(bot) {
+    let registrySyncAdvertised = false;
+
+    bot._client.on('custom_payload', (packet) => {
+        const channels = Array.isArray(packet.data) ? packet.data : [];
+
+        if (packet.channel === 'minecraft:register'
+            && channels.includes(FABRIC_REGISTRY_SYNC_COMPLETE)
+            && !registrySyncAdvertised) {
+            registrySyncAdvertised = true;
+            bot._client.write('custom_payload', {
+                channel: 'minecraft:register',
+                data: Buffer.from(FABRIC_REGISTRY_SYNC, 'ascii')
+            });
+            return;
+        }
+
+        if (packet.channel === FABRIC_REGISTRY_SYNC && registrySyncAdvertised) {
+            bot._client.write('custom_payload', {
+                channel: FABRIC_REGISTRY_SYNC_COMPLETE,
+                data: Buffer.alloc(0)
+            });
+        }
+    });
+}
 
 /**
  * @typedef {string} ItemName
@@ -53,32 +91,93 @@ export const WOOL_COLORS = [
 
 
 export function initBot(username) {
+    mc_version = settings.minecraft_version;
     const options = {
         username: username,
         host: settings.host,
         port: settings.port,
         auth: settings.auth,
         version: mc_version,
+        checkTimeoutInterval: 60000,  // 60s keep-alive check (default 30s) — reduces disconnects on slow servers
     }
     if (!mc_version || mc_version === "auto") {
         delete options.version;
     }
 
     const bot = createBot(options);
+    bot._client.on('login', packet => {
+        const seed = packet.worldState?.hashedSeed ?? packet.hashedSeed;
+        if (seed != null) bot.worldIdentity = String(seed);
+    });
+
+    enableFabricRegistrySync(bot);
+
+    // Throttle position packets to avoid kicks on Paper/Spigot servers
+    // Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET
+    // when mineflayer sends position updates faster than 50ms apart
+    let lastPositionUpdate = 0;
+    let pendingPositionPacket = null;
+    const POSITION_THROTTLE_MS = 50;
+    const originalWrite = bot._client.write.bind(bot._client);
+    bot._client.write = function(name, data) {
+        if (name === 'position' || name === 'position_look' || name === 'look') {
+            const now = Date.now();
+            if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
+                // Queue this packet so the last position update is never lost
+                if (!pendingPositionPacket) {
+                    pendingPositionPacket = setTimeout(() => {
+                        pendingPositionPacket = null;
+                        lastPositionUpdate = Date.now();
+                        originalWrite(name, data);
+                    }, POSITION_THROTTLE_MS - (now - lastPositionUpdate));
+                }
+                return;
+            }
+            lastPositionUpdate = now;
+            if (pendingPositionPacket) {
+                clearTimeout(pendingPositionPacket);
+                pendingPositionPacket = null;
+            }
+        }
+        return originalWrite(name, data);
+    };
+
+    // Suppress PartialReadError for non-critical packets
+    // Paper servers sometimes send packets that node-minecraft-protocol
+    // can't fully parse (scoreboard, resource_pack, custom_payload, etc.)
+    // These errors crash the bot but the packets aren't needed for gameplay
+    const originalEmit = bot._client.emit.bind(bot._client);
+    bot._client.emit = function(event, ...args) {
+        if (event === 'error' && args[0]) {
+            const err = args[0];
+            const errStr = err instanceof Error ? err.message : String(err);
+            if (errStr.includes('PartialReadError')) {
+                console.warn('[mcdata] Suppressed PartialReadError:', errStr.substring(0, 120));
+                return true; // Swallow the error
+            }
+        }
+        return originalEmit(event, ...args);
+    };
+
     bot.loadPlugin(pathfinder);
     bot.loadPlugin(pvp);
     bot.loadPlugin(collectblock);
     bot.loadPlugin(autoEat);
     bot.loadPlugin(armorManager); // auto equip armor
+    bot.once('spawn', () => guardBotActions(bot));
     bot.once('resourcePack', () => {
         bot.acceptResourcePack();
     });
 
-    bot.once('login', () => {
+bot.once('login', () => {
+    if (!settings.minecraft_version || settings.minecraft_version === 'auto') {
         mc_version = bot.version;
-        mcdata = minecraftData(mc_version);
-        Item = prismarine_items(mc_version);
-    });
+    } else {
+        mc_version = settings.minecraft_version;
+    }
+    mcdata = minecraftData(mc_version);
+    Item = prismarine_items(mc_version);
+});
 
     return bot;
 }

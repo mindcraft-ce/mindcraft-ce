@@ -259,17 +259,6 @@ export function getVillagerProfession(entity) {
 }
 
 
-export function getInventoryStacks(bot) {
-    let inventory = [];
-    for (const item of bot.inventory.items()) {
-        if (item != null) {
-            inventory.push(item);
-        }
-    }
-    return inventory;
-}
-
-
 export function getInventoryCounts(bot) {
     /**
      * Get an object representing the bot's inventory.
@@ -281,12 +270,12 @@ export function getInventoryCounts(bot) {
      * let hasWoodenPickaxe = inventory['wooden_pickaxe'] > 0;
      **/
     let inventory = {};
-    for (const item of bot.inventory.items()) {
-        if (item != null) {
-            if (inventory[item.name] == null) {
-                inventory[item.name] = 0;
+    for (const slot of bot.inventory.slots) {
+        if (slot != null && slot.name) {
+            if (inventory[slot.name] == null) {
+                inventory[slot.name] = 0;
             }
-            inventory[item.name] += item.count;
+            inventory[slot.name] += slot.count;
         }
     }
     return inventory;
@@ -423,7 +412,7 @@ export function shouldPlaceTorch(bot) {
         nearest_torch = getNearestBlock(bot, 'wall_torch', 6);
     if (!nearest_torch) {
         const block = bot.blockAt(pos);
-        let has_torch = bot.inventory.items().find(item => item.name === 'torch');
+        let has_torch = bot.inventory.findInventoryItem('torch');
         return has_torch && block?.name === 'air';
     }
     return false;

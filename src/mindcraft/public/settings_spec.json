@@ -23,13 +23,21 @@
         "type": "string",
         "description": "The authentication method to use",
         "default": "offline",
-        "options": ["offline", "microsoft"]
+        "options": [
+            "offline",
+            "microsoft"
+        ]
     },
     "base_profile": {
         "type": "string",
         "description": "Allowed values: survival, assistant, creative, god_mode. Each has fine tuned settings for different game modes.",
         "default": "survival",
-        "options": ["survival", "assistant", "creative", "god_mode"]
+        "options": [
+            "survival",
+            "assistant",
+            "creative",
+            "god_mode"
+        ]
     },
     "load_memory": {
         "type": "boolean",
@@ -64,7 +72,12 @@
     "blocked_actions": {
         "type": "array",
         "description": "List of actions that are blocked",
-        "default": ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"]
+        "default": [
+            "!checkBlueprint",
+            "!checkBlueprintLevel",
+            "!getBlueprint",
+            "!getBlueprintLevel"
+        ]
     },
     "relevant_docs_count": {
         "type": "number",
@@ -100,7 +113,11 @@
         "type": "string",
         "description": "Whether to show \"full\" command syntax, \"shortened\" command syntax, or \"none\"",
         "default": "full",
-        "options": ["full", "shortened", "none"]
+        "options": [
+            "full",
+            "shortened",
+            "none"
+        ]
     },
     "chat_ingame": {
         "type": "boolean",
@@ -136,5 +153,132 @@
         "type": "number",
         "description": "Number of seconds allowed for the bot to spawn before throwing an error. Increase when spawning takes a while.",
         "default": 30
+    },
+    "use_function_calling": {
+        "type": "boolean",
+        "default": true,
+        "description": "Use native function calls. Turn off explicitly for legacy text commands."
+    },
+    "use_brain_agent": {
+        "type": "boolean",
+        "default": false,
+        "description": "Use Brain supervision with a Task executor and optional RP voice."
+    },
+    "use_rp_agent": {
+        "type": "boolean",
+        "default": true,
+        "description": "Use RP to voice Brain replies; action narration is delivered directly."
+    },
+    "brain_model": {
+        "type": "string",
+        "default": "",
+        "description": "Brain provider/model override; empty uses the profile's main model."
+    },
+    "task_model": {
+        "type": "string",
+        "default": "",
+        "description": "Task provider/model override; empty uses the profile's main model."
+    },
+    "rp_model": {
+        "type": "string",
+        "default": "",
+        "description": "RP provider/model override; empty uses the profile's main model."
+    },
+    "prompt_format": {
+        "type": "string",
+        "default": "auto",
+        "options": [
+            "auto",
+            "xml"
+        ],
+        "description": "Prompt template format; custom profile prompts take precedence."
+    },
+    "world_id": {
+        "type": "string",
+        "default": "",
+        "description": "Optional world identity override for servers that reuse an address with hidden world identity."
+    },
+    "brain_check_in_seconds": {
+        "type": "number",
+        "default": 60,
+        "description": "Seconds between supervision checks during active work; zero disables timed checks."
+    },
+    "request_timeout_seconds": {
+        "type": "number",
+        "default": 120,
+        "description": "Maximum duration of a native model request."
+    },
+    "agent_max_steps": {
+        "type": "number",
+        "default": 50,
+        "description": "Maximum model turns for a task."
+    },
+    "agent_max_tool_calls": {
+        "type": "number",
+        "default": 80,
+        "description": "Maximum tool calls for a task."
+    },
+    "max_tool_calls_per_response": {
+        "type": "number",
+        "default": 12,
+        "description": "Maximum calls executed from a single response."
+    },
+    "tool_narration": {
+        "type": "string",
+        "default": "periodic",
+        "options": [
+            "all",
+            "periodic",
+            "none"
+        ],
+        "description": "Progress narration. Direct replies, questions, errors and completion still appear."
+    },
+    "tool_narration_every": {
+        "type": "number",
+        "default": 3,
+        "description": "Completed tool calls per periodic update; used only in periodic mode."
+    },
+    "tool_narration_max_silence_seconds": {
+        "type": "number",
+        "default": 30,
+        "description": "Maximum silence during active work in periodic mode."
+    },
+    "model_selection": {
+        "type": "object",
+        "default": {
+            "enabled": false,
+            "default_task_model": "",
+            "models": []
+        },
+        "description": "Optional task model roster; entries contain id, model, optional scores, notes and pricing."
+    },
+    "decisions": {
+        "type": "object",
+        "default": {
+            "enabled": false,
+            "provider": "openrouter",
+            "model": "",
+            "timeout_ms": 4000,
+            "min_confidence": 0.6,
+            "min_probability": 0.85,
+            "chat_triage": true,
+            "task_status": true,
+            "goal_check": true
+        },
+        "description": "Optional typed decision service. Provider: typesafe, openrouter or openai. Credentials use keys.json or api_key env: reference."
+    },
+    "usage_budget": {
+        "type": "object",
+        "default": {
+            "usd_per_session": null,
+            "usd_per_day": null,
+            "tokens_per_hour": null
+        },
+        "description": "Observed usage limits shared by model roles and decisions. Null disables a limit."
+    },
+    "model_pricing": {
+        "type": "object",
+        "default": {},
+        "description": "Optional input_per_million, output_per_million, cached_input_per_million USD pricing when usage has no cost."
     }
 }

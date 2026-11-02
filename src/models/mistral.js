@@ -1,7 +1,6 @@
 import { Mistral as MistralClient } from '@mistralai/mistralai';
 import { getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
-import { responseFormatSchema } from './_response_format.js';
 
 export class Mistral {
     static prefix = 'mistral';
@@ -37,7 +36,7 @@ export class Mistral {
         }
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
+    async sendRequest(turns, systemMessage) {
 
         let result;
 
@@ -53,18 +52,10 @@ export class Mistral {
             const response  = await this.#client.chat.complete({
                 model,
                 messages,
-                responseFormat: responseFormat,
                 ...(this.params || {})
             });
 
             result = response.choices[0].message.content;
-            let function_calls = [];
-            for (const tool_call of response.choices[0].message.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
-                });
-            }
         } catch (err) {
             if (err.message.includes("A request containing images has been given to a model which does not have the 'vision' capability.")) {
                 result = "Vision is only supported by certain models.";
@@ -74,10 +65,10 @@ export class Mistral {
             console.log(err);
         }
 
-        return [result, function_calls];
+        return result;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -90,7 +81,7 @@ export class Mistral {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
+        return this.sendRequest(imageMessages, systemMessage);
     }
 
     async embed(text) {

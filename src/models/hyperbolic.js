@@ -21,8 +21,7 @@ export class Hyperbolic {
      * @param {string} stopSeq - A stopping sequence, default '***'.
      * @returns {Promise<string>} - The model's reply.
      */
-    async sendRequest(turns, systemMessage, tools = []) {
-        let stopSeq = '***';
+    async sendRequest(turns, systemMessage, stopSeq = '***') {
         // Prepare the messages with a system prompt at the beginning
         const messages = [{ role: 'system', content: systemMessage }, ...turns];
 
@@ -30,7 +29,6 @@ export class Hyperbolic {
         const payload = {
             model: this.modelName,
             messages: messages,
-            tools: tools,
             max_tokens: 8192,
             temperature: 0.7,
             top_p: 0.9,
@@ -47,7 +45,6 @@ export class Hyperbolic {
             console.log('Messages:', messages);
 
             let completionContent = null;
-            let function_calls = [];
 
             try {
                 const response = await fetch(this.apiUrl, {
@@ -69,14 +66,6 @@ export class Hyperbolic {
                 }
 
                 completionContent = data?.choices?.[0]?.message?.content || '';
-                if (!completionContent === '') {
-                    for (const tool_call of data.choices[0].message.tool_calls || []) {
-                        function_calls.push({
-                            name: tool_call.function.name,
-                            arguments: tool_call.function.arguments
-                        });
-                    }
-                }
                 console.log('Received response from Hyperbolic.');
             } catch (err) {
                 if (
@@ -116,7 +105,7 @@ export class Hyperbolic {
             console.warn("Could not get a valid <think> block or normal response after max attempts.");
             finalRes = 'I thought too hard, sorry, try again.';
         }
-        return [finalRes, function_calls];
+        return finalRes;
     }
 
     async embed(text) {

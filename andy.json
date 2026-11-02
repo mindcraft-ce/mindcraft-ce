@@ -1,6 +1,7 @@
 {
     "name": "andy",
 
-    "model": "gpt-5-nano"
+    "model": "andy/auto/mindcraft",
+    "embedding": "andy/auto/mindcraft"
 
 }

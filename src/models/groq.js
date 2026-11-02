@@ -1,6 +1,5 @@
 import Groq from 'groq-sdk'
 import { getKey } from '../utils/keys.js';
-import { responseFormatSchema } from './_response_format.js';
 
 // THIS API IS NOT TO BE CONFUSED WITH GROK!
 // Go to grok.js for that. :)
@@ -29,13 +28,11 @@ export class GroqCloudAPI {
 
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
-        let stop_seq=null;
+    async sendRequest(turns, systemMessage, stop_seq = null) {
         // Construct messages array
         let messages = [{"role": "system", "content": systemMessage}].concat(turns);
 
         let res = null;
-        let function_calls = [];
 
         try {
             console.log("Awaiting Groq response...");
@@ -53,21 +50,13 @@ export class GroqCloudAPI {
 
             let completion = await this.groq.chat.completions.create({
                 "messages": messages,
-                "model": this.model_name || "qwen/qwen3-32b",
+                "model": this.model_name || "openai/gpt-oss-120b",
                 "stream": false,
-                "tools": tools,
                 "stop": stop_seq,
-                "response_format": responseFormat,
                 ...(this.params || {})
             });
 
             res = completion.choices[0].message.content;
-            for (const tool_call of completion.choices[0].message.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
-                });
-            }
 
             res = res.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         }
@@ -79,10 +68,10 @@ export class GroqCloudAPI {
             }
             console.log(err);
         }
-        return [res, function_calls];
+        return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = messages.filter(message => message.role !== 'system');
         imageMessages.push({
             role: "user",
@@ -97,7 +86,7 @@ export class GroqCloudAPI {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
+        return this.sendRequest(imageMessages);
     }
 
     async embed(_) {

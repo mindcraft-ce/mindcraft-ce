@@ -17,12 +17,12 @@ export class HuggingFace {
     this.huggingface = new HfInference(getKey('HUGGINGFACE_API_KEY'));
   }
 
-  async sendRequest(turns, systemMessage, tools = []) {
+  async sendRequest(turns, systemMessage) {
     const stop_seq = '***';
     // Build a single prompt from the conversation turns
     const prompt = toSinglePrompt(turns, null, stop_seq);
     // Fallback model if none was provided
-    const model_name = this.model_name || 'meta-llama/Meta-Llama-3-8B';
+    const model_name = this.model_name || 'meta-llama/Llama-3.3-70B-Instruct';
     // Combine system message with the prompt
     const input = systemMessage + "\n" + prompt;
 
@@ -30,8 +30,6 @@ export class HuggingFace {
     const maxAttempts = 5;
     let attempt = 0;
     let finalRes = null;
-
-    let function_calls = [];
 
     while (attempt < maxAttempts) {
       attempt++;
@@ -45,12 +43,6 @@ export class HuggingFace {
           ...(this.params || {})
         })) {
           res += (chunk.choices[0]?.delta?.content || "");
-        }
-        for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
-          function_calls.push({
-              name: tool_call.function.name,
-              arguments: tool_call.function.arguments
-          });
         }
       } catch (err) {
         console.log(err);
@@ -85,7 +77,7 @@ export class HuggingFace {
     }
     console.log('Received.');
     console.log(finalRes);
-    return [finalRes, function_calls];
+    return finalRes;
   }
 
   async embed(text) {

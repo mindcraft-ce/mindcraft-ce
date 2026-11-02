@@ -1,7 +1,6 @@
 import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
-import { responseFormatSchema } from './_response_format.js';
 
 // llama, mistral
 export class Novita {
@@ -20,8 +19,7 @@ export class Novita {
     this.openai = new OpenAIApi(config);
   }
 
-	async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
-    let stop_seq='***';
+	async sendRequest(turns, systemMessage, stop_seq='***') {
       let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
       
@@ -30,14 +28,11 @@ export class Novita {
       const pack = {
           model: this.model_name || "meta-llama/llama-4-scout-17b-16e-instruct",
           messages,
-          tools: tools,
           stop: [stop_seq],
-          response_format: responseFormat,
           ...(this.params || {})
       };
 
       let res = null;
-      let function_calls = [];
       try {
           console.log('Awaiting novita api response...')
           let completion = await this.openai.chat.completions.create(pack);
@@ -45,12 +40,6 @@ export class Novita {
               throw new Error('Context length exceeded'); 
           console.log('Received.')
           res = completion.choices[0].message.content;
-          for (const tool_call of completion.choices[0].message.tool_calls || []) {
-              function_calls.push({
-                  name: tool_call.function.name,
-                  arguments: tool_call.function.arguments
-              });
-          }
       }
       catch (err) {
           if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -73,7 +62,7 @@ export class Novita {
         }
         res = res.trim();
       }
-      return [res, function_calls];
+      return res;
   }
 
 	async embed(text) {

@@ -1,0 +1,15 @@
+diff --git a/node_modules/prismarine-block/index.js b/node_modules/prismarine-block/index.js
+--- a/node_modules/prismarine-block/index.js
++++ b/node_modules/prismarine-block/index.js
+@@ -309 +309,10 @@
+-      const materialToolMultipliers = registry.materials[this.material]
++      let materialToolMultipliers = registry.materials[this.material]
++      // Modern tier-restriction tags describe drops, not mining speed. Resolve
++      // effective tool families from harvestTools without making axes mine ores.
++      if (this.harvestTools && (!materialToolMultipliers?.[heldItemType] || materialToolMultipliers[heldItemType] <= 1)) {
++        for (const [family, multipliers] of Object.entries(registry.materials)) {
++          if (!family.startsWith('mineable/')) continue
++          if (!Object.keys(this.harvestTools).some(id => multipliers[id] > 1)) continue
++          if (multipliers[heldItemType] > (materialToolMultipliers?.[heldItemType] || 1)) materialToolMultipliers = multipliers
++        }
++      }

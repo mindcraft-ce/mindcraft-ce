@@ -8,6 +8,7 @@ import {
     getFirstBlockAboveHead
 } from "./world.js";
 import convoManager from '../conversation.js';
+import { narrationConfig } from '../narration.js';
 
 export function getFullState(agent) {
     const bot = agent.bot;
@@ -40,8 +41,40 @@ export function getFullState(agent) {
     const leggings = bot.inventory.slots[7];
     const boots = bot.inventory.slots[8];
 
+    // A native loop stays busy between physical actions. Show thinking separately
+    // so the dashboard agrees with the activity used by automatic behaviors.
+    let activity;
+    if (!agent.isIdle()) {
+        activity = agent.actions.executing
+            ? {current:agent.actions.currentActionLabel || 'Acting',kind:'acting'}
+            : {current:'Thinking',kind:'thinking'};
+    } else if (convoManager.inConversation()) {
+        const who = convoManager.activeConversation?.name;
+        activity = { current: who ? `Chatting with ${who}` : 'Chatting', kind: 'chatting' };
+    } else if (agent.self_prompter.isStopped()) {
+        activity = { current: 'Stopped', kind: 'stopped' };   // self-prompter OFF: won't act on its own
+    } else if (agent.self_prompter.isPaused()) {
+        activity = { current: 'Chatting', kind: 'chatting' };
+    } else if (agent.self_prompter.isActive()) {
+        activity = { current: 'Thinking', kind: 'thinking' }; // self-prompting between actions
+    } else {
+        activity = { current: 'Idle', kind: 'idle' };
+    }
+
     const state = {
         name: agent.name,
+        agentSystem: {
+            nativeTools: agent.prompter.use_tools,
+            brainEnabled: agent.prompter.use_brain,
+            narration: narrationConfig(agent.prompter.profile).mode,
+            models: {brain:agent.prompter.brain_model?.model_name,task:agent.agentSystem?.task.model?.model_name || agent.prompter.task_model?.model_name,
+                rp:agent.prompter.rp_model?.model_name},
+            directive: agent.agentSystem?.currentDirective || null,
+            lastOutcome: agent.agentSystem?.lastDirective?.outcome || null,
+            goals: agent.agentSystem?.brain.goals.listGoals() || [],
+            decisions: agent.decisions?.snapshot(),
+            usage: agent.prompter.usage?.snapshot(),
+        },
         gameplay: {
             position,
             dimension: bot.game.dimension,
@@ -54,7 +87,8 @@ export function getFullState(agent) {
             timeLabel
         },
         action: {
-            current: agent.isIdle() ? 'Idle' : agent.actions.currentActionLabel,
+            current: activity.current,
+            kind: activity.kind,
             isIdle: agent.isIdle()
         },
         surroundings: {

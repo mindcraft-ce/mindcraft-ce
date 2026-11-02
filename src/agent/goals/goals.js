@@ -1,79 +1,45 @@
-
+import { randomUUID } from 'node:crypto';
 
 export class checklistItem {
-    constructor(description) {
-        this.description = description;
-        this.completed = false;
-    }
+    constructor(description) {this.description=description;this.completed=false;}
 }
-
-
-export class Goals  {
-    constructor() {
-        this.goals = [];
+export class Goals {
+    constructor() {this.goals=[];}
+    addGoal(name,goal_description='',priority=1,check_list=[],target=null) {
+        const existing=this.getGoal(name);
+        if(existing&&existing.status!=='completed') return existing;
+        const goal={id:randomUUID(),name,goal_description,priority,check_list,status:'active',target};
+        this.goals.push(goal);return goal;
     }
-
-
-    addGoal(goal, goal_description, priority=1, check_list=[]) {
-        this.goals.push({ name: goal, priority: priority, goal_description: goal_description, check_list: check_list});
-    }
-
-    setPriority(goal, priority) {
-        const goalObj = this.goals.find(g => g.name === goal);
-        if (goalObj) {
-            goalObj.priority = priority;
+    setPriority(name,priority) {const goal=this.getGoal(name);if(goal) goal.priority=priority;}
+    removeGoal(name) {this.goals=this.goals.filter(g=>g.name!==name&&g.id!==name);}
+    listGoals() {return this.goals;}
+    getGoal(name) {return this.goals.find(g=>g.name===name||g.id===name);}
+    complete(name,bot) {
+        const goal=this.getGoal(name);
+        if(!goal) throw new Error(`Unknown goal: ${name}`);
+        if(goal.target) {
+            const held=bot?.inventory?.items().filter(i=>i.name===goal.target.item).reduce((n,i)=>n+i.count,0)||0;
+            if(held<goal.target.count) throw new Error(`Goal needs ${goal.target.count} ${goal.target.item}; inventory has ${held}`);
         }
+        goal.status='completed';return goal;
     }
-
-    removeGoal(goal) {
-        this.goals = this.goals.filter(g => g.name !== goal);
+    active() {return this.goals.filter(g=>g.status==='active');}
+    listFormattedGoal(name) {
+        const g=this.getGoal(name);
+        return g?`${g.name} (${g.status}, priority ${g.priority}): ${g.goal_description}\n${g.check_list.map(i=>`[${i.completed?'x':' '}] ${i.description}`).join('\n')}`:`Goal '${name}' not found.`;
     }
-
-    listGoals() {
-        return this.goals;
+    listFormattedGoals() {return [...this.goals].sort((a,b)=>b.priority-a.priority).map(g=>this.listFormattedGoal(g.id)).join('\n')||'No current goals.';}
+    markChecklistItem(name,description,completed=true) {
+        const item=this.getGoal(name)?.check_list.find(i=>i.description===description);
+        if(item) {item.completed=completed;return true;}return false;
     }
-
-    getGoal(goalName) {
-        return this.goals.find(g => g.name === goalName);
+    toJSON() {return structuredClone(this.goals);}
+    restore(goals) {
+        if(!Array.isArray(goals)) return;
+        this.goals=goals.filter(g=>g&&typeof g.name==='string').slice(-100).map(g=>({...g,id:g.id||randomUUID(),
+            status:g.status==='completed'?'completed':'active',priority:Number.isFinite(g.priority)?g.priority:1,
+            target:g.target&&typeof g.target.item==='string'&&Number.isSafeInteger(g.target.count)&&g.target.count>0?g.target:null,
+            check_list:Array.isArray(g.check_list)?g.check_list.filter(i=>i&&typeof i.description==='string'):[]}));
     }
-
-    listFormattedGoal(goalName) {
-        const goal = this.getGoal(goalName);
-        if (!goal) {
-            return `Goal "${goalName}" not found.`;
-        }
-        let result = `- ${goal.name} (Priority: ${goal.priority}): ${goal.goal_description}\nChecklist:\n`;
-        if (goal.check_list.length === 0) {
-            result += "  No checklist items.";
-        } else {
-            goal.check_list.forEach(item => {
-                result += `  - [${item.completed ? '(Done)' : '(Not Done)'}] ${item.description}\n`;
-            });
-        }
-        return result;
-    }
-
-    markChecklistItem(goalName, itemDescription, completed=true) {
-        const goal = this.getGoal(goalName);
-        if (!goal) {
-            return false;
-        }
-        const item = goal.check_list.find(i => i.description === itemDescription);
-        if (item) {
-            item.completed = completed;
-            return true;
-        }
-        return false;
-    }
-
-    listFormattedGoals() {
-        if (this.goals.length === 0) {
-            return "No current goals.";
-        }
-        return this.goals
-            .sort((a, b) => b.priority - a.priority)
-            .map(g => `- ${g.name} (Priority: ${g.priority}): ${g.goal_description}`)
-            .join('\n');
-    }
-
 }

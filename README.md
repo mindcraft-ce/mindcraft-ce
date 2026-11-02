@@ -1,3 +1,4 @@
+<div>
 <h1 align="center">🧠Mindcraft CE⛏️</h1>
 
 
@@ -5,68 +6,94 @@
 <p align="center">The experimental version of <a href="https://github.com/mindcraft-bots/mindcraft">Mindcraft!</a>
 
 <p align="center">
-  <a href="https://github.com/mindcraft-bots/mindcraft/blob/main/FAQ.md">FAQ</a> | 
-  <a href="https://discord.gg/GGyhawRu75">Discord Support</a> | 
+  <a href="docs/FAQ.md#common-issues">FAQ</a> | 
+  <a href="https://discord.gg/mindcraft-ce">Discord Support</a> | 
+  <a href="https://mindcraft-ce.com">Website</a> | 
+  <a href="https://andy.mindcraft-ce.com">Andy API</a>
+<br>
   <a href="https://www.youtube.com/watch?v=gRotoL8P8D8">Video Tutorial</a> | 
-  <a href="https://blog.mindcraft-ce.com">Blog Post</a> | 
+  <a href="https://kolbynottingham.com/mindcraft/">Blog Post</a> | 
   <a href="https://mindcraft-minecollab.github.io/index.html">Paper Website</a> | 
   <a href="https://github.com/mindcraft-bots/mindcraft/blob/main/minecollab.md">MineCollab</a>
 </p>
+</div>
 
 > [!Caution]
 Do not connect this bot to public servers with coding enabled. This project allows an LLM to write/execute code on your computer. The code is sandboxed, but still vulnerable to injection attacks. Code writing is disabled by default, you can enable it by setting `allow_insecure_coding` to `true` in `settings.js`. Ye be warned.
 
 # New Experimental Features
 
-Mindcraft CE is the experimental fork of Mindcraft, featuring cutting-edge capabilities:
+Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementations and unmerged PRs from the original repository. Each branch offers distinct features not found in others.
 
-### 🔧 **Function Calling (Experimental)**
-- **`use_function_calling`** — New tool-based AI interaction system in `settings.js`
-- Enables structured tool calls instead of text-based commands
-- Supported across Claude, GPT, Gemini, Grok, DeepSeek, and Mistral models
+| Branch | Focus | Status | Key Features |
+|--------|-------|--------|--------------|
+| `stable` | Production ready | Stable | Confirmed working snapshot |
+| [`develop`](#develop) | Active development | Beta | Upstream + extra/unique content |
+| [`agent-system`](#agent-system) | AI tooling | Experimental | Native tools, Brain/Task/RP, narration and model routing |
 
-### 🧠 **RAG System (Retrieval-Augmented Generation)**
-- **LanceDB Integration** — Vector database for intelligent context retrieval
-- **RAGManager** — New class for handling memory and knowledge retrieval
+> [!Warning]
+> Some of the new features may not work right, proceed at your own risk. If you encounter problems, consider contributing by submitting a pull request to the corresponding branch.
 
+## Develop
 
-### 🛠️ **Tool-Based Prompting**
-- Modular prompt system with separate XML templates:
-  - `conversing.xml`, `coding.xml`, `bot_responder.xml`
-  - `image_analysis.xml`, `saving_memory.xml`
-- `_default.tools.json` — New tool-based profile configuration
-- `_default.commands.json` — Legacy command-based system (still supported)
+[Develop](https://github.com/mindcraft-ce/mindcraft-ce/tree/develop) is the default branch. This README describes the `agent-system` branch, which includes develop plus the agent features below.
 
-### 👁️ **Enhanced Vision & Models**
+### 🦙 Andy API
+The [Andy API](https://andy.mindcraft-ce.com/) is Mindcraft CE's OpenAI-compatible model gateway. The current public service is a standalone gateway while the integrated Mindcraft compute-pool and Unleashed platform continue development. Mindcraft CE uses it by default through `andy/auto` in `andy.json`, and it remains usable by ordinary OpenAI-compatible clients.
+
+You can use the API without an API key. Adding an `ANDY_API_KEY` to `keys.json` enables authenticated account limits; keys do not multiply an account's capacity. The available models and service limits are live and may change, so use the API's model list and documentation for the current values.
+
+For OpenAI-compatible clients, use:
+
+```text
+https://andy.mindcraft-ce.com/api/v1/
+```
+
+> [!Note]
+> Andy API supports embeddings through `/api/v1/embeddings`. The `andy/auto` model selects an embedding-capable model automatically.
+
+You do not need to run the Andy API local client or open a port to use the API.
+
+The public endpoint and API contract are documented here independently of the gateway's internal implementation. Any future account or key migration will be announced in advance.
+
+## Agent System
+
+You can access this on the [agent-system](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system) branch.
+
+On this branch, native function calling is **enabled by default**. Brain/Task/RP orchestration, decision endpoints and task-model selection are **off by default**. See the [settings guide](docs/agent-system.md) and [verification results and limits](docs/agent-system-verification.md).
+
+- **`use_function_calling`** uses native tools backed by the existing command implementations; set it to `false` for the legacy text-command agent.
+- **`use_brain_agent`** enables a supervisory Brain, a Task executor and optional RP replies, with explicit handoffs and saved goals.
+- **`decisions.enabled`** enables a separate classifier. Without Brain, it only classifies player chat; MindServer ADMIN messages bypass it. With Brain, it also helps check task progress and goals. It needs a supported decision endpoint and credentials.
+- **`model_selection.enabled`** lets Brain choose a Task model from your configured roster for each task. Fixed `brain_model`, `task_model` and `rp_model` overrides are also available; empty values use the main model.
+- **`tool_narration`** selects `all`, `periodic` (default), or `none`. Periodic updates use plain language after three completed tools or 30 seconds of silence during work. Questions, completion and important blockers remain visible.
+- **`prompt_format`** selects `auto` or `xml`; explicit profile prompts and the legacy `use_xml_prompts` flag remain supported.
+- **`load_memory`** restores saved conversation and agent state at startup. It defaults to `false`; memory is saved automatically, but a restart otherwise starts fresh.
+
+Ordinary mining, crafting and building use predefined tools and work with `allow_insecure_coding: false`. That flag controls generated executable code. Mining fixes cover tool speed, server-confirmed breaks and overhead reach; idle automatic behavior no longer competes between native tool calls.
+
+Default prompts remain in `_default.json`; XML templates are under `profiles/defaults/commands/` and `profiles/defaults/tools/`. Provider text, vision, and embedding interfaces remain available. ACP and retrieval-augmented memory are deferred.
+
+### 👁️ Enhanced Vision & Models
 - Improved vision request handling across all model providers
 - Andy API TTS implementation
 
-### 🎯 **Other Improvements**
+### 🎯 Other Improvements
 - 🐳 Docker support with improved container configuration
 - 📊 Multi-agent MineCollab framework
-- 🌐 OpenRouter integration for 100+ models
-- 🖥️ LM Studio support for local models
-- 🎮 Default Minecraft version updated to 1.21.6
-
-> [!Warning]
-> The `use_function_calling` feature is experimental and may cause unexpected behavior. 
-
-### 🚧 **Coming Soon**
-- **Model Provider Repositories** — Install and update model providers from external repositories via `model_provider_repositories` in `settings.js`
-- **Tools Repositories** — Extend bot capabilities with community-created tools via `tools_provider_repositories` in `settings.js`
-- Both support auto-install/update and manual management through the Mindserver UI
+- 🌐 OpenRouter-compatible model configuration
 
 # Getting Started
 ## Requirements
 
-- [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to v1.21.6, recommend v1.21.6)
-- [Node.js Installed](https://nodejs.org/) (Node v18 or v20 LTS recommended. Node v24+ may cause issues with native dependencies)
-- At least one API key from a supported API provider. See [supported APIs](#model-customization). OpenAI is the default.
+- [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to and including v1.21.11)
+- [Node.js Installed](https://nodejs.org/) (use Node 22, v22.13 or newer; `nvm use` selects this branch's configured version)
+- An available model from a [supported provider](#model-customization). The default profile uses Andy API; local Ollama and LM Studio are also supported. Provider credentials are needed only when your chosen service requires them.
 
 > [!Important]
 > If installing node on windows, ensure you check `Automatically install the necessary tools`
 >
-> If you encounter `npm install` errors on macOS, see the [FAQ](FAQ.md#common-issues) for troubleshooting native module build issues
+> If you encounter `npm install` errors on macOS, see the [FAQ](docs/FAQ.md#common-issues) for troubleshooting native module build issues
 
 ## Install and Run
 
@@ -74,15 +101,15 @@ Mindcraft CE is the experimental fork of Mindcraft, featuring cutting-edge capab
 
 2. Download the [latest release](https://github.com/mindcraft-ce/mindcraft-ce/releases/latest) and unzip it, or clone the repository.
 
-3. Rename `keys.example.json` to `keys.json` and fill in your API keys (you only need one). The desired model is set in `andy.json` or other profiles. For other models refer to the table below.
+3. Copy `keys.example.json` to `keys.json` and fill in credentials required by your chosen provider. Set the model in `andy.json` or another profile. The default Andy configuration and local providers do not require a paid API key.
 
 4. In terminal/command prompt, run `npm install` from the installed directory
 
-5. Start a minecraft world and open it to LAN on localhost port `55916`
+5. Start a Minecraft Java server or open a world to LAN. Set `host`, `port` and `auth` in `settings.js` to match it; a LAN world's displayed port can change each time. This branch's sample configuration uses `localhost:55916`.
 
 6. Run `node main.js` from the installed directory
 
-If you encounter issues, check the [FAQ](https://github.com/mindcraft-bots/mindcraft/blob/main/FAQ.md) or find support on [discord](https://discord.gg/GGyhawRu75). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](minecollab.md#installation)
+If you encounter issues, check the [FAQ](docs/FAQ.md#common-issues) or find support on [discord](https://discord.gg/mindcraft-ce). We are currently not very responsive to github issues. To run tasks please refer to [Minecollab Instructions](docs/minecollab.md#installation)
 
 
 # Configuration
@@ -90,42 +117,140 @@ If you encounter issues, check the [FAQ](https://github.com/mindcraft-bots/mindc
 
 You can configure project details in `settings.js`. [See file.](settings.js)
 
-You can configure the agent's name, model, and prompts in their profile like `andy.json`. The model can be specified with the `model` field, with values like `model: "gemini-3-pro"`. You will need the correct API key for the API provider you choose. See all supported APIs below.
+You can configure the agent's name, model, and prompts in a profile such as `andy.json`. Use a provider/model string such as `"model": "ollama/your-installed-model"`, or a model object as shown below. Provide credentials when the selected provider requires them. See the supported APIs below.
 
 <details>
 <summary><strong>⭐ VIEW SUPPORTED APIs ⭐</strong></summary>
 
-| API Name | Config Variable| Docs |
-|------|------|------|
-| `openai` | `OPENAI_API_KEY` | [docs](https://platform.openai.com/docs/models) |
-| `google` | `GEMINI_API_KEY` | [docs](https://ai.google.dev/gemini-api/docs/models/gemini) |
-| `anthropic` | `ANTHROPIC_API_KEY` | [docs](https://docs.anthropic.com/claude/docs/models-overview) |
-| `xai` | `XAI_API_KEY` | [docs](https://docs.x.ai/docs) |
-| `deepseek` | `DEEPSEEK_API_KEY` | [docs](https://api-docs.deepseek.com/) |
-| `ollama` (local) | n/a | [docs](https://ollama.com/library) |
-| `qwen` | `QWEN_API_KEY` | [Intl.](https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api)/[cn](https://help.aliyun.com/zh/model-studio/getting-started/models) |
-| `mistral` | `MISTRAL_API_KEY` | [docs](https://docs.mistral.ai/getting-started/models/models_overview/) |
-| `replicate` | `REPLICATE_API_KEY` | [docs](https://replicate.com/collections/language-models) |
-| `groq` (not grok) | `GROQCLOUD_API_KEY` | [docs](https://console.groq.com/docs/models) |
-| `huggingface` | `HUGGINGFACE_API_KEY` | [docs](https://huggingface.co/models) |
-| `novita` | `NOVITA_API_KEY` | [docs](https://novita.ai/model-api/product/llm-api?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link) |
-| `openrouter` | `OPENROUTER_API_KEY` | [docs](https://openrouter.ai/models) |
-| `glhf` | `GHLF_API_KEY` | [docs](https://glhf.chat/user-settings/api) |
-| `hyperbolic` | `HYPERBOLIC_API_KEY` | [docs](https://docs.hyperbolic.xyz/docs/getting-started) |
-| `vllm` | n/a | n/a |
-| `cerebras` | `CEREBRAS_API_KEY` | [docs](https://inference-docs.cerebras.ai/introduction) |
-| `mercury` | `MERCURY_API_KEY` | [docs](https://www.inceptionlabs.ai/) |
-| `lmstudio` | n/a | [docs](https://www.lmstudio.ai/) |
+<table>
+  <thead>
+    <tr>
+      <th>API Name</th>
+      <th>Config Variable</th>
+      <th>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><pre>andy</pre></td>
+      <td><pre>ANDY_API_KEY</pre> (optional)</td>
+      <td><a href="https://andy.mindcraft-ce.com/docs">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>openai</pre></td>
+      <td><pre>OPENAI_API_KEY</pre></td>
+      <td><a href="https://platform.openai.com/docs/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>google</pre></td>
+      <td><pre>GEMINI_API_KEY</pre></td>
+      <td><a href="https://ai.google.dev/gemini-api/docs/models/gemini">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>anthropic</pre></td>
+      <td><pre>ANTHROPIC_API_KEY</pre></td>
+      <td><a href="https://docs.anthropic.com/claude/docs/models-overview">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>xai</pre></td>
+      <td><pre>XAI_API_KEY</pre></td>
+      <td><a href="https://docs.x.ai/docs">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>deepseek</pre></td>
+      <td><pre>DEEPSEEK_API_KEY</pre></td>
+      <td><a href="https://api-docs.deepseek.com/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>ollama (local)</pre></td>
+      <td>n/a</td>
+      <td><a href="https://ollama.com/library">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>ollama_cloud</pre></td>
+      <td><pre>OLLAMA_API_KEY</pre></td>
+      <td><a href="https://docs.ollama.com/cloud">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>qwen</pre></td>
+      <td><pre>QWEN_API_KEY</pre></td>
+      <td><a href="https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api">Intl.</a>/<a href="https://help.aliyun.com/zh/model-studio/getting-started/models">cn</a></td>
+    </tr>
+    <tr>
+      <td><pre>mistral</pre></td>
+      <td><pre>MISTRAL_API_KEY</pre></td>
+      <td><a href="https://docs.mistral.ai/getting-started/models/models_overview/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>replicate</pre></td>
+      <td><pre>REPLICATE_API_KEY</pre></td>
+      <td><a href="https://replicate.com/collections/language-models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>groq (not grok)</pre></td>
+      <td><pre>GROQCLOUD_API_KEY</pre></td>
+      <td><a href="https://console.groq.com/docs/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>huggingface</pre></td>
+      <td><pre>HUGGINGFACE_API_KEY</pre></td>
+      <td><a href="https://huggingface.co/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>novita</pre></td>
+      <td><pre>NOVITA_API_KEY</pre></td>
+      <td><a href="https://novita.ai/model-api/product/llm-api?utm_source=github_mindcraft&utm_medium=github_readme&utm_campaign=link">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>openrouter</pre></td>
+      <td><pre>OPENROUTER_API_KEY</pre></td>
+      <td><a href="https://openrouter.ai/models">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>hyperbolic</pre></td>
+      <td><pre>HYPERBOLIC_API_KEY</pre></td>
+      <td><a href="https://docs.hyperbolic.xyz/docs/getting-started">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>vllm</pre></td>
+      <td>n/a</td>
+      <td>n/a</td>
+    </tr>
+    <tr>
+      <td><pre>cerebras</pre></td>
+      <td><pre>CEREBRAS_API_KEY</pre></td>
+      <td><a href="https://inference-docs.cerebras.ai/introduction">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>mercury</pre></td>
+      <td><pre>MERCURY_API_KEY</pre></td>
+      <td><a href="https://www.inceptionlabs.ai/">docs</a></td>
+    </tr>
+    <tr>
+      <td><pre>lmstudio</pre></td>
+      <td>n/a</td>
+      <td><a href="https://www.lmstudio.ai/">docs</a></td>
+    </tr>
+  </tbody>
+</table>
 
 </details>
 
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
 
-For local models we support [ollama](https://ollama.com/) and we provide our own finetuned models for you to use. 
-To install our models, install ollama and run the following terminal command:
-```bash
-ollama pull sweaterdog/andy-4:micro-q8_0 && ollama pull embeddinggemma
-```
+### Ollama Cloud and local Ollama
+
+Use `ollama/modelname` for a local Ollama server (default: `http://127.0.0.1:11434`),
+with no API key required. Use `ollama_cloud/modelname` for direct Ollama Cloud
+access and set `OLLAMA_API_KEY` in `keys.json` or your environment. `ollamacloud/`
+and `ollama-cloud/` are also accepted prefixes.
+
+Cloud models accessed through a signed-in local Ollama server still use `ollama/`;
+the local server handles authentication. Use the model name recognized by the
+server you connect to. See the example profiles for [local Ollama](profiles/ollama.json)
+and [Ollama Cloud](profiles/ollama_cloud.json).
+
+For Andy model downloads and model-specific setup, see the [Mindcraft CE Hugging Face collection](https://huggingface.co/collections/Mindcraft-CE). Use the exact model name installed in your chosen local server.
 
 ## Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:
@@ -143,13 +268,13 @@ To use different accounts, Mindcraft will connect with the account that the Mine
 
 ## Tasks
 
-Tasks automatically start the bot with a prompt and a goal item to aquire or blueprint to construct. To run a simple task that involves collecting 4 oak_logs run 
+Tasks automatically start the bot with a prompt and a goal item to acquire or blueprint to construct. To run a simple task that involves collecting 4 oak_logs run 
 
 `node main.js --task_path tasks/basic/single_agent.json --task_id gather_oak_logs`
 
 Here is an example task json format: 
 
-```
+```json
 {
     "gather_oak_logs": {
       "goal": "Collect at least four logs",
@@ -177,17 +302,25 @@ Here is an example task json format:
 
 The `initial_inventory` is what the bot will have at the start of the episode, `target` refers to the target item and `number_of_target` refers to the number of target items the agent needs to collect to successfully complete the task. 
 
-If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](minecollab.md#installation)
+If you want more optimization and automatic launching of the minecraft world, you will need to follow the instructions in [Minecollab Instructions](docs/minecollab.md#installation)
+
+## MindServer access
+
+MindServer binds to `127.0.0.1` by default. Set `MINDCRAFT_BIND_HOST` to choose another address; a non-loopback address requires `MINDCRAFT_CONTROL_TOKEN`. Keep this token private because it authorizes agent management, messaging, and shutdown.
+
+When a token is configured, open `http://localhost:8080/?token=<your-token>` once to authorize the UI. MindServer stores an HttpOnly cookie and redirects to `/`. Automatic UI startup supplies the token for you. Socket.IO control clients supply `auth: { controlToken: "<your-token>" }` when connecting; the Python client reads the token from the environment. Agent processes use separate credentials and can end a configured task run without operator access.
 
 ## Docker Container
 
 If you intend to `allow_insecure_coding`, it is a good idea to run the app in a docker container to reduce risks of running unknown code. This is strongly recommended before connecting to remote servers, although still does not guarantee complete safety.
 
 ```bash
-docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 8080:8080 -p 3000-3003:3000-3003 -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
+docker build -t mindcraft . && docker run --rm --add-host=host.docker.internal:host-gateway -p 127.0.0.1:8080:8080 -p 127.0.0.1:3000-3003:3000-3003 -e MINDCRAFT_BIND_HOST=0.0.0.0 -e MINDCRAFT_CONTROL_TOKEN -e SETTINGS_JSON='{"auto_open_ui":false,"profiles":["./profiles/gemini.json"],"host":"host.docker.internal"}' --volume ./keys.json:/app/keys.json --name mindcraft mindcraft
 ```
 or simply
 ```bash
+export MINDCRAFT_CONTROL_TOKEN="$(openssl rand -hex 32)"
 docker-compose up --build
 ```
 
@@ -209,14 +342,14 @@ Bot profiles are json files (such as `andy.json`) that define:
 
 ## Model Specifications
 
-LLM models can be specified simply as `"model": "gpt-5.2"`, or more specifically with `"{api}/{model}"`, like `"openrouter/google/gemini-3-pro"`. See all supported APIs [here](#model-customization).
+LLM models can be specified simply as `"model": "gpt-5.4"`, or more specifically with `"{api}/{model}"`, like `"openrouter/google/gemini-2.5-pro"`. See all supported APIs [here](#model-customization).
 
 The `model` field can be a string or an object. A model object must specify an `api`, and optionally a `model`, `url`, and additional `params`. You can also use different models/providers for chatting, coding, vision, embedding, and voice synthesis. See the example below.
 
 ```json
 "model": {
   "api": "openai",
-  "model": "gpt-5.2",
+  "model": "gpt-5.4",
   "url": "https://api.openai.com/v1/",
   "params": {
     "max_tokens": 1000,
@@ -225,18 +358,18 @@ The `model` field can be a string or an object. A model object must specify an `
 },
 "code_model": {
   "api": "openai",
-  "model": "gpt-4.1",
+  "model": "gpt-5.4-mini",
   "url": "https://api.openai.com/v1/"
 },
 "vision_model": {
   "api": "openai",
-  "model": "gpt-5.2",
+  "model": "gpt-5.4",
   "url": "https://api.openai.com/v1/"
 },
 "embedding": {
   "api": "openai",
   "url": "https://api.openai.com/v1/",
-  "model": "text-embedding-3-large"
+  "model": "text-embedding-3-small"
 },
 "speak_model": "openai/tts-1/echo"
 ```
@@ -249,7 +382,7 @@ All apis have default models and urls, so those fields are optional. The `params
 
 Embedding models are used to embed and efficiently select relevant examples for conversation and coding.
 
-Supported Embedding APIs: `openai`, `google`, `replicate`, `huggingface`, `novita`
+Embedding adapters include `andy`, `openai`, `google`, `replicate`, `huggingface`, `novita` and `ollama` (local). The selected model must support embeddings; direct Ollama Cloud does not provide this adapter's embedding interface. On this branch, `"embedding": false` disables embedding requests.
 
 If you try to use an unsupported model, then it will default to a simple word-overlap method. Expect reduced performance. We recommend using supported embedding APIs.
 
@@ -259,12 +392,12 @@ Voice synthesis models are used to narrate bot responses and specified with `spe
 
 ## Specifying Profiles via Command Line
 
-By default, the program will use the profiles specified in `settings.js`. You can specify one or more agent profiles using the `--profiles` argument: `node main.js --profiles ./profiles/andy.json ./profiles/jill.json`
+By default, the program will use the profiles specified in `settings.js`. You can specify one or more agent profiles using the `--profiles` argument: `node main.js --profiles ./andy.json ./profiles/claude.json`
 
 
 # Contributing
 
-We welcome contributions to the project! We are generally less responsive to github issues, and more responsive to pull requests. Join the [discord](https://discord.gg/GGyhawRu75) for more active support and direction.
+We welcome contributions to the project! We are generally less responsive to github issues, and more responsive to pull requests. Join the [discord](https://discord.gg/mindcraft-ce) for more active support and direction.
 
 While AI generated code is allowed, please vet it carefully. Submitting tons of sloppy code and documentation actively harms development.
 
@@ -273,7 +406,7 @@ While AI generated code is allowed, please vet it carefully. Submitting tons of 
 Some of the node modules that we depend on have bugs in them. To add a patch, change your local node module file and run `npx patch-package [package-name]`
 
 ## Development Team
-[@Sweaterdog](https://github.com/Sweaterdog) | [@riqvip](https://github.com/riqvip) | [@uukelele-scratch](https://github.com/uukelele-scratch) | [@mrelmida](https://github.com/mrelmida)
+[@Sweaterdog](https://github.com/Sweaterdog) | [@riqvip](https://github.com/riqvip) | [@uukelele](https://github.com/uukelele) | [@mrelmida](https://github.com/mrelmida)
 
 
 Also thanks to all the other developers of the Mindcraft project: [@MaxRobinsonTheGreat](https://github.com/MaxRobinsonTheGreat), [@kolbytn](https://github.com/kolbytn), [@icwhite](https://github.com/icwhite), [@Ninot1Quyi](https://github.com/Ninot1Quyi)
@@ -291,3 +424,9 @@ This work is published in the paper [Collaborating Action by Action: A Multi-age
   url = {https://arxiv.org/abs/2504.17950},
 }
 ```
+
+## Contributors
+
+Thanks to everyone who has submitted issues on and off Github, made suggestions, and generally helped make this a better project.
+
+![Contributors](https://contrib.rocks/image?repo=mindcraft-ce/mindcraft-ce)

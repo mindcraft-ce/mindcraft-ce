@@ -1,5 +1,4 @@
 import { strictFormat } from '../utils/text.js';
-import { responseFormatSchema } from './_response_format.js';
 
 export class Ollama {
     static prefix = 'ollama';
@@ -8,50 +7,49 @@ export class Ollama {
         this.params = params;
         this.url = url || 'http://127.0.0.1:11434';
         this.chat_endpoint = '/api/chat';
-        this.embedding_endpoint = '/api/embeddings';
+        this.embedding_endpoint = '/api/embed';
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
+    async sendRequest(turns, systemMessage, imageBuffer = null) {
         let model = this.model_name || 'sweaterdog/andy-4:micro-q8_0';
-        let messages = strictFormat(turns);
+        let messages = strictFormat(turns.map(turn => ({ ...turn })));
         messages.unshift({ role: 'system', content: systemMessage });
+        if (imageBuffer) {
+            messages.push({ role: 'user', content: systemMessage, images: [imageBuffer.toString('base64')] });
+        }
         const maxAttempts = 5;
         let attempt = 0;
         let finalRes = null;
-        let function_calls = [];
 
         while (attempt < maxAttempts) {
             attempt++;
-            console.log(`Awaiting local response... (model: ${model}, attempt: ${attempt})`);
-            let res = null;
+            console.log(`Awaiting ${this.constructor.prefix} response... (model: ${model}, attempt: ${attempt})`);
+            let res;
             try {
                 let apiResponse = await this.send(this.chat_endpoint, {
                     model: model,
                     messages: messages,
-                    tools: tools,
                     stream: false,
-                    format: responseFormat,
                     ...(this.params || {})
                 });
-                if (apiResponse) {
-                    res = apiResponse['message']['content'];
-                } else {
-                    res = 'No response data.';
+                if (typeof apiResponse?.message?.content !== 'string') {
+                    throw new Error('Ollama returned no chat message.');
                 }
-                for (const tool_call of apiResponse['message']['tool_calls'] || []) {
-                    function_calls.push({
-                        name: tool_call.function.name,
-                        arguments: tool_call.function.arguments
-                    });
-                }
+                res = apiResponse.message.content;
             } catch (err) {
                 if (err.message.toLowerCase().includes('context length') && turns.length > 1) {
                     console.log('Context length exceeded, trying again with shorter context.');
-                    return await this.sendRequest(turns.slice(1), systemMessage);
-                } else {
-                    console.log(err);
-                    res = 'My brain disconnected, try again.';
+                    return await this.sendRequest(turns.slice(1), systemMessage, imageBuffer);
                 }
+                console.log(err);
+                const retryable = err.status === 429 || (err.status >= 500 && err.status < 600) || !err.status;
+                if (retryable && attempt < maxAttempts) {
+                    const delayMs = Math.min(1000 * 2 ** (attempt - 1), 10000);
+                    console.log(`Ollama request failed (${err.status ?? 'network error'}), retrying in ${delayMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+                res = 'My brain disconnected, try again.';
             }
 
             const hasOpenTag = res.includes("<think>");
@@ -75,51 +73,35 @@ export class Ollama {
             console.warn("Could not get a valid response after max attempts.");
             finalRes = 'I thought too hard, sorry, try again.';
         }
-        return [finalRes, function_calls];
+        return finalRes;
     }
 
     async embed(text) {
         let model = this.model_name || 'embeddinggemma';
         let body = { model: model, input: text };
         let res = await this.send(this.embedding_endpoint, body);
-        return res['embedding'];
+        const embedding = res?.embeddings?.[0];
+        if (!Array.isArray(embedding)) throw new Error('Ollama returned no embedding.');
+        return embedding;
     }
 
-    async send(endpoint, body) {
+    async send(endpoint, body, {signal} = {}) {
         const url = new URL(endpoint, this.url);
         let method = 'POST';
-        let headers = new Headers();
-        const request = new Request(url, { method, headers, body: JSON.stringify(body) });
-        let data = null;
-        try {
-            const res = await fetch(request);
-            if (res.ok) {
-                data = await res.json();
-            } else {
-                throw new Error(`Ollama Status: ${res.status}`);
-            }
-        } catch (err) {
-            console.error('Failed to send Ollama request.');
-            console.error(err);
+        let headers = new Headers({ 'Content-Type': 'application/json' });
+        if (this.apiKey) headers.set('Authorization', `Bearer ${this.apiKey}`);
+        const request = new Request(url, { method, headers, body: JSON.stringify(body), signal });
+        const res = await fetch(request);
+        if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            const err = new Error(`Ollama status ${res.status}${data?.error ? ': ' + data.error : ''}`);
+            err.status = res.status;
+            throw err;
         }
-        return data;
+        return await res.json();
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
-        const imageMessages = [...messages];
-        imageMessages.push({
-            role: "user",
-            content: [
-                { type: "text", text: systemMessage },
-                {
-                    type: "image_url",
-                    image_url: {
-                        url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`
-                    }
-                }
-            ]
-        });
-        
-        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
+        return await this.sendRequest(messages, systemMessage, imageBuffer);
     }
 }

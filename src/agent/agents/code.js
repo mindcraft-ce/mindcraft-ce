@@ -12,27 +12,40 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const augmentsPath = path.join(__dirname, '..', 'commands', 'tools', 'augments');
 
-const augmentRegistry = new Map();
+const augmentRegistries = new WeakMap();
 
-export function getAugment(name) {
-    return augmentRegistry.get(name);
+export function getAugment(name, agent) {
+    return getAugmentRegistry(agent).get(name);
 }
 
-export function getAugmentRegistry() {
-    return augmentRegistry;
+export function getAugmentRegistry(agent) {
+    if (!agent) return new Map();
+    if (!augmentRegistries.has(agent)) augmentRegistries.set(agent, new Map());
+    return augmentRegistries.get(agent);
 }
 
-export function listAugments() {
-    return Array.from(augmentRegistry.entries()).map(([name, tool]) => ({
-        name,
-        description: tool.description,
-        parameters: tool.parameters
-    }));
+export function listAugments(agent) {
+    return Array.from(getAugmentRegistry(agent).values()).map(({name, description, parameters}) => ({name, description, parameters}));
+}
+
+export function validateAugmentSpec(spec) {
+    const identifier = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+    if (!identifier.test(spec.augment_name) || !Array.isArray(spec.parameters) || typeof spec.description !== 'string')
+        throw new Error('Invalid augment specification');
+    const names = new Set();
+    for (const p of spec.parameters) {
+        if (!identifier.test(p.name) || names.has(p.name) || ['agent', 'bot', 'args', 'log', 'skills', 'world', 'Vec3', 'actionFn', 'code_return'].includes(p.name)
+            || !['string', 'number', 'integer', 'boolean'].includes(p.type) || typeof p.description !== 'string')
+            throw new Error('Invalid augment parameter');
+        names.add(p.name);
+    }
+    // Parse identifiers to reject reserved words before writing executable source.
+    new Function(...names, '');
 }
 
 let codeAgentPromptTemplate = '';
 try {
-    codeAgentPromptTemplate = readFileSync('./profiles/defaults/tools/code_agent.xml', 'utf8');
+    codeAgentPromptTemplate = readFileSync(new URL('../../../profiles/defaults/tools/code_agent.xml', import.meta.url), 'utf8');
 } catch (e) {
     log.warn('Could not load code_agent.xml:', e.message);
 }
@@ -44,6 +57,8 @@ export class CodeAgent {
     }
 
     async generateAugment(spec) {
+        if (!settings.allow_insecure_coding) throw new Error('Code generation is disabled');
+        validateAugmentSpec(spec);
         const { augment_name, description, parameters, task_context } = spec;
         log.info(`Generating augment: ${augment_name}`);
 
@@ -59,8 +74,8 @@ export class CodeAgent {
             try {
                 const messages = await this._buildMessages(spec);
                 const model = this.agent.prompter.code_model || this.agent.prompter.chat_model;
-                const [generation] = await model.sendRequest(
-                    messages, null, null, codeAgentResponseFormat
+                const [generation] = await this.agent.prompter.requestTools(
+                    messages.slice(1), messages[0].content, [], codeAgentResponseFormat, model
                 );
                 response = this._parseResponse(generation);
             } catch (error) {
@@ -94,7 +109,7 @@ export class CodeAgent {
     async _buildMessages(spec) {
         const { augment_name, description, parameters, task_context, _lastError } = spec;
 
-        let systemPrompt = codeAgentPromptTemplate;
+        let systemPrompt = this.agent.prompter?.profile?.code_agent || codeAgentPromptTemplate;
 
         if (systemPrompt.includes('$CODE_DOCS') && this.agent.prompter?.skill_libary) {
             const codeDocs = await this.agent.prompter.skill_libary.getRelevantSkillDocs(
@@ -124,21 +139,21 @@ export class CodeAgent {
         const className = name.charAt(0).toUpperCase() + name.slice(1) + 'Tool';
 
         const paramConstructors = parameters.map(p =>
-            `            new CommandProperty("${p.name}", "${p.description.replace(/"/g, '\\"')}", "${p.type}", ${!!p.required})`
+            `            new CommandProperty(${JSON.stringify(p.name)}, ${JSON.stringify(p.description)}, ${JSON.stringify(p.type)}, ${!!p.required})`
         ).join(',\n');
 
         const paramNames = parameters.map(p => p.name).join(', ');
         const argsObj = parameters.map(p => p.name).join(', ');
 
-        return `import BaseTool from "../base_tool.js";
-import CommandProperty from "../property.js";
-import * as skills from "../../library/skills.js";
-import * as world from "../../library/world.js";
+        return `import BaseTool from "../../base_tool.js";
+import CommandProperty from "../../property.js";
+import * as skills from "../../../library/skills.js";
+import * as world from "../../../library/world.js";
 import { Vec3 } from "vec3";
 
 class ${className} extends BaseTool {
     constructor() {
-        super("${name}", "${description.replace(/"/g, '\\"')}", [
+        super(${JSON.stringify(name)}, ${JSON.stringify(description)}, [
 ${paramConstructors}
         ]);
     }
@@ -162,7 +177,8 @@ export default ${className};
     async _saveAndRegister(fileName, source) {
         await mkdir(augmentsPath, { recursive: true });
 
-        const filePath = path.join(augmentsPath, `${fileName}.js`);
+        if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(fileName)) throw new Error("Invalid augment name");
+        const filePath = path.join(augmentsPath, `${this.agent.name}-${fileName}.js`);
         await writeFile(filePath, source, 'utf8');
         log.info(`Saved to ${filePath}`);
 
@@ -174,7 +190,7 @@ export default ${className};
             throw new Error(`${fileName}.js did not export a valid class`);
 
         const toolInstance = new ToolClass();
-        augmentRegistry.set(toolInstance.name, toolInstance);
+        getAugmentRegistry(this.agent).set(toolInstance.name, toolInstance);
         log.info(`Registered augment: ${toolInstance.name}`);
         return toolInstance;
     }

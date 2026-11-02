@@ -4,8 +4,8 @@ import settings from '../agent/settings.js';
 
 
 export async function handleTranslation(message) {
-    let preferred_lang = String(settings.language).toLowerCase();
-    if (!preferred_lang || preferred_lang === 'en' || preferred_lang === 'english')
+    let preferred_lang = String(settings.language);
+    if (!preferred_lang || preferred_lang.toLowerCase() === 'en' || preferred_lang.toLowerCase() === 'english')
         return message;
     try {
         const translation = await translate(message, { to: preferred_lang });
@@ -17,8 +17,8 @@ export async function handleTranslation(message) {
 }
 
 export async function handleEnglishTranslation(message) {
-    let preferred_lang = String(settings.language).toLowerCase();
-    if (!preferred_lang || preferred_lang === 'en' || preferred_lang === 'english')
+    let preferred_lang = String(settings.language);
+    if (!preferred_lang || preferred_lang.toLowerCase() === 'en' || preferred_lang.toLowerCase() === 'english')
         return message;
     try {
         const translation = await translate(message, { to: 'english' });

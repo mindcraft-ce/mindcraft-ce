@@ -13,10 +13,10 @@
     </instructions>
     <input>
         Old Memory: '$MEMORY'
-        Recent conversation: 
+        Recent conversation:
         $TO_SUMMARIZE
     </input>
     <trigger>
-        Summarize your old memory and recent conversation into a new memory, and respond only with the unwrapped memory text: 
+        Summarize your old memory and recent conversation into a new memory, and respond only with the unwrapped memory text:
     </trigger>
 </system>

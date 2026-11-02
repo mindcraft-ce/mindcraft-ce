@@ -1,0 +1,22 @@
+diff --git a/node_modules/prismarine-item/index.js b/node_modules/prismarine-item/index.js
+--- a/node_modules/prismarine-item/index.js
++++ b/node_modules/prismarine-item/index.js
+@@ -258,8 +258,16 @@
+       const typeOfEnchantLevelValue = registry.supportFeature('typeOfValueForEnchantLevel')
+       const useStoredEnchantments = registry.supportFeature('booksUseStoredEnchantments') && this.name === 'enchanted_book'
+ 
+-      if (this.componentMap?.has('enchantments')) {
+-        return this.componentMap.get('enchantments').data
++      const componentName = useStoredEnchantments ? 'stored_enchantments' : 'enchantments'
++      if (this.componentMap?.has(componentName)) {
++        const data = this.componentMap.get(componentName).data
++        const enchantments = Array.isArray(data) ? data : data.enchantments || []
++        return enchantments.map(ench => ({
++          lvl: ench.level ?? ench.lvl,
++          name: typeof ench.name === 'string' ? ench.name.replace('minecraft:', '')
++            : typeof ench.id === 'string' ? ench.id.replace('minecraft:', '')
++              : registry.enchantments[ench.id]?.name || null
++        }))
+       }
+ 
+       if (typeOfEnchantLevelValue === 'short' && enchantNbtKey === 'ench') {

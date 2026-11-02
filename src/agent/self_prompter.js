@@ -10,8 +10,6 @@ export class SelfPrompter {
         this.prompt = '';
         this.idle_time = 0;
         this.cooldown = 2000;
-
-        this.next_step_explanation = null;
     }
 
     start(prompt) {
@@ -47,16 +45,6 @@ export class SelfPrompter {
             throw new Error('No prompt loaded when self-prompting is active');
         if (state === ACTIVE) {
             await this.start(prompt);
-        }
-    }
-
-    async handleWorkUpdate(work_done, next_steps_explained) {
-        if (!work_done && this.state === ACTIVE) {
-            this.next_step_explanation = next_steps_explained;
-        }
-        else {
-            this.next_step_explanation = null;
-            this.stopLoop();
         }
     }
 

@@ -19,10 +19,10 @@ class PlaceBlockAtTool extends BaseTool {
 
     async execute(agent, type, x, y, z, placeOn = 'bottom') {
         const actionFn = async () => {
-            await skills.placeBlock(agent.bot, type, x, y, z, placeOn);
+            return await skills.placeBlock(agent.bot, type, x, y, z, placeOn);
         };
         const code_return = await agent.actions.runAction('action:placeBlockAt', actionFn);
-        return code_return.message;
+        return code_return;
     }
 }
 

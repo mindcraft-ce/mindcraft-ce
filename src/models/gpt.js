@@ -1,15 +1,15 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
-import { responseFormatSchema } from './_response_format.js';
 
 export class GPT {
     static prefix = 'openai';
     constructor(model_name, url, params) {
         this.model_name = model_name;
         this.params = params;
+        this.url = url; // store so that we know whether a custom URL has been set
 
-        let config = {};
+        const config = {};
         if (url)
             config.baseURL = url;
 
@@ -21,37 +21,49 @@ export class GPT {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
-        let stop_seq='***';
-        let messages = strictFormat(turns);
-        messages = messages.map(message => {
-            message.content += stop_seq;
-            return message;
-        });
-        let model = this.model_name || "gpt-4o-mini";
-
-        let res = null;
-        let function_calls = [];
+    async sendRequest(turns, systemMessage, stop_seq='***') {
+        const model = this.model_name || "gpt-5.4-mini";
+        let res;
 
         try {
-            console.log('Awaiting openai api response from model', model)
-            const response = await this.openai.responses.create({
-                model: model,
-                instructions: systemMessage,
-                input: messages,
-                tools: tools,
-                text: { format: responseFormat },
-                ...(this.params || {})
-            });
-            console.log('Received.')
-            res = response.output_text;
-            let stop_seq_index = res.indexOf(stop_seq);
-            res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
-            for (const tool_call of response.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
+            console.log('Awaiting openai api response from model', model);
+            // if a custom URL is set, use chat.completions
+            // because custom "OpenAI-compatible" endpoints likely do not have responses endpoint
+            if (this.url) {
+                let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
+                messages = strictFormat(messages);
+                const pack = {
+                    model: model,
+                    messages,
+                    stop: stop_seq,
+                    ...(this.params || {})
+                };
+                if (model.includes('o1') || model.includes('o3') || model.includes('5')) {
+                    delete pack.stop;
+                }
+                const completion = await this.openai.chat.completions.create(pack);
+                if (completion.choices[0].finish_reason == 'length')
+                    console.warn('Model response stopped with finish_reason=length; returning partial response.');
+                console.log('Received.');
+                res = completion.choices[0].message.content;
+            }
+            // otherwise, use responses
+            else {
+                let messages = strictFormat(turns);
+                messages = messages.map(message => {
+                    message.content += stop_seq;
+                    return message;
                 });
+                const response = await this.openai.responses.create({
+                    model: model,
+                    instructions: systemMessage,
+                    input: messages,
+                    ...(this.params || {})
+                });
+                console.log('Received.');
+                res = response.output_text;
+                const stop_seq_index = res.indexOf(stop_seq);
+                res = stop_seq_index !== -1 ? res.slice(0, stop_seq_index) : res;
             }
         }
         catch (err) {
@@ -66,10 +78,10 @@ export class GPT {
                 res = 'My brain disconnected, try again.';
             }
         }
-        return [res, function_calls];
+        return res;
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
+    sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -81,8 +93,8 @@ export class GPT {
                 }
             ]
         });
-        
-        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
+
+        return this.sendRequest(imageMessages, systemMessage);
     }
 
     async embed(text) {
@@ -103,9 +115,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
         model: model,
         voice: voice,
         input: text
-    }
+    };
 
-    let config = {};
+    const config = {};
 
     if (url)
         config.baseURL = url;
@@ -121,9 +133,9 @@ const sendAudioRequest = async (text, model, voice, url) => {
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const base64 = buffer.toString("base64");
     return base64;
-}
+};
 
 export const TTSConfig = {
     sendAudioRequest: sendAudioRequest,
     baseUrl: 'https://api.openai.com/v1',
-}
+};

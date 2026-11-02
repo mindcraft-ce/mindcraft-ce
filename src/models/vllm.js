@@ -4,7 +4,6 @@
 import OpenAIApi from 'openai';
 import { getKey, hasKey } from '../utils/keys.js';
 import { strictFormat } from '../utils/text.js';
-import { responseFormatSchema } from './_response_format.js';
 
 export class VLLM {
     static prefix = 'vllm';
@@ -23,8 +22,7 @@ export class VLLM {
         this.vllm = new OpenAIApi(vllm_config);
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
-        let stop_seq = '***'
+    async sendRequest(turns, systemMessage, stop_seq = '***') {
         let messages = [{ 'role': 'system', 'content': systemMessage }].concat(turns);
         let model = this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B";  
         
@@ -35,13 +33,10 @@ export class VLLM {
         const pack = {
             model: model,
             messages,
-            tools: tools,
             stop: stop_seq,
-            response_format: responseFormat,
         };
 
         let res = null;
-        let function_calls = [];
         try {
             console.log('Awaiting openai api response...')
             // console.log('Messages:', messages);
@@ -51,23 +46,17 @@ export class VLLM {
                 throw new Error('Context length exceeded');
             console.log('Received.')
             res = completion.choices[0].message.content;
-            for (const tool_call of completion.choices[0].message.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
-                });
-            }
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
                 console.log('Context length exceeded, trying again with shorter context.');
-                return await this.sendRequest(turns.slice(1), systemMessage, stop_seq, tools);
+                return await this.sendRequest(turns.slice(1), systemMessage, stop_seq);
             } else {
                 console.log(err);
                 res = 'My brain disconnected, try again.';
             }
         }
-        return [res, function_calls];
+        return res;
     }
 
     async saveToFile(logFile, logEntry) {

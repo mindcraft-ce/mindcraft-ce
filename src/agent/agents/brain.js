@@ -1,182 +1,63 @@
 import { Goals, checklistItem } from '../goals/goals.js';
-import { brainAgentResponseFormat } from './responseFormat.js';
-import settings from '../settings.js';
-import { createLogger } from '../../utils/logger.js';
+import { toolCallMessage } from '../../models/_tool_request.js';
+import { parseObject, functionTool } from './structured.js';
 
-const log = createLogger('BrainAgent');
-
-const MAX_BRAIN_HISTORY = 20;
+export const brainTools=[
+    functionTool('directTask','Assign the Task one concrete objective, briefing and constraints. Do not replace healthy work just to repeat it.',{
+        objective:{type:'string'},briefing:{type:'string'},constraints:{type:'string'},tools:{type:'array',items:{type:'string'}},model:{type:'string'},replace:{type:'boolean'},
+    },['objective']),
+    functionTool('injectNote','Give new context to the running Task without restarting it.',{note:{type:'string'}}),
+    functionTool('stopTask','Cancel current work.',{}),
+    functionTool('say','Say a useful user-facing message. Completion is reported once.',{message:{type:'string'}}),
+    functionTool('wait','No action is needed now.',{}),
+    functionTool('addGoal','Record a durable goal. Supply an inventory target when success can be measured.',{
+        name:{type:'string'},description:{type:'string'},priority:{type:'number'},item:{type:'string'},count:{type:'integer'},
+    },['name']),
+    functionTool('completeGoal','Mark a goal complete after verifying evidence; inventory targets are checked in code.',{name:{type:'string'}}),
+    functionTool('removeGoal','Remove a goal no longer wanted.',{name:{type:'string'}}),
+];
 
 export class BrainAgent {
-    constructor(agent, messageQueue) {
-        this.agent = agent;
-        this.messageQueue = messageQueue;
-        this.goals = new Goals();
-        this.active_goal = null;
-        this.message_history = [];
-        this._processing = false;
-    }
-
-    async processRequest(source, message) {
-        if (!source || !message) return null;
-        if (source === this.agent.name) return null;
-
-        // reentrancy: if brain is mid-LLM-call, queue the message
-        if (this._processing) {
-            log.info(`Already processing, queuing message from ${source}`);
-            if (this.messageQueue) {
-                this.messageQueue.enqueue({ source, message, type: 'context' });
-            }
-            return { route: 'queued', thoughts: 'Brain is busy, message queued.' };
+    constructor(agent,queue) {this.agent=agent;this.messageQueue=queue;this.goals=new Goals();this.message_history=[];this.active_goal=null;}
+    async processRequest(source,message) {
+        const task=this.agent.agentSystem?.currentDirective;
+        this.message_history.push({role:'user',content:`${source}: ${message}\nGoals:\n${this.goals.listFormattedGoals()}\nCurrent task: ${task?.objective||'none'}\nRecent outcome: ${this.lastOutcome||'none'}`});
+        if(this.message_history.length>80) {
+            const next=this.message_history.findIndex((m,i)=>i>=this.message_history.length-40&&m.role==='user');
+            if(next>0) this.message_history=this.message_history.slice(next);
         }
-
-        this._processing = true;
-
-        try {
-            log.info(`Request from ${source}: ${message}`);
-            this._appendUserMessage(source, message);
-
-            let response;
-            try {
-                [response] = await this.agent.prompter.handleRequest(
-                    'brain', this.message_history, [], brainAgentResponseFormat
-                );
-                log.info(`Raw response: ${response}`);
-            } catch (error) {
-                log.error('LLM request failed:', error);
-                return null;
-            }
-
-            let parsed;
-            try {
-                parsed = JSON.parse(response);
-            } catch (e) {
-                log.error('Failed to parse JSON:', response);
-                return null;
-            }
-
-            this.message_history.push({ role: 'assistant', content: response });
-            this._trimHistory();
-
-            log.info(`Route: ${parsed.route} | Thoughts: ${parsed.thoughts}`);
-
-            if (parsed.goal_action)
-                this._handleGoalAction(parsed.goal_action);
-
-            if (parsed.route === 'task') {
-                const task_description = parsed.task_description || parsed.thoughts.split(/[.!?\n]/)[0].trim();
-                const task_system_prompt = parsed.task_system_prompt || '';
-                const task_action = parsed.task_action || 'start';
-
-                log.info(`Task: ${task_description} (action: ${task_action})`);
-                log.info(`System prompt (${task_system_prompt.length} chars)`);
-
-                return { route: 'task', thoughts: parsed.thoughts, task_description, task_system_prompt, task_action };
-            }
-
-            return { route: 'rp', thoughts: parsed.thoughts };
-        } finally {
-            this._processing = false;
+        const [text,calls]=await this.agent.prompter.handleRequest('brain',this.message_history,brainTools);
+        this.message_history.push(toolCallMessage(text,calls));
+        if(calls.length) return {route:'control',operations:calls,text};
+        const parsed=parseObject(text);
+        if(parsed&&['task','rp'].includes(parsed.route)) {
+            if(parsed.route==='task'&&typeof parsed.task_description!=='string') throw new Error('Brain task decision needs a description');
+            return parsed;
+        }
+        if(text?.trim()) return {route:'rp',reply:text};
+        throw new Error('Brain returned neither a decision nor a reply');
+    }
+    recordToolResult(call,result) {
+        this.message_history.push({role:'tool',name:call.name,tool_call_id:call.id,content:String(result)});
+        // Trim only at complete exchanges, never orphan a provider tool-result message.
+        if(this.message_history.length>40) {
+            const next=this.message_history.findIndex((m,i)=>i>10&&m.role==='user');
+            if(next>0) this.message_history=this.message_history.slice(next);
         }
     }
-
-    recordTaskOutcome(result) {
-        const outcome = result
-            ? `[Task completed in ${result.steps || '?'} steps]: ${result.chat_response || 'Done.'}`
-            : '[Task failed]';
-        this.message_history.push({ role: 'user', content: outcome });
-        this._trimHistory();
-    }
-
-    _appendUserMessage(source, message) {
-        const goalsContext = this.goals.listFormattedGoals();
-        const activeGoalContext = this.active_goal
-            ? this.goals.listFormattedGoal(this.active_goal)
-            : 'No active goal.';
-
-        let taskStatus = '[Task Status]: No task running.';
-        const taskAgent = this.agent.taskAgent;
-        if (taskAgent?.is_running) {
-            const desc = taskAgent.currentTaskDescription || 'unknown';
-            const step = taskAgent.currentStep || '?';
-            taskStatus = `[Task Status]: Running "${desc}" (step ${step}/${50})`;
-        }
-
-        this.message_history.push({
-            role: 'user',
-            content: `[${source}]: ${message}\n\n` +
-                `${taskStatus}\n` +
-                `[Current Goals]:\n${goalsContext}\n` +
-                `[Active Goal]:\n${activeGoalContext}`
-        });
-        this._trimHistory();
-    }
-
-    _trimHistory() {
-        const max = settings.max_messages || MAX_BRAIN_HISTORY;
-        while (this.message_history.length > max)
-            this.message_history.shift();
-    }
-
-    _handleGoalAction(goalAction) {
-        const { action, goal, priority, goal_description, checklist, checklist_item, checklist_completed } = goalAction;
-
-        switch (action) {
-            case 'add':
-                if (goal) {
-                    const items = checklist ? checklist.map(desc => new checklistItem(desc)) : [];
-                    this.goals.addGoal(goal, goal_description || '', priority || 1, items);
-                    log.info(`Added goal: ${goal}`);
-                    if (!this.active_goal || (priority && priority > (this.goals.getGoal(this.active_goal)?.priority || 0)))
-                        this.active_goal = goal;
-                }
-                break;
-            case 'remove':
-                if (goal) {
-                    this.goals.removeGoal(goal);
-                    log.info(`Removed goal: ${goal}`);
-                    if (this.active_goal === goal)
-                        this.active_goal = this._getHighestPriorityGoal();
-                }
-                break;
-            case 'set_priority':
-                if (goal && priority !== undefined) {
-                    this.goals.setPriority(goal, priority);
-                    log.info(`Set priority of ${goal} to ${priority}`);
-                }
-                break;
-            case 'mark_checklist_item':
-                if (goal && checklist_item) {
-                    const completed = checklist_completed !== undefined ? checklist_completed : true;
-                    this.goals.markChecklistItem(goal, checklist_item, completed);
-                    log.info(`Marked "${checklist_item}" as ${completed ? 'done' : 'incomplete'}`);
-                }
-                break;
-            case 'recreate_checklist_item':
-                if (goal && checklist_item) {
-                    const goalObj = this.goals.getGoal(goal);
-                    if (goalObj) {
-                        goalObj.check_list.push(new checklistItem(checklist_item));
-                        log.info(`Added checklist item "${checklist_item}" to ${goal}`);
-                    }
-                }
-                break;
-            default:
-                log.warn(`Unknown goal action: ${action}`);
-        }
-    }
-
-    _getHighestPriorityGoal() {
-        const goals = this.goals.listGoals();
-        if (goals.length === 0) return null;
-        return goals.reduce((h, c) => c.priority > h.priority ? c : h).name;
-    }
-
-    getStatus() {
-        return {
-            active_goal: this.active_goal,
-            goals: this.goals.listGoals(),
-            history_length: this.message_history.length
-        };
+    recordTaskOutcome(result) {this.lastOutcome=JSON.stringify(result);}
+    applyGoalCall(call) {
+        const a=call.arguments||{};
+        if(typeof a.name!=='string'||!a.name.trim()) throw new Error(`${call.name} requires a goal name`);
+        if(call.name==='addGoal') {
+            let target=null;
+            if(a.item!==undefined||a.count!==undefined) {
+                if(typeof a.item!=='string'||!Number.isSafeInteger(a.count)||a.count<1) throw new Error('Inventory goal requires item and positive integer count');
+                target={item:a.item.replace(/^minecraft:/,''),count:a.count};
+            }
+            this.goals.addGoal(a.name,a.description||'',Number.isFinite(a.priority)?a.priority:1,[],target);
+        } else if(call.name==='completeGoal') this.goals.complete(a.name,this.agent.bot);
+        else this.goals.removeGoal(a.name);
+        return this.goals.listFormattedGoals();
     }
 }

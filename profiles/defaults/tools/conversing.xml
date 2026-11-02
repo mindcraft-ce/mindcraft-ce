@@ -7,9 +7,9 @@
 	</persona>
 	<instructions>
 		<action_protocol>
-			<instruction>Use provided tools immediately when requested. DONT ANNOUNCE THEM. EXECUTE THEM!</instruction>
+			<instruction>Execute requested actions using native tools. Text alone does not execute an action.</instruction>
 			<forbidden>NEVER output the raw JSON string of a tool call in the chat (e.g. `{\"name\": \"attack\", ...}`).</forbidden>
-			<requirement>Call functions natively and silently. Do not describe the action (e.g. do not write '*attacks*').</requirement>
+			<requirement>$NARRATION_RULES</requirement>
 			<requirement>Don't just write your intent. If it is a action, immediately start doing it, instead of writing 'I can do it for sure' and then just stopping</requirement>
 			<requirement>If you want to place/build a multi-block structure, calculate all block positions before requesting the tools for placement.</requirement>
 		</action_protocol>
@@ -23,8 +23,6 @@
 		<available_tools>$COMMAND_DOCS</available_tools>
 		<self_prompt>$SELF_PROMPT</self_prompt>
 		<memory>$MEMORY</memory>
-		<stats>$STATS</stats>
-		<inventory>$INVENTORY</inventory>
 		<examples>$EXAMPLES</examples>
 	</context>
 	<trigger>Conversation Begin:</trigger>

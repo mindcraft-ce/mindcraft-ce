@@ -17,7 +17,7 @@ class BaseTool {
     }
 
     // method to be overridden by subclasses
-    async execute(agent, ...args) {
+    execute(agent, ...args) {
         throw new Error("Execute method not implemented");
     }
 }

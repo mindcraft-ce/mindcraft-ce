@@ -70,9 +70,7 @@ export class VisionInterpreter {
             const messages = this.agent.history.getHistory();
 
             const blockInfo = this.getCenterBlockInfo();
-            const [result, function_calls] = await this.agent.prompter.promptVision(messages, imageBuffer);
-            // tool calling not implemented for vision yet
-            console.warn('Vision tool calls not implemented yet in file vision_interpreter.js');
+            const result = await this.agent.prompter.promptVision(messages, imageBuffer);
             return result + `\n${blockInfo}`;
 
         } catch (error) {

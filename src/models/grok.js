@@ -1,6 +1,5 @@
 import OpenAIApi from 'openai';
 import { getKey } from '../utils/keys.js';
-import { responseFormatSchema } from './_response_format.js';
 
 // xAI doesn't supply a SDK for their models, but fully supports OpenAI and Anthropic SDKs
 export class Grok {
@@ -21,20 +20,16 @@ export class Grok {
         this.openai = new OpenAIApi(config);
     }
 
-    async sendRequest(turns, systemMessage, tools = [], responseFormat = responseFormatSchema) {
-        let stopSeq = '***';
+    async sendRequest(turns, systemMessage) {
         let messages = [{'role': 'system', 'content': systemMessage}].concat(turns);
 
         const pack = {
-            model: this.model_name || "grok-3-mini-latest",
+            model: this.model_name || "grok-4.1-fast-non-reasoning",
             messages,
-            tools: tools,
-            response_format: responseFormat,
             ...(this.params || {})
         };
 
         let res = null;
-        let function_calls = [];
         try {
             console.log('Awaiting xai api response...')
             ///console.log('Messages:', messages);
@@ -43,12 +38,6 @@ export class Grok {
                 throw new Error('Context length exceeded'); 
             console.log('Received.')
             res = completion.choices[0].message.content;
-            for (const tool_call of completion.choices[0].message.tool_calls || []) {
-                function_calls.push({
-                    name: tool_call.function.name,
-                    arguments: tool_call.function.arguments
-                });
-            }
         }
         catch (err) {
             if ((err.message == 'Context length exceeded' || err.code == 'context_length_exceeded') && turns.length > 1) {
@@ -63,10 +52,10 @@ export class Grok {
             }
         }
         // sometimes outputs special token <|separator|>, just replace it
-        return [res.replace(/<\|separator\|>/g, '*no response*'), function_calls];
+        return res.replace(/<\|separator\|>/g, '*no response*');
     }
 
-    async sendVisionRequest(messages, systemMessage, imageBuffer, tools = [], responseFormat = responseFormatSchema) {
+    async sendVisionRequest(messages, systemMessage, imageBuffer) {
         const imageMessages = [...messages];
         imageMessages.push({
             role: "user",
@@ -81,7 +70,7 @@ export class Grok {
             ]
         });
         
-        return this.sendRequest(imageMessages, systemMessage, tools, responseFormat);
+        return this.sendRequest(imageMessages, systemMessage);
     }
     
     async embed(text) {

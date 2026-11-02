@@ -1,4 +1,3 @@
-import { Agent } from '../agent/agent.js';
 import { serverProxy } from '../agent/mindserver_proxy.js';
 import yargs from 'yargs';
 
@@ -37,10 +36,16 @@ const argv = yargs(args)
     })
     .argv;
 
-(async () => {
+await (async () => {
     try {
         console.log('Connecting to MindServer');
         await serverProxy.connect(argv.name, argv.port);
+
+        // Import Agent only after connect() has received this process's settings.
+        // Agent's dependency graph includes modules that read settings at module
+        // initialization time.
+        const { Agent } = await import('../agent/agent.js');
+
         console.log('Starting agent');
         const agent = new Agent();
         serverProxy.setAgent(agent);

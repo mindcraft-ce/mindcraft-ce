@@ -26,17 +26,22 @@ export class Examples {
             return;
 
         try {
-            // Create array of promises first
-            const embeddingPromises = examples.map(example => {
-                const turn_text = this.turnsToText(example);
-                return this.model.embed(turn_text)
-                    .then(embedding => {
-                        this.embeddings[turn_text] = embedding;
-                    });
-            });
-            
-            // Wait for all embeddings to complete
-            await Promise.all(embeddingPromises);
+            const turn_texts = examples.map(example => this.turnsToText(example));
+            if (typeof this.model.embedMany === 'function') {
+                const embeddings = await this.model.embedMany(turn_texts);
+                turn_texts.forEach((turn_text, index) => {
+                    this.embeddings[turn_text] = embeddings[index];
+                });
+            }
+            else {
+                const embeddingPromises = turn_texts.map(turn_text => {
+                    return this.model.embed(turn_text)
+                        .then(embedding => {
+                            this.embeddings[turn_text] = embedding;
+                        });
+                });
+                await Promise.all(embeddingPromises);
+            }
         } catch (err) {
             console.warn('Error with embedding model, using word-overlap instead.');
             this.model = null;
@@ -48,8 +53,15 @@ export class Examples {
             return [];
 
         let turn_text = this.turnsToText(turns);
+        let embedding = null;
         if (this.model !== null) {
-            let embedding = await this.model.embed(turn_text);
+            try {
+                embedding = await this.model.embed(turn_text);
+            } catch (err) {
+                console.warn('Error with embedding model, using word-overlap instead.');
+            }
+        }
+        if (embedding !== null) {
             this.examples.sort((a, b) => 
                 cosineSimilarity(embedding, this.embeddings[this.turnsToText(b)]) -
                 cosineSimilarity(embedding, this.embeddings[this.turnsToText(a)])
@@ -70,7 +82,7 @@ export class Examples {
 
         console.log('selected examples:');
         for (let example of selected_examples) {
-            console.log('Example:', example[0].content)
+            console.log('Example:', example[0].content);
         }
 
         let msg = 'Examples of how to respond:\n';
