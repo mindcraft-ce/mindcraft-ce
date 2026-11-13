@@ -1550,7 +1550,7 @@ export async function goToBed(bot) {
      **/
     const beds = bot.findBlocks({
         matching: (block) => {
-            return block.name.includes('bed');
+            return block.name.endsWith('_bed'); // not includes('bed'), which also matches bedrock
         },
         maxDistance: 32,
         count: 1
