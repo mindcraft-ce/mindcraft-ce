@@ -1987,7 +1987,7 @@ export async function useToolOn(bot, toolName, targetName) {
      * @param {string} targetName - entity type, block type, or "nothing" for no target
      * @returns {Promise<boolean>} true if action succeeded
      */
-    if (!bot.inventory.slots.find(slot => slot && slot.name === toolName) && !bot.game.gameMode === 'creative') {
+    if (!bot.inventory.slots.find(slot => slot && slot.name === toolName) && bot.game.gameMode !== 'creative') {
         log(bot, `You do not have any ${toolName} to use.`);
         return false;
     }
