@@ -1509,7 +1509,7 @@ export async function useDoor(bot, door_pos=null) {
     if (!door_pos) {
         for (let door_type of ['oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
                                'mangrove_door', 'cherry_door', 'bamboo_door', 'crimson_door', 'warped_door']) {
-            door_pos = world.getNearestBlock(bot, door_type, 16).position;
+            door_pos = world.getNearestBlock(bot, door_type, 16)?.position;
             if (door_pos) break;
         }
     } else {
