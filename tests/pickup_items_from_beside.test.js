@@ -11,10 +11,13 @@ import { pickupNearbyItems } from '../src/agent/library/skills.js';
 
 const registry = minecraftData('1.21.11');
 
-// Whether a player whose feet are at `feet` (the middle of a cell) picks up an item lying at `item`.
+// Whether a player whose feet are at `feet` picks up an item lying at `item`, as the server decides it: the
+// player's box (0.6 wide, 1.8 tall) grown by one block sideways and half a block up and down, touching the
+// item's own box (0.25 on a side).
 function withinPickup(feet, item) {
-    return Math.abs(item.x - feet.x) <= 1.3 && Math.abs(item.z - feet.z) <= 1.3 &&
-        item.y >= feet.y - 0.5 && item.y <= feet.y + 1.8 + 0.5;
+    const reach = 0.3 + 1 + 0.125;
+    return Math.abs(item.x - feet.x) < reach && Math.abs(item.z - feet.z) < reach &&
+        item.y < feet.y + 1.8 + 0.5 && item.y + 0.25 > feet.y - 0.5;
 }
 
 /**
@@ -22,7 +25,7 @@ function withinPickup(feet, item) {
  * for is recorded with the movement settings it used. A walk whose goal is already met changes nothing; any
  * other walk ends in the item's own cell, which may take digging or placing to get into.
  */
-function fakeBot({ itemAt, needsDiggingToReach, walkableToItem }) {
+function fakeBot({ itemAt, needsDiggingToReach, walkableToItem, botAt = { x: 0.5, y: 64, z: 0.5 } }) {
     const item = { id: 7, name: 'item', position: new Vec3(itemAt.x, itemAt.y, itemAt.z) };
     const walks = [];
     const bot = {
@@ -31,8 +34,22 @@ function fakeBot({ itemAt, needsDiggingToReach, walkableToItem }) {
         game: { minY: -64 },
         output: '',
         inventory: { items: () => [], slots: [] },
-        entity: { position: new Vec3(0.5, 64, 0.5), effects: {} },
+        entity: { position: new Vec3(botAt.x, botAt.y, botAt.z), effects: {} },
         entities: { [item.id]: item },
+        controls: [],
+        looks: [],
+        async lookAt(point) { this.looks.push(point.clone()); },
+        // Walking forward moves the bot straight at the item until the item's cell wall stops it, as when the
+        // item lies in a notch in a wall. Sneaking is recorded: it is what keeps a real bot from stepping off
+        // an edge while it does this.
+        setControlState(control, on) {
+            this.controls.push([control, on]);
+            if (control !== 'forward' || !on) return;
+            const wallX = Math.floor(item.position.x) - 0.3;
+            const p = this.entity.position;
+            this.entity.position = new Vec3(Math.max(p.x, Math.min(item.position.x, wallX)), p.y, item.position.z);
+            if (withinPickup(this.entity.position, item.position)) delete this.entities[item.id];
+        },
         nearestEntity(predicate) {
             return Object.values(this.entities).filter(predicate)
                 .sort((a, b) => a.position.distanceTo(this.entity.position) - b.position.distanceTo(this.entity.position))[0] ?? null;
@@ -104,4 +121,22 @@ test('an item one block down in a pit beside the bot is fetched, not given up on
     await pickupNearbyItems(bot, false);
     assert.ok(!bot.entities[item.id], `the item was picked up: ${JSON.stringify(walks)}`);
     assert.ok(walks.every(walk => !walk.changedWorld), 'nothing was dug or placed');
+});
+
+test('an item at the far side of its cell, just out of reach, is fetched with a short sneak forward', async () => {
+    // Seen live: a mined diamond slid to the back of its notch in a wall (x 5.875) while the pathfinder stopped
+    // the bot at the near edge of the next cell (x 4.32), 1.55 blocks apart, just too far. A player walks the
+    // last half step into the wall; the bot does the same, sneaking so it can't walk off an edge.
+    const { bot, walks, item } = fakeBot({ itemAt: { x: 1.875, y: 65, z: 0.127 }, botAt: { x: 0.32, y: 64, z: 0.5 } });
+    assert.ok(!withinPickup(bot.entity.position, item.position), 'out of reach where the bot stands');
+    await pickupNearbyItems(bot, true);
+    assert.ok(!bot.entities[item.id], 'the item was picked up');
+    assert.ok(walks.every(walk => !walk.changedWorld), `nothing was dug or placed: ${JSON.stringify(walks)}`);
+    assert.ok(bot.looks.length >= 1, 'it looked at the item first');
+    const sneaking = bot.controls.findIndex(([c, on]) => c === 'sneak' && on);
+    const forward = bot.controls.findIndex(([c, on]) => c === 'forward' && on);
+    assert.ok(sneaking >= 0 && sneaking < forward, 'it was sneaking before it stepped');
+    const last = new Map(bot.controls.map(([c, on]) => [c, on]));
+    assert.equal(last.get('forward'), false, 'and let go of forward');
+    assert.equal(last.get('sneak'), false, 'and of sneak');
 });

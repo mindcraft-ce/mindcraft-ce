@@ -480,6 +480,29 @@ class GoalPickUp extends pf.goals.GoalFollow {
     }
 }
 
+// Walks the last half step to an item the bot stands next to but can't quite reach.
+//
+// "Next to" is counted in whole cells, but neither the bot nor the item has to be in the middle of its cell. An
+// item that slid to the back of a notch in a wall can sit just out of reach of a bot stopped at the near edge of
+// the cell beside it. A player walks on into the wall; so does the bot, for a moment, looking at the item.
+// It sneaks while it does, which keeps it from stepping off an edge, and a wall simply stops it.
+async function stepToward(bot, item, maxMs = 800) {
+    await bot.lookAt(item.position.offset(0, 0.1, 0), true);
+    bot.setControlState('sneak', true);
+    bot.setControlState('forward', true);
+    try {
+        const until = Date.now() + maxMs;
+        while (Date.now() < until && bot.entities[item.id] && !bot.interrupt_code) {
+            const dx = item.position.x - bot.entity.position.x, dz = item.position.z - bot.entity.position.z;
+            if (dx * dx + dz * dz < 0.25) break; // on top of it: nowhere further to go
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    } finally {
+        bot.setControlState('forward', false);
+        bot.setControlState('sneak', false);
+    }
+}
+
 export async function pickupNearbyItems(bot, allowDig=false) {
     assertActionOwner(bot);
     /**
@@ -521,6 +544,10 @@ export async function pickupNearbyItems(bot, allowDig=false) {
                 await cancellable(bot, () => bot.pathfinder.goto(new GoalPickUp(nearest)),
                     3000, () => bot.pathfinder.setGoal(null));
                 await new Promise(resolve => setTimeout(resolve, 400));
+                if (bot.entities[nearest.id]) {
+                    await stepToward(bot, nearest);
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
                 if (!bot.entities[nearest.id]) pickedUp++;
             } catch (error) {
                 if (bot.interrupt_code) break;
