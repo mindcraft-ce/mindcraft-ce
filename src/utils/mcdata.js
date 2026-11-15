@@ -89,33 +89,25 @@ export const WOOL_COLORS = [
 ]
 
 
-export function initBot(username) {
-    mc_version = settings.minecraft_version;
-    const options = {
-        username: username,
-        host: settings.host,
-        port: settings.port,
-        auth: settings.auth,
-        version: mc_version,
-        checkTimeoutInterval: 60000,  // 60s keep-alive check (default 30s) — reduces disconnects on slow servers
-    }
-    if (!mc_version || mc_version === "auto") {
-        delete options.version;
-    }
-
-    const bot = createBot(options);
-
-    enableFabricRegistrySync(bot);
-
-    // Throttle position packets to avoid kicks on Paper/Spigot servers
-    // Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET
-    // when mineflayer sends position updates faster than 50ms apart
+/**
+ * Throttle position packets to avoid kicks on Paper/Spigot servers.
+ * Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET
+ * when mineflayer sends position updates faster than 50ms apart.
+ *
+ * Only while the client does not end its own ticks. From 1.21.2 a client that does sends tick_end after
+ * each tick's movement, so it sends at most one position packet per tick already. A packet held back by
+ * the timer here would be written outside its tick, next to the following tick's own position packet,
+ * and a newer server kicks that ("Invalid move player packet received").
+ */
+export function throttlePositionPackets(bot) {
     let lastPositionUpdate = 0;
     let pendingPositionPacket = null;
+    let endsOwnTicks = false;
     const POSITION_THROTTLE_MS = 50;
     const originalWrite = bot._client.write.bind(bot._client);
     bot._client.write = function(name, data) {
-        if (name === 'position' || name === 'position_look' || name === 'look') {
+        if (name === 'tick_end') endsOwnTicks = true;
+        if (!endsOwnTicks && (name === 'position' || name === 'position_look' || name === 'look')) {
             const now = Date.now();
             if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
                 // Queue this packet so the last position update is never lost
@@ -136,6 +128,27 @@ export function initBot(username) {
         }
         return originalWrite(name, data);
     };
+}
+
+export function initBot(username) {
+    mc_version = settings.minecraft_version;
+    const options = {
+        username: username,
+        host: settings.host,
+        port: settings.port,
+        auth: settings.auth,
+        version: mc_version,
+        checkTimeoutInterval: 60000,  // 60s keep-alive check (default 30s) — reduces disconnects on slow servers
+    }
+    if (!mc_version || mc_version === "auto") {
+        delete options.version;
+    }
+
+    const bot = createBot(options);
+
+    enableFabricRegistrySync(bot);
+
+    throttlePositionPackets(bot);
 
     // Suppress PartialReadError for non-critical packets
     // Paper servers sometimes send packets that node-minecraft-protocol
