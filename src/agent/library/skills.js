@@ -1067,6 +1067,27 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     return false;
 }
 
+// Searches for a path to the goal for up to timeoutMs, and returns the pathfinder's last result.
+//
+// bot.pathfinder.getPathTo(movements, goal, timeout) looks like it searches for `timeout` ms, but it runs
+// only the first slice of the search: the pathfinder stops after bot.pathfinder.tickTimeout (40 ms) and
+// reports "partial", expecting to be called again. So any route that takes longer than 40 ms to find came
+// back as not found. This keeps going until the search succeeds, fails or runs out of time, and lets the
+// game run between slices so the bot does not freeze while it thinks.
+//
+// The comment sits outside the function body on purpose: only functions with a doc block inside are
+// described to the model as skills, and this is a helper, not a skill.
+export async function searchPath(bot, movements, goal, timeoutMs) {
+    movements.updateLavaAvoidance?.(); // getPathTo does this before searching; keep the same behavior
+    let last = null;
+    for (const { result } of bot.pathfinder.getPathFromTo(movements, bot.entity.position, goal, { timeout: timeoutMs })) {
+        last = result;
+        if (result.status !== 'partial' || bot.interrupt_code) break;
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    return last;
+}
+
 export async function goToGoal(bot, goal) {
     /**
      * Navigate to the given goal. Use doors and attempt minimally destructive movements.
@@ -1087,11 +1108,11 @@ export async function goToGoal(bot, goal) {
     let final_movements = destructiveMovements;
 
     const pathfind_timeout = 1000;
-    if (await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathfind_timeout).status === 'success') {
+    if ((await searchPath(bot, nonDestructiveMovements, goal, pathfind_timeout)).status === 'success') {
         final_movements = nonDestructiveMovements;
         log(bot, `Found non-destructive path.`);
     }
-    else if (await bot.pathfinder.getPathTo(destructiveMovements, goal, pathfind_timeout).status === 'success') {
+    else if ((await searchPath(bot, destructiveMovements, goal, pathfind_timeout)).status === 'success') {
         log(bot, `Found destructive path.`);
     }
     else {
