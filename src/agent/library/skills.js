@@ -1067,6 +1067,29 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     return false;
 }
 
+// Keeps a pathfinder Movements object from planning a diagonal step past a solid corner, and returns it.
+//
+// The pathfinder allows a diagonal step when only one of the two cells beside it is open. Its walker then
+// can't make the step, because the bot is too wide to cut the corner: it stands still, says "stuck" every few
+// seconds, and plans the same step again. In a tunnel one block wide that is every turn, and the bot digs such
+// tunnels itself. With this, a diagonal is planned only when both sides are open; otherwise the bot goes round
+// the corner in two straight steps, which costs almost nothing. It changes this one Movements object, not
+// the pathfinder.
+//
+// The comment sits outside the function body on purpose: only functions with a doc block inside are
+// described to the model as skills, and this is a helper, not a skill.
+export function squareCorners(movements) {
+    const diagonal = movements.getMoveDiagonal;
+    movements.getMoveDiagonal = function (node, dir, neighbors) {
+        // The two cells the bot would brush past, at feet and head height.
+        for (const [dx, dz] of [[dir.x, 0], [0, dir.z]]) {
+            if (this.getBlock(node, dx, 0, dz).physical || this.getBlock(node, dx, 1, dz).physical) return;
+        }
+        return diagonal.call(this, node, dir, neighbors);
+    };
+    return movements;
+}
+
 export async function goToGoal(bot, goal) {
     /**
      * Navigate to the given goal. Use doors and attempt minimally destructive movements.
@@ -1074,7 +1097,7 @@ export async function goToGoal(bot, goal) {
      * @param {pf.goals.Goal} goal, the goal to navigate to.
      **/
 
-    const nonDestructiveMovements = new pf.Movements(bot);
+    const nonDestructiveMovements = squareCorners(new pf.Movements(bot));
     const dontBreakBlocks = ['glass', 'glass_pane'];
     for (let block of dontBreakBlocks) {
         nonDestructiveMovements.blocksCantBreak.add(mc.getBlockId(block));
@@ -1082,7 +1105,7 @@ export async function goToGoal(bot, goal) {
     nonDestructiveMovements.placeCost = 2;
     nonDestructiveMovements.digCost = 10;
 
-    const destructiveMovements = new pf.Movements(bot);
+    const destructiveMovements = squareCorners(new pf.Movements(bot));
 
     let final_movements = destructiveMovements;
 
