@@ -1527,7 +1527,9 @@ export async function useDoor(bot, door_pos=null) {
     }
     
     let door_block = bot.blockAt(door_pos);
-    await bot.lookAt(door_pos);
+    // Face the middle of the doorway: the walk below is straight ahead. A block's position is its corner,
+    // and facing that, the bot walks into the edge of a door that is already open.
+    await bot.lookAt(door_pos.offset(0.5, 0.5, 0.5));
     if (!door_block._properties.open)
         await bot.activateBlock(door_block);
     
