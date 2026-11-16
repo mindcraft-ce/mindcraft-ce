@@ -251,7 +251,7 @@ export function getVillagerProfession(entity) {
     }
     
     // If we can't determine profession but it's an adult villager
-    if (entity.metadata && entity.metadata[16] !== 1) { // Not a baby
+    if (entity.metadata && entity.metadata[16] !== true) { // Not a baby
         return 'Adult';
     }
     
