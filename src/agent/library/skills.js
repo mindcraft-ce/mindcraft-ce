@@ -361,7 +361,7 @@ export async function attackEntity(bot, entity, kill=true) {
                 return false;
             }
         }
-        log(bot, `Successfully killed ${entity.name}.`);
+        log(bot, `Successfully killed ${entity.username || entity.name}.`); // a player by name, not as "player"
         await pickupNearbyItems(bot);
         return true;
     }
