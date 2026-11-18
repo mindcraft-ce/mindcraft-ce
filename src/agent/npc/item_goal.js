@@ -1,7 +1,7 @@
 import * as skills from '../library/skills.js';
 import * as world from '../library/world.js';
 import * as mc from '../../utils/mcdata.js';
-import { itemSatisfied } from './utils.js';
+import { itemSatisfied, ownedCounts } from './utils.js';
 
 
 const blacklist = [
@@ -150,7 +150,7 @@ class ItemNode {
             this.fails += 1;
             return;
         }
-        let inventory = world.getInventoryCounts(this.manager.agent.bot);
+        let inventory = ownedCounts(this.manager.agent.bot);
         let init_quantity = inventory[this.name] || 0;
         if (this.type === 'block') {
             await skills.collectBlock(this.manager.agent.bot, this.source, quantity, this.manager.agent.npc.getBuiltPositions());
@@ -167,7 +167,7 @@ class ItemNode {
         } else if (this.type === 'craft') {
             await skills.craftRecipe(this.manager.agent.bot, this.name, quantity);
         }
-        let final_quantity = world.getInventoryCounts(this.manager.agent.bot)[this.name] || 0;
+        let final_quantity = ownedCounts(this.manager.agent.bot)[this.name] || 0;
         if (final_quantity <= init_quantity) {
             this.fails += 1;
         }
@@ -338,11 +338,11 @@ export class ItemGoal {
             return false;
 
         // Execute the next goal
-        let init_quantity = world.getInventoryCounts(this.agent.bot)[next.name] || 0;
+        let init_quantity = ownedCounts(this.agent.bot)[next.name] || 0;
         await this.agent.actions.runAction('itemGoal:next', async () => {
             await next.execute(quantity);
         });
-        let final_quantity = world.getInventoryCounts(this.agent.bot)[next.name] || 0;
+        let final_quantity = ownedCounts(this.agent.bot)[next.name] || 0;
 
         // Log the result of the goal attempt
         if (final_quantity > init_quantity) {
