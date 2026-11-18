@@ -46,13 +46,14 @@ export function getBlockAtPosition(bot, x=0, y=0, z=0) {
      * @param {number} x - The relative x offset to serach, default 0.
      * @param {number} y - The relative y offset to serach, default 0.
      * @param {number} y - The relative z offset to serach, default 0. 
-     * @returns {Block} - The nearest block.
+     * @returns {Block} - The block there, or one named 'unknown' when the bot has no block for that spot
+     *   (its chunk isn't loaded), since calling that 'air' would tell the model it is open space.
      * @example
      * let blockBelow = world.getBlockAtPosition(bot, 0, -1, 0);
      * let blockAbove = world.getBlockAtPosition(bot, 0, 2, 0); since minecraft position is at the feet
      **/
     let block = bot.blockAt(bot.entity.position.offset(x, y, z));
-    if (!block) block = {name: 'air'};
+    if (!block) block = {name: 'unknown'};
        
     return block;
 }
@@ -100,7 +101,7 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
     let height = 0
     for (let i = 0; i < distance; i++) {
         let block = bot.blockAt(bot.entity.position.offset(0, i+2, 0));
-        if (!block) block = {name: 'air'};
+        if (!block) block = {name: 'unknown'};
         // Ignore and continue
         if (ignore_blocks.includes(block.name)) continue;
         // Defaults to any block
