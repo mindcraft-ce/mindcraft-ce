@@ -18,6 +18,10 @@ backports the following changes from PrismarineJS master:
 - [Correct placement exclusion block](https://github.com/PrismarineJS/mineflayer-pathfinder/pull/351)
   (`874949196ac1`).
 - [Pass the node to GoalBreakBlock.isEnd](https://github.com/PrismarineJS/mineflayer-pathfinder/commit/d69a02904bc8).
+- [Diagonal corner cuts and raised diagonal jumps](https://github.com/PrismarineJS/mineflayer-pathfinder/pull/393)
+  (`1d4d316f0044`). A diagonal is planned only when both cells beside it are open,
+  and a raised block is climbed straight on. The walker can't cut a solid corner,
+  so it stood still at every turn of a tunnel one block wide.
 
 Local changes clear a rejected goal, enable wooden doors and fence gates, finish
 door interaction state, release jump after placement, and allow escape from lava
