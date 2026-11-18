@@ -1463,7 +1463,8 @@ export async function avoidEnemies(bot, distance=16) {
         if (bot.interrupt_code) {
             break;
         }
-        if (enemy && bot.entity.position.distanceTo(enemy.position) < 3) {
+        // A creeper this close is about to explode: keep walking away from it rather than stop to hit it.
+        if (enemy && enemy.name !== 'creeper' && bot.entity.position.distanceTo(enemy.position) < 3) {
             await attackEntity(bot, enemy, false);
         }
     }
