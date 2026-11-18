@@ -1451,7 +1451,7 @@ export async function avoidEnemies(bot, distance=16) {
      * @example
      * await skills.avoidEnemies(bot, 8);
      **/
-    bot.modes.pause('self_preservation'); // prevents damage-on-low-health from interrupting the bot
+    // self_preservation stays on: a bot fleeing into lava, fire or deep water still needs it to get out.
     let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
     while (enemy) {
         const follow = new pf.goals.GoalFollow(enemy, distance+1); // move a little further away
