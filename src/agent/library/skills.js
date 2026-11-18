@@ -1592,12 +1592,12 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
     if (bot.modes.isOn('cheat')) {
         let to_remove = ['_seed', '_seeds'];
         for (let remove of to_remove) {
-            if (seedType.endsWith(remove)) {
+            if (seedType?.endsWith(remove)) {
                 seedType = seedType.replace(remove, '');
             }
         }
-        placeBlock(bot, 'farmland', x, y, z);
-        placeBlock(bot, seedType, x, y+1, z);
+        await placeBlock(bot, 'farmland', x, y, z);
+        if (seedType) await placeBlock(bot, seedType, x, y+1, z);
         return true;
     }
 
