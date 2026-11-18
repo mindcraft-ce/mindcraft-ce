@@ -14,6 +14,9 @@ export class ActionManager {
         this.owner = null;
         this.sequence = 0;
         this.startQueue = Promise.resolve();
+        // Explicit stops so far. A start asked for before the latest one comes back cancelled: the
+        // stop was meant for it too, though it hadn't begun yet.
+        this.stopCount = 0;
         this.progress = new ProgressTracker();
     }
     reportProgress(message) {
@@ -26,13 +29,17 @@ export class ActionManager {
     }
     async runAction(label, fn, {timeout = 10, resume = false} = {}) {
         if (resume) { this.resume_func = fn; this.resume_name = label; this.resume_timeout = timeout; }
+        const stopsWhenAsked = this.stopCount;
         let release;
         const previous = this.startQueue;
         this.startQueue = new Promise(resolve => { release = resolve; });
         await previous;
         let owner;
         try {
-            await this.stop();
+            await this._stopCurrent();
+            // A stop that came while this start waited its turn, or while the old action was being
+            // stopped, was meant for this one as well.
+            if (this.stopCount !== stopsWhenAsked) return this._cancelledBeforeStart();
             this.agent.clearBotLogs();
             const controller = new AbortController();
             owner = {id: ++this.sequence, bot: this.agent.bot, controller, signal: controller.signal, cleanups:new Set()};
@@ -91,7 +98,16 @@ export class ActionManager {
         this.agent.bot.emit('action_complete', {id: owner.id, result: ended});
         return ended;
     }
+    _cancelledBeforeStart() {
+        const result = toolResult('cancelled', 'Action cancelled before it started.', 'interrupted');
+        return {...result, success: false, message: result.text, interrupted: true, timedout: false};
+    }
+    /** Stops the current action and anything already asked to start. */
     async stop() {
+        this.stopCount++;
+        await this._stopCurrent();
+    }
+    async _stopCurrent() {
         const owner = this.owner;
         if (!owner) return;
         owner.controller.abort(Object.assign(new Error('Action cancelled'), {code: 'interrupted'}));
