@@ -64,13 +64,23 @@ export async function craftRecipe(bot, itemName, num=1) {
             // Try to place crafting table
             let hasTable = world.getInventoryCounts(bot)['crafting_table'] > 0;
             if (hasTable) {
+                // Without a spot, or with a table that didn't go down, a table recipe can't be crafted.
                 let pos = world.getNearestFreeSpace(bot, 1, 6);
-                await placeBlock(bot, 'crafting_table', pos.x, pos.y, pos.z);
-                craftingTable = world.getNearestBlock(bot, 'crafting_table', craftingTableRange);
-                if (craftingTable) {
-                    recipes = bot.recipesFor(mc.getItemId(itemName), null, 1, craftingTable);
-                    placedTable = true;
+                if (!pos) {
+                    log(bot, `Could not find a free space to place a crafting table for ${itemName}.`);
+                    return false;
                 }
+                if (!await placeBlock(bot, 'crafting_table', pos.x, pos.y, pos.z)) {
+                    log(bot, `Could not place a crafting table for ${itemName}.`);
+                    return false;
+                }
+                craftingTable = world.getNearestBlock(bot, 'crafting_table', craftingTableRange);
+                if (!craftingTable) {
+                    log(bot, `Could not find the crafting table placed for ${itemName}.`);
+                    return false;
+                }
+                recipes = bot.recipesFor(mc.getItemId(itemName), null, 1, craftingTable);
+                placedTable = true;
             }
             else {
                 log(bot, `Crafting ${itemName} requires a crafting table.`)
