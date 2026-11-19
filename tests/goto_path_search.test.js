@@ -5,7 +5,12 @@
 // takes longer than 40 ms to find as no route at all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { searchPath } from '../src/agent/library/skills.js';
+import minecraftData from 'minecraft-data';
+import { Vec3 } from 'vec3';
+import settings from '../settings.js';
+import { setSettings } from '../src/agent/settings.js';
+import { initBot } from '../src/utils/mcdata.js';
+import { goToGoal, searchPath } from '../src/agent/library/skills.js';
 import { getSkillDocs } from '../src/agent/library/index.js';
 
 // A stand-in for mineflayer-pathfinder's search: the same generator shape as bot.pathfinder.getPathFromTo,
@@ -79,4 +84,37 @@ test('an interrupted action stops searching at the next slice', async () => {
 
 test('the helper is not described to the model as a skill', () => {
     assert.ok(!getSkillDocs().some(doc => doc.startsWith('skills.searchPath')));
+});
+
+test('cancelling either search prevents navigation from starting', async () => {
+    const version = '1.21.11';
+    setSettings({ ...settings, minecraft_version: version, host: '127.0.0.1', port: 1, auth: 'offline' });
+    const loader = initBot('GameData');
+    loader.on('error', () => {});
+    loader.emit('login');
+    loader.end();
+    for (const cancelOn of [1, 2]) {
+        let searches = 0;
+        const bot = {
+            registry: minecraftData(version),
+            version,
+            game: { minY: -64 },
+            entity: { position: new Vec3(0, 64, 0) },
+            output: '',
+            pathfinder: {
+                *getPathFromTo() {
+                    if (++searches === cancelOn) {
+                        setImmediate(() => { bot.interrupt_code = true; });
+                        yield { result: { status: 'partial' } };
+                        assert.fail('search continued after cancellation');
+                    }
+                    yield { result: { status: 'noPath' } };
+                },
+                setMovements() { assert.fail('movement changed after cancellation'); },
+                goto() { assert.fail('navigation started after cancellation'); },
+            },
+        };
+        assert.equal(await goToGoal(bot, {}), false);
+        assert.equal(searches, cancelOn);
+    }
 });
