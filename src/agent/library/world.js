@@ -82,7 +82,7 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
      * @param {Bot} bot - The bot to get the block for.
      * @param {string[]} ignore_types - The names of the blocks to ignore.
      * @param {number} distance - The maximum distance to search, default 32.
-     * @returns {string} - The fist block above head.
+     * @returns {string} - The first block above the head, 'none', or an incomplete scan result.
      * @example
      * let firstBlockAboveHead = world.getFirstBlockAboveHead(bot, null, 32);
      **/
@@ -100,8 +100,8 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
     let block_above = {name: 'air'};
     let height = 0
     for (let i = 0; i < distance; i++) {
-        let block = bot.blockAt(bot.entity.position.offset(0, i+2, 0));
-        if (!block) block = {name: 'unknown'};
+        const block = bot.blockAt(bot.entity.position.offset(0, i+2, 0));
+        if (!block) return 'unknown (incomplete scan)';
         // Ignore and continue
         if (ignore_blocks.includes(block.name)) continue;
         // Defaults to any block

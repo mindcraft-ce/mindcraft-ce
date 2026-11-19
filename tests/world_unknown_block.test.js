@@ -24,5 +24,5 @@ test('the first block above the head stops at a spot with no block, rather than 
     // Air for two blocks above the head, then nothing loaded, then stone the bot could not know is there.
     const bot = { entity: { position: new Vec3(0.5, 64, 0.5) },
         blockAt: pos => (pos.y < 68 ? { name: 'air', position: pos } : pos.y < 70 ? null : { name: 'stone', position: pos }) };
-    assert.equal(world.getFirstBlockAboveHead(bot, null, 32), 'unknown (2 blocks up)');
+    assert.equal(world.getFirstBlockAboveHead(bot, null, 32), 'unknown (incomplete scan)');
 });
