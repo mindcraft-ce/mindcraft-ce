@@ -46,13 +46,14 @@ export function getBlockAtPosition(bot, x=0, y=0, z=0) {
      * @param {number} x - The relative x offset to serach, default 0.
      * @param {number} y - The relative y offset to serach, default 0.
      * @param {number} y - The relative z offset to serach, default 0. 
-     * @returns {Block} - The nearest block.
+     * @returns {Block} - The block there, or one named 'unknown' when the bot has no block for that spot
+     *   (its chunk isn't loaded), since calling that 'air' would tell the model it is open space.
      * @example
      * let blockBelow = world.getBlockAtPosition(bot, 0, -1, 0);
      * let blockAbove = world.getBlockAtPosition(bot, 0, 2, 0); since minecraft position is at the feet
      **/
     let block = bot.blockAt(bot.entity.position.offset(x, y, z));
-    if (!block) block = {name: 'air'};
+    if (!block) block = {name: 'unknown'};
        
     return block;
 }
@@ -81,7 +82,7 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
      * @param {Bot} bot - The bot to get the block for.
      * @param {string[]} ignore_types - The names of the blocks to ignore.
      * @param {number} distance - The maximum distance to search, default 32.
-     * @returns {string} - The fist block above head.
+     * @returns {string} - The first block above the head, 'none', or an incomplete scan result.
      * @example
      * let firstBlockAboveHead = world.getFirstBlockAboveHead(bot, null, 32);
      **/
@@ -99,8 +100,8 @@ export function getFirstBlockAboveHead(bot, ignore_types=null, distance=32) {
     let block_above = {name: 'air'};
     let height = 0
     for (let i = 0; i < distance; i++) {
-        let block = bot.blockAt(bot.entity.position.offset(0, i+2, 0));
-        if (!block) block = {name: 'air'};
+        const block = bot.blockAt(bot.entity.position.offset(0, i+2, 0));
+        if (!block) return 'unknown (incomplete scan)';
         // Ignore and continue
         if (ignore_blocks.includes(block.name)) continue;
         // Defaults to any block
