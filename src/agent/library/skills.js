@@ -1082,12 +1082,36 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     return false;
 }
 
+// Searches for a path to the goal for up to timeoutMs, and returns the pathfinder's last result.
+//
+// bot.pathfinder.getPathTo(movements, goal, timeout) looks like it searches for `timeout` ms, but it runs
+// only the first slice of the search: the pathfinder stops after bot.pathfinder.tickTimeout (40 ms) and
+// reports "partial", expecting to be called again. So any route that takes longer than 40 ms to find came
+// back as not found. This keeps going until the search succeeds, fails or runs out of time, and lets the
+// game run between slices so the bot does not freeze while it thinks.
+//
+// The comment sits outside the function body on purpose: only functions with a doc block inside are
+// described to the model as skills, and this is a helper, not a skill.
+export async function searchPath(bot, movements, goal, timeoutMs) {
+    movements.updateLavaAvoidance?.(); // getPathTo does this before searching; keep the same behavior
+    let last = null;
+    for (const { result } of bot.pathfinder.getPathFromTo(movements, bot.entity.position, goal, { timeout: timeoutMs })) {
+        last = result;
+        if (result.status !== 'partial' || bot.interrupt_code) break;
+        await new Promise(resolve => setImmediate(resolve));
+        if (bot.interrupt_code) break;
+    }
+    return last;
+}
+
 export async function goToGoal(bot, goal) {
     /**
      * Navigate to the given goal. Use doors and attempt minimally destructive movements.
      * @param {MinecraftBot} bot, reference to the minecraft bot.
      * @param {pf.goals.Goal} goal, the goal to navigate to.
      **/
+
+    if (bot.interrupt_code) return false;
 
     const nonDestructiveMovements = new pf.Movements(bot);
     const dontBreakBlocks = ['glass', 'glass_pane'];
@@ -1102,15 +1126,19 @@ export async function goToGoal(bot, goal) {
     let final_movements = destructiveMovements;
 
     const pathfind_timeout = 1000;
-    if (await bot.pathfinder.getPathTo(nonDestructiveMovements, goal, pathfind_timeout).status === 'success') {
+    const nonDestructivePath = await searchPath(bot, nonDestructiveMovements, goal, pathfind_timeout);
+    if (bot.interrupt_code) return false;
+    if (nonDestructivePath?.status === 'success') {
         final_movements = nonDestructiveMovements;
         log(bot, `Found non-destructive path.`);
-    }
-    else if (await bot.pathfinder.getPathTo(destructiveMovements, goal, pathfind_timeout).status === 'success') {
-        log(bot, `Found destructive path.`);
-    }
-    else {
-        log(bot, `Path not found, but attempting to navigate anyway using destructive movements.`);
+    } else {
+        const destructivePath = await searchPath(bot, destructiveMovements, goal, pathfind_timeout);
+        if (bot.interrupt_code) return false;
+        if (destructivePath?.status === 'success') {
+            log(bot, `Found destructive path.`);
+        } else {
+            log(bot, `Path not found, but attempting to navigate anyway using destructive movements.`);
+        }
     }
 
     const doorCheckInterval = startDoorInterval(bot);
