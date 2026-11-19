@@ -140,3 +140,25 @@ test('an item at the far side of its cell, just out of reach, is fetched with a 
     assert.equal(last.get('forward'), false, 'and let go of forward');
     assert.equal(last.get('sneak'), false, 'and of sneak');
 });
+
+test('a blocked approach retries from a different side of the drop', async () => {
+    const { bot, item } = fakeBot({ itemAt: { x: 1.95, y: 64, z: 1.5 } });
+    const first = bot.entity.position.floored();
+    const other = new Vec3(2, 64, 1);
+    const attempts = [];
+    bot.setControlState = () => {};
+    bot.pathfinder.goto = async goal => {
+        attempts.push({ acceptsFirst: goal.isEnd(first), acceptsOther: goal.isEnd(other) });
+        if (goal.isEnd(first)) return;
+        if (goal.isEnd(other)) {
+            bot.entity.position = other.offset(0.5, 0, 0.5);
+            if (withinPickup(bot.entity.position, item.position)) delete bot.entities[item.id];
+        }
+    };
+    await pickupNearbyItems(bot, false);
+    assert.deepEqual(attempts, [
+        { acceptsFirst: true, acceptsOther: true },
+        { acceptsFirst: false, acceptsOther: true },
+    ]);
+    assert.equal(bot.entities[item.id], undefined);
+});

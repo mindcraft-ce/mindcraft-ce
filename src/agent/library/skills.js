@@ -470,11 +470,14 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
 //
 // GoalFollow keeps track of the item if it slides, and plans again once it has moved more than a block.
 class GoalPickUp extends pf.goals.GoalFollow {
-    constructor(item) {
+    constructor(item, previousApproach) {
         super(item, 1);
+        this.previousApproach = previousApproach;
     }
 
     isEnd(node) {
+        // Once an approach stalls, try a different column around the drop.
+        if (node.x === this.previousApproach?.x && node.z === this.previousApproach?.z) return false;
         const below = this.y - node.y; // how far the bot's feet are under the item's cell
         return Math.abs(this.x - node.x) <= 1 && Math.abs(this.z - node.z) <= 1 && (below === 0 || below === 1);
     }
@@ -532,6 +535,7 @@ export async function pickupNearbyItems(bot, allowDig=false) {
         await new Promise(resolve => setTimeout(resolve, 350));
         const deadline = Date.now() + 7000;
         const attempts = new Map();
+        const approaches = new Map();
         while (Date.now() < deadline && !bot.interrupt_code) {
             assertActionOwner(bot);
             const nearest = bot.nearestEntity(entity => entity.name === 'item' &&
@@ -541,10 +545,11 @@ export async function pickupNearbyItems(bot, allowDig=false) {
             attempts.set(nearest.id, tries + 1);
             bot.pathfinder.setMovements(tries > 0 && allowDig ? digging : walking);
             try {
-                await cancellable(bot, () => bot.pathfinder.goto(new GoalPickUp(nearest)),
+                await cancellable(bot, () => bot.pathfinder.goto(new GoalPickUp(nearest, approaches.get(nearest.id))),
                     3000, () => bot.pathfinder.setGoal(null));
                 await new Promise(resolve => setTimeout(resolve, 400));
                 if (bot.entities[nearest.id]) {
+                    approaches.set(nearest.id, bot.entity.position.floored());
                     await stepToward(bot, nearest);
                     await new Promise(resolve => setTimeout(resolve, 250));
                 }
