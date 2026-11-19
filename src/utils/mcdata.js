@@ -54,7 +54,11 @@ function enableFabricRegistrySync(bot) {
  * @typedef {string} BlockName
 */
 
-export const WOOD_TYPES = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry'];
+// Woods whose trees have logs. Newer woods are listed with the version that added them; on an older
+// version their names match nothing, so the list can run ahead of the game.
+export const WOOD_TYPES = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry',
+    'pale_oak', // 1.21.4+
+    'poplar'];  // 26.3+
 export const MATCHING_WOOD_BLOCKS = [
     'log',
     'planks',

@@ -2,6 +2,20 @@ import * as world from '../library/world.js';
 import * as mc from '../../utils/mcdata.js';
 
 
+/**
+ * The wood a block or item is made of, such as 'dark_oak' for 'stripped_dark_oak_log', or null.
+ * Woods match as whole words and the longest one wins, so dark oak and pale oak are not taken for oak.
+ */
+export function woodTypeOf(name) {
+    let found = null;
+    for (const wood of mc.WOOD_TYPES) {
+        if (`_${name}_`.includes(`_${wood}_`) && (found === null || wood.length > found.length))
+            found = wood;
+    }
+    return found;
+}
+
+
 export function getTypeOfGeneric(bot, block_name) {
     // Get type of wooden block
     if (mc.MATCHING_WOOD_BLOCKS.includes(block_name)) {
@@ -12,15 +26,14 @@ export function getTypeOfGeneric(bot, block_name) {
         let max_type = null;
         let inventory = world.getInventoryCounts(bot);
         for (const item in inventory) {
-            for (const wood of mc.WOOD_TYPES) {
-                if (item.includes(wood)) {
-                    if (type_count[wood] === undefined)
-                        type_count[wood] = 0;
-                    type_count[wood] += inventory[item];
-                    if (type_count[wood] > max_count) {
-                        max_count = type_count[wood];
-                        max_type = wood;
-                    }
+            const wood = woodTypeOf(item);
+            if (wood !== null) {
+                if (type_count[wood] === undefined)
+                    type_count[wood] = 0;
+                type_count[wood] += inventory[item];
+                if (type_count[wood] > max_count) {
+                    max_count = type_count[wood];
+                    max_type = wood;
                 }
             }
         }
@@ -31,7 +44,7 @@ export function getTypeOfGeneric(bot, block_name) {
         let log_types = mc.WOOD_TYPES.map((wood) => wood + '_log');
         let blocks = world.getNearestBlocks(bot, log_types, 16, 1);
         if (blocks.length > 0) {
-            let wood = blocks[0].name.split('_')[0];
+            let wood = woodTypeOf(blocks[0].name);
             return wood + '_' + block_name;
         }
 
