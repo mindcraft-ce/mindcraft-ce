@@ -138,8 +138,7 @@ export class ActionManager {
 
             let message = this.getBotOutputSummary() +
                 '!!Code threw exception!!\n' +
-                'Error: ' + err + '\n' +
-                'Stack trace:\n' + err.stack+'\n';
+                'Error: ' + err + '\n';
 
             let interrupted = this.agent.bot.interrupt_code;
             this.agent.clearBotLogs();
