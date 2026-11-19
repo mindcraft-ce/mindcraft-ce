@@ -274,7 +274,10 @@ export function getInventoryCounts(bot) {
      * let hasWoodenPickaxe = inventory['wooden_pickaxe'] > 0;
      **/
     let inventory = {};
-    for (const slot of bot.inventory.slots) {
+    for (let index = 0; index < bot.inventory.slots.length; index++) {
+        // Slots 5 to 8 are the armor the bot wears, which !inventory lists apart. It isn't carried.
+        if (index >= 5 && index <= 8) continue;
+        const slot = bot.inventory.slots[index];
         if (slot != null && slot.name) {
             if (inventory[slot.name] == null) {
                 inventory[slot.name] = 0;

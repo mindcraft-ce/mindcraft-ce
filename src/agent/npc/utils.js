@@ -97,6 +97,19 @@ export function blockSatisfied(target_name, block) {
 }
 
 
+/**
+ * What the bot has, worn armor included: an NPC goal for a chestplate is met once the bot wears one.
+ * getInventoryCounts leaves worn armor out, since it isn't carried, and crafting puts armor on at once.
+ */
+export function ownedCounts(bot) {
+    const counts = world.getInventoryCounts(bot);
+    for (let index = 5; index <= 8; index++) {
+        const worn = bot.inventory.slots[index];
+        if (worn?.name) counts[worn.name] = (counts[worn.name] ?? 0) + worn.count;
+    }
+    return counts;
+}
+
 export function itemSatisfied(bot, item, quantity=1) {
     let qualifying = [item];
     if (item.includes('pickaxe') || 
@@ -122,8 +135,9 @@ export function itemSatisfied(bot, item, quantity=1) {
             qualifying.push('diamond_' + type);
         }
     }
+    const owned = ownedCounts(bot);
     for (let item of qualifying) {
-        if (world.getInventoryCounts(bot)[item] >= quantity) {
+        if (owned[item] >= quantity) {
             return true;
         }
     }
