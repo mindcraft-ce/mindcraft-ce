@@ -160,7 +160,8 @@ const modes_list = [
         on: true,
         active: false,
         update: async function (agent) {
-            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity), 8);
+            // defendSelf won't fight a creeper (it explodes next to whoever stands there), so starting it for one would do nothing
+            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && entity.name !== 'creeper', 8);
             if (enemy && await world.isClearPath(agent.bot, enemy)) {
                 say(agent, `Fighting ${enemy.name}!`);
                 execute(this, agent, async () => {

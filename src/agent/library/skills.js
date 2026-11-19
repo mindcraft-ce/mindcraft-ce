@@ -379,7 +379,9 @@ export async function defendSelf(bot, range=9) {
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
     let attacked = false;
-    let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+    // Not a creeper: the combat plugin would follow it to melee range and stay there while it explodes.
+    const isFoe = entity => mc.isHostile(entity) && entity.name !== 'creeper';
+    let enemy = world.getNearestEntityWhere(bot, isFoe, range);
     while (enemy) {
         await equipHighestAttack(bot);
         if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'creeper' && enemy.name !== 'phantom') {
@@ -398,7 +400,7 @@ export async function defendSelf(bot, range=9) {
         bot.pvp.attack(enemy);
         attacked = true;
         await new Promise(resolve => setTimeout(resolve, 500));
-        enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+        enemy = world.getNearestEntityWhere(bot, isFoe, range);
         if (bot.interrupt_code) {
             bot.pvp.stop();
             return false;
