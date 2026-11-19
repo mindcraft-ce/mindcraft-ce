@@ -36,3 +36,21 @@ test('with no seed, it only tills', async () => {
     assert.equal(await tillAndSow(bot, 1, 63, 2), true);
     assert.deepEqual(planted(said), ['/setblock 1 63 2 farmland']);
 });
+
+test('a failed farmland placement stops before trying the crop', async () => {
+    const { bot, said } = cheatingBot();
+    const tried = [];
+    bot.restrict_to_inventory = true;
+    bot.inventory = { findInventoryItem: name => { tried.push(name); return null; } };
+    assert.equal(await tillAndSow(bot, 1, 63, 2, 'wheat_seeds'), false);
+    assert.deepEqual(tried, ['farmland']);
+    assert.deepEqual(said, []);
+});
+
+test('a failed crop placement returns failure after tilling', async () => {
+    const { bot, said } = cheatingBot();
+    bot.restrict_to_inventory = true;
+    bot.inventory = { findInventoryItem: name => name === 'farmland' ? { name } : null };
+    assert.equal(await tillAndSow(bot, 1, 63, 2, 'wheat_seeds'), false);
+    assert.deepEqual(planted(said), ['/setblock 1 63 2 farmland']);
+});

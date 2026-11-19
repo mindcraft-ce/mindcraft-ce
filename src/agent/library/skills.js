@@ -1596,9 +1596,8 @@ export async function tillAndSow(bot, x, y, z, seedType=null) {
                 seedType = seedType.replace(remove, '');
             }
         }
-        await placeBlock(bot, 'farmland', x, y, z);
-        if (seedType) await placeBlock(bot, seedType, x, y+1, z);
-        return true;
+        if (!await placeBlock(bot, 'farmland', x, y, z)) return false;
+        return seedType ? await placeBlock(bot, seedType, x, y+1, z) : true;
     }
 
     if (block.name !== 'grass_block' && block.name !== 'dirt' && block.name !== 'farmland') {
