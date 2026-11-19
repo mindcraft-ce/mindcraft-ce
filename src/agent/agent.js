@@ -18,6 +18,11 @@ import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
 
+/** The chat command that applies a profile's skin, or null when the profile doesn't set one. */
+export function skinCommand(profile) {
+    return profile?.skin ? `/skin set URL ${profile.skin.model} ${profile.skin.path}` : null;
+}
+
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
         this.last_sender = null;
@@ -95,10 +100,10 @@ export class Agent {
             serverProxy.login();
             
             // Set skin for profile, requires Fabric Tailor. (https://modrinth.com/mod/fabrictailor)
-            if (this.prompter.profile.skin)
-                this.bot.chat(`/skin set URL ${this.prompter.profile.skin.model} ${this.prompter.profile.skin.path}`);
-            else
-                this.bot.chat(`/skin clear`);
+            // With no skin configured nothing is sent: "/skin clear" is an unknown command on every
+            // server without that mod, and shows up in its log at each login.
+            const skin = skinCommand(this.prompter.profile);
+            if (skin) this.bot.chat(skin);
         });
 		const spawnTimeoutDuration = settings.spawn_timeout;
         const spawnTimeout = setTimeout(() => {
