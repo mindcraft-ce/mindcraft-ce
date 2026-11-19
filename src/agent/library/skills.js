@@ -1509,9 +1509,7 @@ export async function useDoor(bot, door_pos=null) {
     if (!door_pos) {
         // One search for every kind of door at once, which also finds the nearest door, not the nearest of
         // the first kind listed. A search per kind scanned the area once for each of them.
-        const doors = ['oak_door', 'spruce_door', 'birch_door', 'jungle_door', 'acacia_door', 'dark_oak_door',
-                       'mangrove_door', 'cherry_door', 'bamboo_door', 'crimson_door', 'warped_door'];
-        door_pos = world.getNearestBlocks(bot, doors, 16, 1)[0]?.position;
+        door_pos = world.getNearestBlocks(bot, mc.HAND_OPENED_DOORS, 16, 1)[0]?.position;
     } else {
         door_pos = Vec3(door_pos.x, door_pos.y, door_pos.z);
     }
@@ -1527,7 +1525,9 @@ export async function useDoor(bot, door_pos=null) {
     }
     
     let door_block = bot.blockAt(door_pos);
-    await bot.lookAt(door_pos);
+    // Face the middle of the doorway: the walk below is straight ahead. A block's position is its corner,
+    // and facing that, the bot walks into the edge of a door that is already open.
+    await bot.lookAt(door_pos.offset(0.5, 0.5, 0.5));
     if (!door_block._properties.open)
         await bot.activateBlock(door_block);
     

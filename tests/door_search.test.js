@@ -54,7 +54,7 @@ test('with no door nearby, useDoor searches once and says so', async () => {
 test('useDoor goes to the nearest door, whatever its kind', async () => {
     await loadGameData();
     const far = { name: 'oak_door', position: new Vec3(12, 64, 0), _properties: { open: true, half: 'lower' } };
-    const near = { name: 'spruce_door', position: new Vec3(3, 64, 0), _properties: { open: true, half: 'lower' } };
+    const near = { name: 'copper_door', position: new Vec3(3, 64, 0), _properties: { open: true, half: 'lower' } };
     const { bot, searches } = botWithDoors([far, near]);
     assert.equal(await useDoor(bot), true);
     assert.equal(searches.length, 1);
