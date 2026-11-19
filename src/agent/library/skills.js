@@ -1688,7 +1688,7 @@ async function findAndGoToVillager(bot, id) {
         let villager_list = "Available villagers:\n";
         for (let entity of entities) {
             if (entity.name === 'villager') {
-                if (entity.metadata && entity.metadata[16] === 1) {
+                if (entity.metadata && entity.metadata[16] === true) {
                     villager_list += `${entity.id}: baby villager\n`;
                 } else {
                     const profession = world.getVillagerProfession(entity);
@@ -1709,7 +1709,7 @@ async function findAndGoToVillager(bot, id) {
         return null;
     }
     
-    if (entity.metadata && entity.metadata[16] === 1) {
+    if (entity.metadata && entity.metadata[16] === true) {
         log(bot, 'This is either a baby villager or a villager with no job - neither can trade');
         return null;
     }
