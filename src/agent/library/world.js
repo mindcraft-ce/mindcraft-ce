@@ -427,5 +427,7 @@ export function getBiomeName(bot) {
      * let biome = world.getBiomeName(bot);
      **/
     const biomeId = bot.world.getBiome(bot.entity.position);
-    return mc.getAllBiomes()[biomeId].name;
+    // The game data may have no entry for this biome (a server newer than the data, for one). The bot's
+    // status is built from this on every prompt, so an error here stops it from answering at all.
+    return mc.getAllBiomes()[biomeId]?.name ?? 'unknown';
 }
