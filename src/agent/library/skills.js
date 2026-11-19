@@ -1017,7 +1017,6 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     }
     await goToPlayer(bot, username, 3);
     // if we are 2 below the player
-    log(bot, bot.entity.position.y, player.position.y);
     if (bot.entity.position.y < player.position.y - 1) {
         await goToPlayer(bot, username, 1);
     }
@@ -1973,7 +1972,7 @@ export async function goToSurface(bot) {
             continue;
         }
         await goToPosition(bot, block.position.x, block.position.y + 1, block.position.z, 0); // this will probably work most of the time but a custom mining and towering up implementation could be added if needed
-        log(bot, `Going to the surface at y=${y+1}.`);``
+        log(bot, `Going to the surface at y=${y+1}.`);
         return true;
     }
     return false;
