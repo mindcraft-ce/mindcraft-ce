@@ -17,6 +17,8 @@ import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
+import { pushPositionIfMoved } from './topography/service.js';
+import { Feed } from './topography/feed.js';
 
 /** The chat command that applies a profile's skin, or null when the profile doesn't set one. */
 export function skinCommand(profile) {
@@ -69,6 +71,10 @@ export class Agent {
 
         console.log(this.name, 'logging into minecraft...');
         this.bot = initBot(this.name);
+        // The feed owns the chunk events and the seen ledger (see topography/feed.js).
+        this.feed = new Feed(this);
+        this.seen = this.feed.seen;
+        try { this.feed.attach(this.bot); } catch (e) { console.warn('[topography] chunk feed:', e?.message || e); }
         
         // Connection Handler
         const onDisconnect = (event, reason) => {
@@ -526,6 +532,7 @@ export class Agent {
     async update(delta) {
         await this.bot.modes.update();
         this.self_prompter.update(delta);
+        pushPositionIfMoved(this);
         await this.checkTaskDone();
     }
 
