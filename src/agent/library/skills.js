@@ -44,7 +44,8 @@ export async function craftRecipe(bot, itemName, num=1) {
      **/
     let placedTable = false;
 
-    if (mc.getItemCraftingRecipes(itemName).length == 0) {
+    // An item with no crafting recipe, or a name that is no item, gets null here, not an empty list.
+    if (!mc.getItemCraftingRecipes(itemName)?.length) {
         log(bot, `${itemName} is either not an item, or it does not have a crafting recipe!`);
         return false;
     }
