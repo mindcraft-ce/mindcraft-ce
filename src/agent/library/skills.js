@@ -331,6 +331,11 @@ export async function attackNearest(bot, mobType, kill=true) {
      * @example
      * await skills.attackNearest(bot, "zombie", true);
      **/
+    // Checked before anything is paused: a model that leaves the type out shouldn't turn off a reflex.
+    if (typeof mobType !== 'string' || mobType.trim() === '') {
+        log(bot, 'Please provide a mob type to attack.');
+        return false;
+    }
     bot.modes.pause('cowardice');
     if (mobType === 'drowned' || mobType === 'cod' || mobType === 'salmon' || mobType === 'tropical_fish' || mobType === 'squid')
         bot.modes.pause('self_preservation'); // so it can go underwater. TODO: have an drowning mode so we don't turn off all self_preservation
