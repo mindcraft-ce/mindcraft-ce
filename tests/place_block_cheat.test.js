@@ -25,3 +25,9 @@ test('a door gets its top half, and a bed its head', async () => {
     await placeBlock(bed.bot, 'red_bed', 1, 64, 2);
     assert.deepEqual(bed.said, ['/setblock 1 64 2 red_bed', '/setblock 1 64 1 red_bed[part=head]']);
 });
+
+test('bedrock and trapdoors do not get a second block', async () => {
+    const { bot, said } = cheatingBot();
+    for (const block of ['bedrock', 'oak_trapdoor']) await placeBlock(bot, block, 1, 64, 2);
+    assert.deepEqual(said, ['/setblock 1 64 2 bedrock', '/setblock 1 64 2 oak_trapdoor']);
+});
