@@ -235,11 +235,15 @@ export function getVillagerProfession(entity) {
         14: 'Weaponsmith'
     };
     
-    if (entity.metadata && entity.metadata[18]) {
-        // Check if metadata[18] is an object with villagerProfession property
-        if (typeof entity.metadata[18] === 'object' && entity.metadata[18].villagerProfession !== undefined) {
-            const professionId = entity.metadata[18].villagerProfession;
-            const level = entity.metadata[18].level || 1;
+    // The job and level are kept together, in entry 18 of the metadata up to Minecraft 1.21 and in 19
+    // from 26.1, which added an entry before it. So look for the entry shaped like villager data.
+    const villagerData = Object.values(entity.metadata || {})
+        .find(value => value && typeof value === 'object' && value.villagerProfession !== undefined);
+    if (entity.metadata && (villagerData || entity.metadata[18])) {
+        // Check if metadata holds an object with villagerProfession property
+        if (villagerData) {
+            const professionId = villagerData.villagerProfession;
+            const level = villagerData.level || 1;
             const professionName = professions[professionId] || 'Unknown';
             return `${professionName} L${level}`;
         }
