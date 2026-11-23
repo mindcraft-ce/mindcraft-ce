@@ -15,6 +15,20 @@ export function blockTypes(type) {
     return types;
 }
 
+// Crops are collected only when fully grown. A young plant breaks just as easily and gives back a seed at
+// best, so collecting "wheat" used to flatten a whole field. The growth stage is `age` in Java Edition and
+// `growth` in Bedrock Edition, whose beetroot block is `beetroot` and ripe at 7. A plant whose stage can't be
+// read is not ruled out: it is checked again once the bot stands at it, before anything is broken.
+const RIPE_AGE = {wheat: 7, carrots: 7, potatoes: 7, beetroots: 3, beetroot: 7, nether_wart: 3};
+export function isUnripeCrop(block) {
+    if (!block || !Object.hasOwn(RIPE_AGE, block.name)) return false;
+    const props = typeof block.getProperties === 'function' ? block.getProperties() : null;
+    const raw = props?.age ?? props?.growth;
+    if (raw === undefined || raw === null || raw === '') return false;
+    const age = Number(raw);
+    return Number.isFinite(age) && age < RIPE_AGE[block.name];
+}
+
 export async function collectBlocks(bot, type, requested, {find, pickup, liquid, afterBreak, exclude = [], now = Date.now} = {}) {
     if (!Number.isSafeInteger(requested) || requested < 1) return toolResult('failed', 'Block count must be a positive integer.', 'bad_args');
     const before = counts(bot);
@@ -47,11 +61,15 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
     while (broken < requested && attempts++ < Math.max(6, requested * 4)) {
         if (interrupt()) break;
         assertActionOwner(bot);
-        const blocks = find(block => types.has(block.name) && (!block.position || (!excluded.has(block.position.toString()) &&
+        const blocks = find(block => types.has(block.name) && !isUnripeCrop(block) && (!block.position || (!excluded.has(block.position.toString()) &&
             !failed.has(block.position.toString()))) && (type !== 'water' && type !== 'lava' || block.metadata === 0))
             .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()));
         const target = blocks[0];
-        if (!target) { blocker ||= `No reachable ${type} found nearby.`; break; }
+        if (!target) {
+            const young = find(block => types.has(block.name) && isUnripeCrop(block)).length > 0;
+            blocker ||= young ? `The ${type} nearby is not fully grown yet; breaking it now would waste it.` : `No reachable ${type} found nearby.`;
+            break;
+        }
         const key = target.position.toString();
         perTarget.set(key, (perTarget.get(key) || 0) + 1);
         try {
@@ -73,7 +91,7 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
                 }
                 assertActionOwner(bot);
                 const block = bot.blockAt(target.position);
-                if (!block || !types.has(block.name)) { excluded.add(key); continue; }
+                if (!block || !types.has(block.name) || isUnripeCrop(block)) { excluded.add(key); continue; }
                 await bot.tool.equipForBlock(block);
                 if (bot.game.gameMode !== 'creative' && !block.canHarvest(bot.heldItem?.type)) {
                     blocker = `Missing the required tool to harvest ${block.name}.`;
