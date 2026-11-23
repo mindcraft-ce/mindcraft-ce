@@ -67,12 +67,18 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
             return turn;
         });
         if (!messages.length || messages[0].role !== 'user') messages.unshift({ role: 'user', content: '_' });
+        // Claude 4.6 and later reject a request that ends on an assistant turn (a prefill).
+        if (messages[messages.length - 1].role === 'assistant') messages.push({ role: 'user', content: '_' });
+        // Without a thinking budget, newer models still think by default and that thinking counts toward
+        // max_tokens: 4,096 ended long turns as "truncated".
         const response = await provider.anthropic.messages.create({
-            ...params, model, max_tokens: params.max_tokens || ((params.thinking?.budget_tokens || 3096) + 1000),
+            ...params, model, max_tokens: params.max_tokens || (params.thinking?.budget_tokens ? params.thinking.budget_tokens + 1000 : 16000),
             system: schemaInstructions([systemMessage, ...history.filter(t => t.role === 'system').map(t => t.content)].filter(Boolean).join('\n'), responseFormat),
             messages, ...(tools.length ? { tools: tools.map(t => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters })) } : {}),
         }, {signal});
         if (response.stop_reason === 'max_tokens') throw new Error('Tool response was truncated; increase the output token limit');
+        if (response.stop_reason === 'refusal')
+            throw new Error(`Provider declined completion${response.stop_details?.category ? `: ${response.stop_details.category}` : ''}`);
         if (!Array.isArray(response.content)) throw new Error('Provider returned no completion');
         return normalizeToolResponse(response.content.filter(c => c.type === 'text').map(c => c.text).join('\n'),
             response.content.filter(c => c.type === 'tool_use').map(c => ({ id: c.id, name: c.name, arguments: c.input, provider_content: response.content })));
