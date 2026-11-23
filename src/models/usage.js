@@ -12,7 +12,9 @@ export function normalizeUsage(response={}) {
         (u.cache_read_input_tokens!==undefined||u.cache_creation_input_tokens!==undefined?cached+write:0);
     const output=u.completion_tokens??u.output_tokens??u.candidatesTokenCount??response.eval_count??0;
     const valid=n=>Number.isFinite(n)&&n>=0?n:0;
-    return {input:valid(input),output:valid(output),cached:Math.min(valid(input),valid(cached)),cost:Number.isFinite(u.cost)&&u.cost>=0?u.cost:null};
+    // written: input tokens written to a prompt cache (Claude), which cost more than plain input.
+    return {input:valid(input),output:valid(output),cached:Math.min(valid(input),valid(cached)),
+        written:Math.min(Math.max(valid(input)-valid(cached),0),valid(write)),cost:Number.isFinite(u.cost)&&u.cost>=0?u.cost:null};
 }
 export class UsageMeter {
     constructor(config={}, {now=Date.now,file=null}={}) {
@@ -48,17 +50,19 @@ export class UsageMeter {
         const usage=normalizeUsage(response);
         const reported=Boolean(response.usage||response.usageMetadata||response.prompt_eval_count!==undefined||response.eval_count!==undefined);
         if(usage.cost==null&&pricing&&reported) {
+            // Cache writes are priced as plain input unless cache_write_per_million says otherwise.
             const input=pricing.input_per_million,output=pricing.output_per_million,cached=pricing.cached_input_per_million??input;
-            if([input,output,cached].every(n=>Number.isFinite(n)&&n>=0))
-                usage.cost=((usage.input-usage.cached)*input+usage.cached*cached+usage.output*output)/1000000;
+            const written=pricing.cache_write_per_million??input;
+            if([input,output,cached,written].every(n=>Number.isFinite(n)&&n>=0))
+                usage.cost=((usage.input-usage.cached-usage.written)*input+usage.cached*cached+usage.written*written+usage.output*output)/1000000;
         }
         if(usage.cost==null) {this.unpricedCalls++;this.dayUnpriced++;}
         this.calls++;this.sessionCost+=usage.cost||0;this.dayCost+=usage.cost||0;
         const u=response.usage||response.usageMetadata||{};
         const unknownTokens=![u.input_tokens,u.prompt_tokens,u.promptTokenCount,response.prompt_eval_count,u.output_tokens,u.completion_tokens,u.candidatesTokenCount,response.eval_count].some(Number.isFinite);
         this.events.push({at:this.now(),tokens:usage.input+usage.output,unknownTokens});
-        const totals=this.byRole[role]||={calls:0,input:0,output:0,cached:0,cost:0,latencyMs:0,pricedCalls:0};
-        totals.calls++;for(const key of ['input','output','cached']) totals[key]+=usage[key];
+        const totals=this.byRole[role]||={calls:0,input:0,output:0,cached:0,written:0,cost:0,latencyMs:0,pricedCalls:0};
+        totals.calls++;for(const key of ['input','output','cached','written']) totals[key]+=usage[key];
         totals.cost+=usage.cost||0;totals.pricedCalls+=Number(usage.cost!=null);totals.latencyMs+=latencyMs;
         if(this.file) {
             mkdirSync(path.dirname(this.file),{recursive:true});

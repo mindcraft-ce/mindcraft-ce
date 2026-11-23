@@ -51,7 +51,7 @@ test('decision transport sends the configured endpoint, authorization and typed 
     assert.equal(meter.snapshot().roles.decisions.input,10);
 });
 test('usage normalizes Ollama, Anthropic and Gemini counts and preserves unknown prices',()=>{
-    assert.deepEqual(normalizeUsage({prompt_eval_count:12,eval_count:5}),{input:12,output:5,cached:0,cost:null});
+    assert.deepEqual(normalizeUsage({prompt_eval_count:12,eval_count:5}),{input:12,output:5,cached:0,written:0,cost:null});
     assert.equal(normalizeUsage({usage:{input_tokens:5,cache_read_input_tokens:20,cache_creation_input_tokens:10}}).input,35);
     assert.equal(normalizeUsage({usageMetadata:{promptTokenCount:10,candidatesTokenCount:3,cachedContentTokenCount:7}}).cached,7);
 });
