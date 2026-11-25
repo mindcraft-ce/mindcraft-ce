@@ -55,3 +55,17 @@ diff --git a/node_modules/mineflayer/lib/plugins/fishing.js b/node_modules/minef
 +    lastBobber = null
 +  }
  }
+diff --git a/node_modules/mineflayer/lib/plugins/digging.js b/node_modules/mineflayer/lib/plugins/digging.js
+--- a/node_modules/mineflayer/lib/plugins/digging.js
++++ b/node_modules/mineflayer/lib/plugins/digging.js
+@@ -154,6 +154,6 @@
+       }
+-      bot.targetDigBlock = null
+-      bot.targetDigFace = null
+-      bot.lastDigTime = performance.now()
+-      bot._updateBlockState(block.position, 0)
++      // A predicted local air block is not proof that the server accepted a dig.
++      // Keep ownership until its authoritative block update; reject boundedly if
++      // the server refuses the operation instead of leaving an unresolved promise.
++      waitTimeout = setTimeout(() => bot.stopDigging(), 5000)
+     }

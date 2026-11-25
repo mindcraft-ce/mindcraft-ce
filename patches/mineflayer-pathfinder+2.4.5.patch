@@ -169,6 +169,9 @@ diff --git a/node_modules/mineflayer-pathfinder/lib/movements.js b/node_modules/
 diff --git a/node_modules/mineflayer-pathfinder/lib/goals.js b/node_modules/mineflayer-pathfinder/lib/goals.js
 --- a/node_modules/mineflayer-pathfinder/lib/goals.js
 +++ b/node_modules/mineflayer-pathfinder/lib/goals.js
+@@ -175 +175 @@
+-    if (node.distanceTo(this.pos.offset(0, this.entityHeight, 0)) > this.reach) return false
++    if (node.offset(0, this.entityHeight, 0).distanceTo(this.pos) > this.reach) return false
 @@ -212,8 +212,8 @@
      this.goal = new GoalLookAtBlock(new Vec3(x, y, z), bot, options)
    }

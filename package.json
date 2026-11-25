@@ -41,14 +41,16 @@
         "yargs": "18.0.0"
     },
     "overrides": {
-      "canvas": "3.2.3",
-      "gl": "8.1.6"
+        "canvas": "3.2.3",
+        "gl": "8.1.6"
     },
     "scripts": {
         "postinstall": "patch-package --error-on-fail",
         "start": "node main.js",
         "reinstall": "npm run clean:modules && npm ci",
-        "clean:modules": "node -e \"const fs=require('fs');if(fs.existsSync('node_modules'))fs.rmSync('node_modules',{recursive:true,force:true});\""
+        "clean:modules": "node -e \"const fs=require('fs');if(fs.existsSync('node_modules'))fs.rmSync('node_modules',{recursive:true,force:true});\"",
+        "test": "node --test tests/*.test.js",
+        "test:live:mining": "node tests/live/mining_scenarios.js"
     },
     "devDependencies": {
         "patch-package": "8.0.1"

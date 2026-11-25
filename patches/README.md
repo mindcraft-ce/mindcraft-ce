@@ -28,6 +28,10 @@ door interaction state, release jump after placement, and allow escape from lava
 while restoring lava avoidance after leaving it. Vine climbing is restricted to
 the normal vines supported by the installed physics engine.
 
+`GoalLookAtBlock` measures reach from the bot's eye rather than adding eye height
+to the target block. The old expression could reject an otherwise visible log
+three blocks overhead, even when the bot was standing directly underneath it.
+
 The old fake block-state write before placement, tightened waypoint tolerance,
 and two-block climbing shortcuts have been removed. Paths use confirmed world
 state and upstream movement constraints.
@@ -56,6 +60,21 @@ just as crafting-table crafts do. Original errors retain their stack traces.
 Fishing exposes a cancellation method that retracts the rod and settles the
 pending fishing promise. Call `bot.stopFishing()` before another action takes
 ownership of the bot.
+
+Digging waits for the server's block update after sending finish-digging. It no
+longer writes speculative air locally, which could resolve collection before the
+server broke the block. A missing confirmation rejects after five seconds;
+interruption removes the block listener and settles the pending dig.
+
+## Prismarine-block 1.23.0
+
+Modern block materials can describe tool-tier restrictions such as
+`incorrect_for_wooden_tool` instead of mining-speed categories. When a block's
+explicit harvest-tool list identifies a matching tool family, resolve its speed
+through that family's `mineable/*` table. Keep harvest-tier checks and ineffective
+tool speeds unchanged. With the installed 1.21.11 data this changes diamond-pick
+obsidian from 75 seconds to 9.4 seconds and iron ore from 4.55 seconds to 0.6.
+Enchantments, water and airborne penalties still apply.
 
 ## PVP 1.3.2
 

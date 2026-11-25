@@ -680,6 +680,19 @@
                     const equippedEl = document.getElementById(`equipped-${name}`);
                     const invGrid = document.getElementById(`inventory-${name}`);
                     const actionEl = document.getElementById(`action-${name}`);
+                    const agentSystemEl = document.getElementById(`agentSystem-${name}`);
+                    if (agentSystemEl && st.agentSystem) {
+                        const a = st.agentSystem, u = a.usage || {};
+                        const cost = u.unpriced_calls ? `${u.session_cost_usd?.toFixed(4) || '0'} USD + unpriced usage` : `${u.session_cost_usd?.toFixed(4) || '0'} USD`;
+                        const lines = [
+                            `${a.nativeTools ? 'Native tools' : 'Text commands'} · Brain ${a.brainEnabled ? 'on' : 'off'} · Narration ${a.narration || 'periodic'}`,
+                            `Task: ${a.directive?.objective || 'none'}${a.lastOutcome ? ` · Last outcome: ${a.lastOutcome}` : ''}`,
+                            `Models: ${Object.entries(a.models || {}).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(' · ') || 'default'}`,
+                            `Goals: ${(a.goals || []).filter(g => g.status === 'active').length} active · Requests: ${u.calls || 0} · Session: ${cost}`,
+                            `Decisions: ${a.decisions?.enabled ? a.decisions.provider : 'off'}${a.decisions?.last_error ? ` · ${a.decisions.last_error}` : ''}`,
+                        ];
+                        agentSystemEl.textContent = lines.join('\n');
+                    }
                     if (posEl && gp.position) {
                         const p = gp.position;
                         posEl.textContent = `x ${p.x}, y ${p.y}, z ${p.z}`;
@@ -921,6 +934,10 @@
                             <div class="cell" id="biome-${agent.name}">biome: -</div>
                             <div class="cell" id="items-${agent.name}">inventory slots: -</div>
                             <div class="cell" id="equipped-${agent.name}">equipped: -</div>
+                            <details class="cell" style="grid-column: 1 / -1;">
+                                <summary>Agent status</summary>
+                                <div id="agentSystem-${agent.name}" style="white-space:pre-wrap;overflow-wrap:anywhere;">Waiting for state…</div>
+                            </details>
                             <div class="agent-inventory" id="inventorySection-${agent.name}" style="${invStyle} grid-column: 1 / -1;">
                                 <h3>Inventory</h3>
                                 <div class="cell" id="armor-${agent.name}" style="margin-bottom: 8px;">armor: -</div>

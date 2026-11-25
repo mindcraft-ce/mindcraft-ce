@@ -16,6 +16,8 @@ import { serverProxy, sendOutputToServer } from './mindserver_proxy.js';
 import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
+import { AgentSystem } from './agents/system.js';
+import { DecisionService } from './decisions.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
 
 /** The chat command that applies a profile's skin, or null when the profile doesn't set one. */
@@ -34,6 +36,7 @@ export class Agent {
         this.prompter = new Prompter(this, settings.profile);
         this.name = (this.prompter.getName() || '').trim();
         console.log(`Initializing agent ${this.name}...`);
+        console.log(`${this.name} action interface: ${this.prompter.use_tools ? 'native tool calling' : 'text !commands'}${this.prompter.use_brain ? ' (Brain/RP/Task agents)' : ''}`);
         
         // Validate Name Format
         // connection_handler now ensures the message has [LoginGuard] prefix
@@ -49,7 +52,9 @@ export class Agent {
         this.npc = new NPCContoller(this);
         this.memory_bank = new MemoryBank();
         this.self_prompter = new SelfPrompter(this);
+        this.decisions = new DecisionService(this, this.prompter.profile.decisions ?? settings.decisions);
         convoManager.initAgent(this);
+        if (this.prompter.use_tools) this.agentSystem = new AgentSystem(this);
         await this.prompter.initExamples();
 
         // load mem first before doing task
@@ -69,6 +74,7 @@ export class Agent {
 
         console.log(this.name, 'logging into minecraft...');
         this.bot = initBot(this.name);
+        this.bot.on('mining_progress', ({message}) => this.actions.reportProgress(message));
         
         // Connection Handler
         const onDisconnect = (event, reason) => {
@@ -150,6 +156,7 @@ export class Agent {
     }
 
     async _setupEventHandlers(save_data, init_message) {
+        this.agentSystem?.onSpawn();
         const ignore_messages = [
             "Set own game mode to",
             "Set the time to",
@@ -238,10 +245,13 @@ export class Agent {
 
     requestInterrupt() {
         this.bot.interrupt_code = true;
-        this.bot.stopDigging();
-        this.bot.collectBlock.cancelTask();
-        this.bot.pathfinder.stop();
-        this.bot.pvp.stop();
+        for (const stop of [() => this.bot.stopDigging(), () => this.bot.collectBlock.cancelTask(),
+            () => this.bot.pathfinder.setGoal(null), () => this.bot.clearControlStates(),
+            () => this.bot.pvp.stop(), () => this.bot.stopFishing?.(),
+            () => this.bot.currentWindow ? this.bot.closeWindow(this.bot.currentWindow) : null]) {
+            try { Promise.resolve(stop()).catch(error => console.warn('Action cleanup:', error.message)); }
+            catch (error) { console.warn('Action cleanup:', error.message); }
+        }
     }
 
     clearBotLogs() {
@@ -250,6 +260,7 @@ export class Agent {
     }
 
     shutUp() {
+        this.agentSystem?.cancelTask();
         this.shut_up = true;
         if (this.self_prompter.isActive()) {
             this.self_prompter.stop(false);
@@ -282,6 +293,7 @@ export class Agent {
                     this.routeResponse(source, `Command '${user_command_name}' does not exist.`);
                     return false;
                 }
+                if (['!stop', '!restart', '!clearChat'].includes(user_command_name)) this.agentSystem?.cancelTask();
                 this.routeResponse(source, `*${source} used ${user_command_name.substring(1)}*`);
                 if (user_command_name === '!newAction') {
                     // all user-initiated commands are ignored by the bot except for this one
@@ -320,6 +332,9 @@ export class Agent {
 
         if (!self_prompt && this.self_prompter.isActive()) // message is from user during self-prompting
             max_responses = 1; // force only respond to this message, then let self-prompting take over
+        if (this.agentSystem) {
+            return await this.agentSystem.handleMessage(source, message, checkInterrupt, max_responses);
+        }
         for (let i=0; i<max_responses; i++) {
             if (checkInterrupt()) break;
             let history = this.history.getHistory();
@@ -469,6 +484,7 @@ export class Agent {
             }
         });
         this.bot.on('death', () => {
+            this.agentSystem?.cancelTask();
             this.actions.cancelResume();
             this.actions.stop();
         });
@@ -524,17 +540,19 @@ export class Agent {
     }
 
     async update(delta) {
+        this.agentSystem?.tick();
         await this.bot.modes.update();
         this.self_prompter.update(delta);
         await this.checkTaskDone();
     }
 
     isIdle() {
-        return !this.actions.executing;
+        return !this.taskAgent?.is_running && !this.actions.executing;
     }
     
 
     cleanKill(msg='Killing agent process...', code=1) {
+        this.agentSystem?.cancelTask();
         console.error(`[cleanKill] ${this.name}: ${msg} (exit code ${code})`);
         this.history.add('system', msg);
         this.bot.chat(code > 1 ? 'Restarting.': 'Exiting.');
