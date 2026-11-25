@@ -51,3 +51,25 @@ test('an action asked for after a stop runs as usual', async () => {
     const result = await actions.runAction('after', async () => true);
     assert.equal(result.status, 'ok');
 });
+
+test('a failed resumable action is not replayed on idle', async t => {
+    t.mock.method(console, 'error', () => {});
+    const actions = manager();
+    let runs = 0;
+    const result = await actions.runAction('failing resume', async () => {
+        runs++;
+        throw new Error('fixture failure');
+    }, {resume: true, timeout: 0});
+    assert.equal(result.status, 'failed');
+    assert.equal((await actions.resumeAction()).success, false);
+    assert.equal(runs, 1);
+});
+
+test('cancelResume clears a resumable action before it starts', async () => {
+    const actions = manager();
+    const pending = actions.runAction('queued resume', async () => {
+        assert.fail('the cancelled action started');
+    }, {resume: true, timeout: 0});
+    actions.cancelResume();
+    assert.equal((await pending).status, 'cancelled');
+});
