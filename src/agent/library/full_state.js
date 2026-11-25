@@ -8,6 +8,7 @@ import {
     getFirstBlockAboveHead
 } from "./world.js";
 import convoManager from '../conversation.js';
+import { narrationConfig } from '../narration.js';
 
 export function getFullState(agent) {
     const bot = agent.bot;
@@ -40,11 +41,13 @@ export function getFullState(agent) {
     const leggings = bot.inventory.slots[7];
     const boots = bot.inventory.slots[8];
 
-    // Richer activity than a bare "Idle": a bot counts as idle (no action executing) even while
-    // chatting, deciding its next move, or stopped. Surface those so the dashboard is meaningful.
+    // A native loop stays busy between physical actions. Show thinking separately
+    // so the dashboard agrees with the activity used by automatic behaviors.
     let activity;
     if (!agent.isIdle()) {
-        activity = { current: agent.actions.currentActionLabel || 'Acting', kind: 'acting' };
+        activity = agent.actions.executing
+            ? {current:agent.actions.currentActionLabel || 'Acting',kind:'acting'}
+            : {current:'Thinking',kind:'thinking'};
     } else if (convoManager.inConversation()) {
         const who = convoManager.activeConversation?.name;
         activity = { current: who ? `Chatting with ${who}` : 'Chatting', kind: 'chatting' };
@@ -60,6 +63,18 @@ export function getFullState(agent) {
 
     const state = {
         name: agent.name,
+        agentSystem: {
+            nativeTools: agent.prompter.use_tools,
+            brainEnabled: agent.prompter.use_brain,
+            narration: narrationConfig(agent.prompter.profile).mode,
+            models: {brain:agent.prompter.brain_model?.model_name,task:agent.agentSystem?.task.model?.model_name || agent.prompter.task_model?.model_name,
+                rp:agent.prompter.rp_model?.model_name},
+            directive: agent.agentSystem?.currentDirective || null,
+            lastOutcome: agent.agentSystem?.lastDirective?.outcome || null,
+            goals: agent.agentSystem?.brain.goals.listGoals() || [],
+            decisions: agent.decisions?.snapshot(),
+            usage: agent.prompter.usage?.snapshot(),
+        },
         gameplay: {
             position,
             dimension: bot.game.dimension,

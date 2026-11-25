@@ -23,20 +23,19 @@ Do not connect this bot to public servers with coding enabled. This project allo
 
 # New Experimental Features
 
-Mindcraft CE is the experimental fork of Mindcraft, featuring unique implementations and unmerged PRs from the original repository. Each branch offers distinct features not found in others.
+Mindcraft CE is an experimental fork of Mindcraft with its own features and changes from the upstream project.
 
 | Branch | Focus | Status | Key Features |
 |--------|-------|--------|--------------|
 | `stable` | Production ready | Stable | Confirmed working snapshot |
-| [`develop`](#develop) | Active development | Beta | Upstream + extra/unique content |
-| [`agent-system`](#agent-system) | AI tooling | Experimental | Native tools, Brain/Task/RP, narration and model routing |
+| [`develop`](#develop) | Active development | Beta | Mindcraft CE features and the [agent system](#agent-system) |
 
 > [!Warning]
 > Some of the new features may not work right, proceed at your own risk. If you encounter problems, consider contributing by submitting a pull request to the corresponding branch.
 
 ## Develop
 
-This is the default development branch. Native tools and the optional Brain/Task/RP system are maintained separately on [agent-system](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system).
+`develop` is the default branch and includes the agent system described below.
 
 ### 🦙 Andy API
 The [Andy API](https://andy.mindcraft-ce.com/) is Mindcraft CE's OpenAI-compatible model gateway. The current public service is a standalone gateway while the integrated Mindcraft compute-pool and Unleashed platform continue development. Mindcraft CE uses it by default through `andy/auto` in `andy.json`, and it remains usable by ordinary OpenAI-compatible clients.
@@ -58,9 +57,19 @@ The public endpoint and API contract are documented here independently of the ga
 
 ## Agent System
 
-The [agent-system branch](https://github.com/mindcraft-ce/mindcraft-ce/tree/agent-system) integrates develop with native function calling, optional Brain/Task/RP supervision, plain-language progress narration and configurable model routing. These features are not enabled by this develop checkout; follow that branch's README and settings for setup.
+Native function calling is **enabled by default**. Brain/Task/RP orchestration, decision endpoints and task-model selection are **off by default**. See the [settings guide](https://github.com/mindcraft-ce/mindcraft-ce/blob/develop/docs/agent-system.md) and [verification results and limits](https://github.com/mindcraft-ce/mindcraft-ce/blob/develop/docs/agent-system-verification.md).
 
-The former experimental RAG implementation has been removed from the agent-system work. ACP/subscription integration and retrieval-augmented memory are deferred. Existing skill documentation, wiki lookup and example embeddings remain separate features.
+- **`use_function_calling`** uses native tools backed by the existing command implementations. Set it to `false` to keep using the legacy text-command agent, including with a provider that lacks native tool support. Players can still enter `!commands` in either mode.
+- **`use_brain_agent`** enables a supervisory Brain, a Task executor and optional RP replies with explicit handoffs and saved goals.
+- **`decisions.enabled`** enables a separate classifier. Without Brain, it only classifies player chat. MindServer ADMIN messages bypass it. With Brain, it also helps check task progress and goals. It needs a supported decision endpoint and credentials.
+- **`model_selection.enabled`** lets Brain choose a Task model from your configured roster for each task. Fixed `brain_model`, `task_model` and `rp_model` overrides are also available; empty values use the main model.
+- **`tool_narration`** selects `all`, `periodic` (default), or `none`. Periodic updates use plain language after three completed tools or 30 seconds of silence during work. Questions, completion and important blockers remain visible.
+- **`prompt_format`** selects `auto` or `xml`. Explicit profile prompts and the legacy `use_xml_prompts` flag remain supported.
+- **`load_memory`** restores saved conversation and agent state at startup. It defaults to `false`; memory is saved automatically. With the default setting, a restart starts fresh.
+
+Ordinary mining, crafting and building use predefined tools and work with `allow_insecure_coding: false`. That flag controls generated executable code. Mining fixes cover tool speed, server-confirmed breaks and overhead reach. Idle automatic behavior no longer competes between native tool calls.
+
+Default prompts remain in `_default.json`; XML templates are under `profiles/defaults/commands/` and `profiles/defaults/tools/`. Provider text, vision, and embedding interfaces remain available. ACP and retrieval-augmented memory are deferred. Skill documentation, wiki lookup, and example embeddings remain available.
 
 ### 👁️ Enhanced Vision & Models
 - Improved vision request handling across all model providers
@@ -75,7 +84,7 @@ The former experimental RAG implementation has been removed from the agent-syste
 ## Requirements
 
 - [Minecraft Java Edition](https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc) (up to and including v1.21.11)
-- [Node.js Installed](https://nodejs.org/) (use Node 22, v22.13 or newer)
+- [Node.js Installed](https://nodejs.org/) (use Node 22, v22.13 or newer. `nvm use` selects the configured version)
 - An available model from a [supported provider](#model-customization). The default profile uses Andy API; local Ollama and LM Studio are also supported. Provider credentials are needed only when your chosen service requires them.
 
 > [!Important]
@@ -93,7 +102,7 @@ The former experimental RAG implementation has been removed from the agent-syste
 
 4. In terminal/command prompt, run `npm install` from the installed directory
 
-5. Start a Minecraft Java server or open a world to LAN. Set `host`, `port` and `auth` in `settings.js` to match it; a LAN world's displayed port can change each time. The sample configuration uses `localhost:55916`.
+5. Start a Minecraft Java server or open a world to LAN. Set `host`, `port` and `auth` in `settings.js` to match it. A LAN world's displayed port can change each time. The sample configuration uses `localhost:55916`.
 
 6. Run `node main.js` from the installed directory
 
@@ -370,7 +379,7 @@ All apis have default models and urls, so those fields are optional. The `params
 
 Embedding models are used to embed and efficiently select relevant examples for conversation and coding.
 
-Embedding adapters include `andy`, `openai`, `google`, `replicate`, `huggingface`, `novita` and `ollama` (local). The selected model must support embeddings; direct Ollama Cloud does not provide this adapter's embedding interface.
+Embedding adapters include `andy`, `openai`, `google`, `replicate`, `huggingface`, `novita` and `ollama` (local). The selected model must support embeddings. Direct Ollama Cloud does not provide this adapter's embedding interface. `"embedding": false` disables embedding requests.
 
 If you try to use an unsupported model, then it will default to a simple word-overlap method. Expect reduced performance. We recommend using supported embedding APIs.
 

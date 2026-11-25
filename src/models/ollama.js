@@ -85,12 +85,12 @@ export class Ollama {
         return embedding;
     }
 
-    async send(endpoint, body) {
+    async send(endpoint, body, {signal} = {}) {
         const url = new URL(endpoint, this.url);
         let method = 'POST';
         let headers = new Headers({ 'Content-Type': 'application/json' });
         if (this.apiKey) headers.set('Authorization', `Bearer ${this.apiKey}`);
-        const request = new Request(url, { method, headers, body: JSON.stringify(body) });
+        const request = new Request(url, { method, headers, body: JSON.stringify(body), signal });
         const res = await fetch(request);
         if (!res.ok) {
             const data = await res.json().catch(() => null);

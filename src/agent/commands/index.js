@@ -10,6 +10,11 @@ for (let command of commandList) {
     commandMap[command.name] = command;
 }
 
+// Expose canonical definitions to native tool calling without a second registry of actions.
+export function getCommands() {
+    return Object.values(commandMap);
+}
+
 export function getCommand(name) {
     return commandMap[name];
 }

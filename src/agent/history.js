@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import { NPCData } from './npc/data.js';
 import settings from './settings.js';
 
@@ -87,9 +87,12 @@ export class History {
                 self_prompting_state: this.agent.self_prompter.state,
                 self_prompt: this.agent.self_prompter.isStopped() ? null : this.agent.self_prompter.prompt,
                 taskStart: this.agent.task.taskStartTime,
-                last_sender: this.agent.last_sender
+                last_sender: this.agent.last_sender,
+                agent_system: this.agent.agentSystem?.snapshot()
             };
-            writeFileSync(this.memory_fp, JSON.stringify(data, null, 2));
+            const temporary = `${this.memory_fp}.${process.pid}.tmp`;
+            writeFileSync(temporary, JSON.stringify(data, null, 2));
+            renameSync(temporary, this.memory_fp);
             console.log('Saved memory to:', this.memory_fp);
         } catch (error) {
             console.error('Failed to save history:', error);
@@ -104,13 +107,19 @@ export class History {
                 return null;
             }
             const data = JSON.parse(readFileSync(this.memory_fp, 'utf8'));
-            this.memory = data.memory || '';
-            this.turns = data.turns || [];
+            if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Memory file must contain an object');
+            this.memory = typeof data.memory === 'string' ? data.memory : '';
+            this.turns = Array.isArray(data.turns) ? data.turns.filter(t => t && ['system','user','assistant'].includes(t.role) && typeof t.content === 'string') : [];
+            this.agent.agentSystem?.restore(data.agent_system);
             console.log('Loaded memory:', this.memory);
             return data;
         } catch (error) {
             console.error('Failed to load history:', error);
-            throw error;
+            const backup = `${this.memory_fp}.corrupt-${Date.now()}`;
+            try { renameSync(this.memory_fp, backup); console.warn('Preserved unreadable memory at:', backup); }
+            catch (backupError) { console.warn('Could not preserve unreadable memory:', backupError.message); }
+            this.clear();
+            return null;
         }
     }
 
