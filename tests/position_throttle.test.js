@@ -35,3 +35,18 @@ test('a client that ends its ticks itself sends each position packet in its own 
     await delay(80);
     assert.deepEqual(sent, [['position', 1], ['tick_end', undefined], ['position', 2], ['tick_end', undefined]]);
 });
+
+test('a packet held back when the first tick_end comes is not written later, outside its tick', async () => {
+    // The switch happens once, at the first tick_end. A packet the timer was already holding then would
+    // still be written when the timer fired, in a later tick. It is dropped: the client sends the bot's
+    // position again in a later tick.
+    const { bot, sent } = fakeBot();
+    bot._client.write('position', { x: 1 });
+    bot._client.write('position', { x: 2 });
+    bot._client.write('tick_end', {});
+    await delay(80);
+    assert.deepEqual(sent, [['position', 1], ['tick_end', undefined]]);
+    bot._client.write('position', { x: 3 });
+    bot._client.write('tick_end', {});
+    assert.deepEqual(sent.slice(2), [['position', 3], ['tick_end', undefined]], 'and the next tick goes on as usual');
+});

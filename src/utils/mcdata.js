@@ -121,7 +121,16 @@ export function throttlePositionPackets(bot) {
     const POSITION_THROTTLE_MS = 50;
     const originalWrite = bot._client.write.bind(bot._client);
     bot._client.write = function(name, data) {
-        if (name === 'tick_end') endsOwnTicks = true;
+        if (name === 'tick_end') {
+            endsOwnTicks = true;
+            // A packet still held back when the first tick_end comes would be written later, outside its
+            // tick. It is dropped instead: a position packet says where the bot is, not how far it moved,
+            // and the client sends the bot's position again in a later tick (at least once a second).
+            if (pendingPositionPacket) {
+                clearTimeout(pendingPositionPacket);
+                pendingPositionPacket = null;
+            }
+        }
         if (!endsOwnTicks && (name === 'position' || name === 'position_look' || name === 'look')) {
             const now = Date.now();
             if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
