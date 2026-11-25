@@ -408,10 +408,11 @@ export async function defendSelf(bot, range=9) {
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
     let attacked = false;
-    let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+    const shouldFight = entity => mc.isHostile(entity) && entity.name !== 'creeper';
+    let enemy = world.getNearestEntityWhere(bot, shouldFight, range);
     while (enemy) {
         await equipHighestAttack(bot);
-        if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'creeper' && enemy.name !== 'phantom') {
+        if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'phantom') {
             try {
                 bot.pathfinder.setMovements(new pf.Movements(bot));
                 await bot.pathfinder.goto(new pf.goals.GoalFollow(enemy, 3.5), true);
@@ -427,7 +428,7 @@ export async function defendSelf(bot, range=9) {
         bot.pvp.attack(enemy);
         attacked = true;
         await new Promise(resolve => setTimeout(resolve, 500));
-        enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+        enemy = world.getNearestEntityWhere(bot, shouldFight, range);
         if (bot.interrupt_code) {
             bot.pvp.stop();
             return false;
@@ -1534,6 +1535,13 @@ export async function moveAwayFromEntity(bot, entity, distance=16) {
     return true;
 }
 
+const activeFlees = new WeakMap();
+
+// Used by self-preservation to keep an active retreat from being replaced by another low-health retreat.
+export function isFleeing(bot) {
+    return activeFlees.has(bot);
+}
+
 export async function avoidEnemies(bot, distance=16) {
     assertActionOwner(bot);
     /**
@@ -1544,24 +1552,32 @@ export async function avoidEnemies(bot, distance=16) {
      * @example
      * await skills.avoidEnemies(bot, 8);
      **/
-    bot.modes.pause('self_preservation'); // prevents damage-on-low-health from interrupting the bot
-    let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
-    while (enemy) {
-        const follow = new pf.goals.GoalFollow(enemy, distance+1); // move a little further away
-        const inverted_goal = new pf.goals.GoalInvert(follow);
-        bot.pathfinder.setMovements(new pf.Movements(bot));
-        bot.pathfinder.setGoal(inverted_goal, true);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
-        if (bot.interrupt_code) {
-            break;
+    const flee = {};
+    const clearFlee = () => {
+        if (activeFlees.get(bot) === flee) activeFlees.delete(bot);
+    };
+    activeFlees.set(bot, flee);
+    const unregister = onActionCleanup(bot, clearFlee);
+    try {
+        let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
+        while (enemy && !bot.interrupt_code) {
+            const follow = new pf.goals.GoalFollow(enemy, distance + 1);
+            bot.pathfinder.setMovements(new pf.Movements(bot));
+            bot.pathfinder.setGoal(new pf.goals.GoalInvert(follow), true);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            if (bot.interrupt_code) break;
+            enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), distance);
+            if (enemy && enemy.name !== 'creeper' && bot.entity.position.distanceTo(enemy.position) < 3) {
+                await attackEntity(bot, enemy, false);
+            }
         }
-        // A creeper this close is about to explode: keep walking away from it rather than stop to hit it.
-        if (enemy && enemy.name !== 'creeper' && bot.entity.position.distanceTo(enemy.position) < 3) {
-            await attackEntity(bot, enemy, false);
+    } finally {
+        unregister();
+        if (activeFlees.get(bot) === flee) {
+            clearFlee();
+            bot.pathfinder.stop();
         }
     }
-    bot.pathfinder.stop();
     log(bot, `Moved ${distance} away from enemies.`);
     return true;
 }
