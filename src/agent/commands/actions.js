@@ -213,7 +213,7 @@ export const actionsList = [
     },
     {
         name: '!putInChest',
-        description: 'Put the given item in the nearest chest.',
+        description: 'Put the given item in the nearest chest or barrel.',
         params: {
             'item_name': { type: 'ItemName', description: 'The name of the item to put in the chest.' },
             'num': { type: 'int', description: 'The number of items to put in the chest.', domain: [1, Number.MAX_SAFE_INTEGER] }
@@ -224,7 +224,7 @@ export const actionsList = [
     },
     {
         name: '!takeFromChest',
-        description: 'Take the given items from the nearest chest.',
+        description: 'Take the given items from the nearest chest or barrel.',
         params: {
             'item_name': { type: 'ItemName', description: 'The name of the item to take.' },
             'num': { type: 'int', description: 'The number of items to take.', domain: [1, Number.MAX_SAFE_INTEGER] }
@@ -235,7 +235,7 @@ export const actionsList = [
     },
     {
         name: '!viewChest',
-        description: 'View the items/counts of the nearest chest.',
+        description: 'View the items/counts of the nearest chest or barrel.',
         params: { },
         perform: runAsAction(async (agent) => {
             return await skills.viewChest(agent.bot);
