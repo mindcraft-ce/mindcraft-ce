@@ -165,7 +165,7 @@ test.after(async () => {
     await new Promise(resolve => server.close(resolve));
 });
 
-test('getServiceUrl prefers env, then settings, then the default', () => {
+test('getServiceUrl prefers the profile, then env, then settings, then the default', () => {
     const savedEnv = process.env.CARTOGRAPHY_SERVICE_URL;
     const savedSetting = settings.cartography_service_url;
     try {
@@ -176,6 +176,9 @@ test('getServiceUrl prefers env, then settings, then the default', () => {
         assert.equal(getServiceUrl(), 'http://settings.test:9000');
         process.env.CARTOGRAPHY_SERVICE_URL = 'http://env.test:9001/';
         assert.equal(getServiceUrl(), 'http://env.test:9001');
+        const agent = { prompter: { profile: { cartography_service_url: 'http://profile.test:9002/' } } };
+        assert.equal(getServiceUrl(agent), 'http://profile.test:9002');
+        assert.equal(getServiceUrl({ prompter: { profile: {} } }), 'http://env.test:9001');
     } finally {
         if (savedEnv === undefined)
             delete process.env.CARTOGRAPHY_SERVICE_URL;

@@ -11,21 +11,35 @@ const cache = new Map();
 let lastPushKey = null;
 let lastPushAt = 0;
 
-export function getServiceUrl() {
-    const configured = globalThis.process?.env?.CARTOGRAPHY_SERVICE_URL
+/**
+ * Base URL of the service this agent talks to: the profile's `cartography_service_url`, then the
+ * `CARTOGRAPHY_SERVICE_URL` environment variable, then `settings.cartography_service_url`, then the
+ * default. The profile wins because it is the only per-agent value: the environment and settings.js
+ * are shared by every agent the launcher starts, so they are the defaults a profile overrides (the
+ * same as `cartography_enabled` and the other per-profile switches).
+ */
+export function getServiceUrl(agent = null) {
+    const configured = agent?.prompter?.profile?.cartography_service_url
+        || globalThis.process?.env?.CARTOGRAPHY_SERVICE_URL
         || settings.cartography_service_url
         || DEFAULT_SERVICE_URL;
-    return configured.replace(/\/+$/, '');
+    return String(configured).replace(/\/+$/, '');
 }
 
 export function clearPerceptionCache() {
     cache.clear();
 }
 
-/** Headers for every service request; adds the shared bearer token when `cartography_token` is set. */
-export function serviceHeaders(extra = {}) {
+/**
+ * Headers for every service request; adds the bearer token when one is set: the profile's
+ * `cartography_token` (pairs with a per-agent service URL), then `settings.cartography_token`,
+ * then the `CARTOGRAPHY_TOKEN` environment variable.
+ */
+export function serviceHeaders(extra = {}, agent = null) {
     const headers = { ...extra };
-    const token = settings.cartography_token || globalThis.process?.env?.CARTOGRAPHY_TOKEN;
+    const token = agent?.prompter?.profile?.cartography_token
+        || settings.cartography_token
+        || globalThis.process?.env?.CARTOGRAPHY_TOKEN;
     if (token)
         headers.Authorization = `Bearer ${token}`;
     return headers;
@@ -503,7 +517,7 @@ export function formatPerception(data, opts = {}) {
     return block.render(resolveMaxChars(opts));
 }
 
-function buildUrl(position, opts, dimension, agentName = null) {
+function buildUrl(baseUrl, position, opts, dimension, agentName = null) {
     const search = new URLSearchParams();
     if (agentName)
         search.set('agent', agentName);
@@ -516,10 +530,10 @@ function buildUrl(position, opts, dimension, agentName = null) {
     const materials = opts.materials ?? settings.topography_perception_materials ?? false;
     if (materials)
         search.set('materials', '1');
-    return `${getServiceUrl()}/perception?${search.toString()}`;
+    return `${baseUrl}/perception?${search.toString()}`;
 }
 
-function buildSettlementsUrl(position, dimension, agentName = null) {
+function buildSettlementsUrl(baseUrl, position, dimension, agentName = null) {
     const search = new URLSearchParams();
     if (agentName)
         search.set('agent', agentName);
@@ -528,14 +542,14 @@ function buildSettlementsUrl(position, dimension, agentName = null) {
     search.set('radius', '96');
     if (dimension)
         search.set('dimension', dimension);
-    return `${getServiceUrl()}/settlements?${search.toString()}`;
+    return `${baseUrl}/settlements?${search.toString()}`;
 }
 
-async function requestPerception(url, timeoutMs) {
+async function requestPerception(url, timeoutMs, agent = null) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const response = await fetch(url, { signal: controller.signal, headers: serviceHeaders() });
+        const response = await fetch(url, { signal: controller.signal, headers: serviceHeaders({}, agent) });
         let payload = null;
         try {
             payload = await response.json();
@@ -570,7 +584,8 @@ export async function fetchPerception(agent, opts = {}) {
             console.log(`[topography] perception skipped: dimension ${dimension}`);
         return '';
     }
-    const key = `${position.x},${position.z},${size},${dimension || ''},${terrainAgentName(agent) || ''}`;
+    const baseUrl = getServiceUrl(agent);
+    const key = `${baseUrl},${position.x},${position.z},${size},${dimension || ''},${terrainAgentName(agent) || ''}`;
     const cached = cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
         if (opts.debug)
@@ -580,14 +595,14 @@ export async function fetchPerception(agent, opts = {}) {
     if (cached)
         cache.delete(key);
     const timeoutMs = opts.timeout_ms ?? opts.timeoutMs ?? settings.topography_perception_timeout_ms ?? DEFAULT_TIMEOUT_MS;
-    const url = buildUrl(position, opts, dimension, terrainAgentName(agent));
+    const url = buildUrl(baseUrl, position, opts, dimension, terrainAgentName(agent));
     const started = Date.now();
     try {
-        const data = await requestPerception(url, timeoutMs);
+        const data = await requestPerception(url, timeoutMs, agent);
         if (!data.unavailable) {
             // Settlements ride along in the same block. Optional: a short timeout, and any failure just leaves the line out.
             const settlements = await requestPerception(
-                buildSettlementsUrl(position, dimension, terrainAgentName(agent)), Math.min(timeoutMs, SETTLEMENTS_TIMEOUT_MS)
+                buildSettlementsUrl(baseUrl, position, dimension, terrainAgentName(agent)), Math.min(timeoutMs, SETTLEMENTS_TIMEOUT_MS), agent
             ).catch(() => null);
             if (Array.isArray(settlements?.settlements) && settlements.settlements.length > 0)
                 data.settlements_nearby = settlements.settlements;
@@ -632,7 +647,8 @@ export function pushPosition(agent, opts = {}) {
         return;
     const dimension = getDimension(agent);
     const size = opts.size ?? opts.size_chunks ?? settings.topography_render_chunks ?? DEFAULT_SIZE_CHUNKS;
-    const key = `${Math.floor(position.x / 16)},${Math.floor(position.z / 16)},${size}`;
+    const baseUrl = getServiceUrl(agent);
+    const key = `${baseUrl},${Math.floor(position.x / 16)},${Math.floor(position.z / 16)},${size}`;
     const now = Date.now();
     if (key === lastPushKey && now - lastPushAt < PUSH_INTERVAL_MS)
         return;
@@ -642,11 +658,11 @@ export function pushPosition(agent, opts = {}) {
     if (dimension)
         payload.dimension = dimension;
     const body = JSON.stringify(payload);
-    const url = `${getServiceUrl()}/position`;
+    const url = `${baseUrl}/position`;
     try {
         const request = fetch(url, {
             method: 'POST',
-            headers: serviceHeaders({ 'Content-Type': 'application/json' }),
+            headers: serviceHeaders({ 'Content-Type': 'application/json' }, agent),
             body
         });
         if (opts.debug) {

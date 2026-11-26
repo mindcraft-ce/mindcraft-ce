@@ -58,16 +58,17 @@ function formatList(values) {
     return values.join(', ');
 }
 
-async function queryService(endpoint, params) {
+async function queryService(endpoint, params, agent = null) {
+    const baseUrl = getServiceUrl(agent);
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(params))
         search.set(key, String(value));
-    const url = `${getServiceUrl()}${endpoint}?${search.toString()}`;
+    const url = `${baseUrl}${endpoint}?${search.toString()}`;
     let response;
     try {
-        response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: serviceHeaders() });
+        response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: serviceHeaders({}, agent) });
     } catch (error) {
-        throw new Error(`cannot reach topography service at ${getServiceUrl()} (${error.message})`, { cause: error });
+        throw new Error(`cannot reach topography service at ${baseUrl} (${error.message})`, { cause: error });
     }
     let payload;
     try {
@@ -87,7 +88,7 @@ async function queryService(endpoint, params) {
 async function runQuery(endpoint, params, formatter, agent = null) {
     try {
         const agentName = terrainAgentName(agent);
-        const data = await queryService(endpoint, agentName ? { ...params, agent: agentName } : params);
+        const data = await queryService(endpoint, agentName ? { ...params, agent: agentName } : params, agent);
         return formatter(data);
     } catch (error) {
         return `Topography error: ${error.message}`;
