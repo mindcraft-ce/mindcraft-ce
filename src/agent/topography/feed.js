@@ -11,13 +11,21 @@
  * width; direct containers are converted to a local name palette and sent as
  * `u16`. Sections that are entirely air are omitted. Biomes ride along.
  *
+ * Dimensions: every queued chunk carries the dimension the bot was in when it was
+ * queued, and each request carries that dimension (one dimension per request). An
+ * entry whose dimension no longer matches the bot's current world is dropped, not
+ * serialised: after a portal trip its column is gone, and reading the same
+ * coordinates now would send another dimension's blocks. Events that arrive while
+ * the dimension is unknown are not forwarded (the service would read a missing
+ * dimension as the overworld).
+ *
  * Failure is always non-fatal: a failed batch is retried once, a second failure
  * drops it and sets the resync flag, and at most one warning is printed a minute.
  */
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 import settings from '../settings.js';
-import { getServiceUrl, serviceHeaders } from './service.js';
+import { getServiceUrl, serviceHeaders, getDimension } from './service.js';
 import { SeenReporter } from './seen.js';
 
 const gzip = promisify(zlib.gzip);
@@ -39,6 +47,11 @@ function cfg(agent, key, fallback) {
     return agent?.prompter?.profile?.[key] ?? settings[key] ?? fallback;
 }
 
+/** Queue / debounce key: one entry per dimension and chunk. */
+function entryKey(dimension, cx, cz) {
+    return `${dimension}|${cx},${cz}`;
+}
+
 export class Feed {
     constructor(agent, { fetchImpl = null, now = () => Date.now(), seen = null } = {}) {
         this.agent = agent;
@@ -46,9 +59,10 @@ export class Feed {
         this.now = now;
         this.seen = seen ?? new SeenReporter(agent);
         this.bot = null;
-        this.queue = new Map();     // "cx,cz" -> {cx, cz, attempts}
-        this.dirty = new Map();     // "cx,cz" -> {first, last}
-        this.lastSent = new Map();  // "cx,cz" -> timestamp
+        this.queue = new Map();     // "dimension|cx,cz" -> {cx, cz, dimension, attempts}
+        this.dirty = new Map();     // "dimension|cx,cz" -> {cx, cz, dimension, first, last}
+        this.lastSent = new Map();  // "dimension|cx,cz" -> timestamp
+        this.loadedIn = new Map();  // "cx,cz" -> dimension of the loaded column
         this.names = new Map();     // state id -> name
         this.biomeNames = new Map();
         this.inflight = 0;
@@ -59,12 +73,18 @@ export class Feed {
         this.pumpScheduled = false;
         this.sent = 0;
         this.failed = 0;
+        this.dropped = 0;           // queued chunks discarded because the bot left their dimension
     }
 
     enabled() {
         if (cfg(this.agent, 'cartography_enabled', false) === false)
             return false;
         return cfg(this.agent, 'topography_feed', 'bot') !== 'off';
+    }
+
+    /** The bot's current dimension (`minecraft:<name>`), or null while unknown. */
+    currentDimension() {
+        return getDimension({ bot: this.bot });
     }
 
     attach(bot, seen = null) {
@@ -83,10 +103,13 @@ export class Feed {
         bot.on('chunkColumnLoad', (point) => {
             if (this.bot !== bot) return;
             try {
+                const dimension = this.currentDimension();
+                if (!dimension) return; // nothing to label it with; the next resync picks it up
                 const cx = Math.floor(point.x / 16);
                 const cz = Math.floor(point.z / 16);
-                this.seen.addChunk(cx, cz);
-                this._enqueue(cx, cz);
+                this.loadedIn.set(`${cx},${cz}`, dimension);
+                this.seen.addChunk(cx, cz, dimension);
+                this._enqueue(cx, cz, dimension);
             } catch { /* never throw from an event */ }
         });
         bot.on('chunkColumnUnload', (point) => {
@@ -94,10 +117,12 @@ export class Feed {
             try {
                 const cx = Math.floor(point.x / 16);
                 const cz = Math.floor(point.z / 16);
-                const key = `${cx},${cz}`;
-                this.queue.delete(key);
-                this.dirty.delete(key);
-                this.seen.removeChunk(cx, cz);
+                const coord = `${cx},${cz}`;
+                // The column has left the bot's world, whichever dimension it was queued in.
+                this._dropCoord(coord);
+                const dimension = this.loadedIn.get(coord) ?? this.currentDimension();
+                this.loadedIn.delete(coord);
+                if (dimension) this.seen.removeChunk(cx, cz, dimension);
             } catch { /* never throw from an event */ }
         });
         bot.on('blockUpdate', (oldBlock, newBlock) => {
@@ -107,11 +132,12 @@ export class Feed {
                 if (oldBlock?.stateId === newBlock.stateId) return; // door toggles / fluid levels
                 const cx = Math.floor(newBlock.position.x / 16);
                 const cz = Math.floor(newBlock.position.z / 16);
-                this._markDirty(cx, cz);
+                this._markDirty(cx, cz, this.currentDimension());
             } catch { /* never throw from an event */ }
         });
         bot.on('respawn', () => {
             if (this.bot !== bot) return;
+            try { this._dropStale(); } catch { /* never throw from an event */ }
             this.resync = true;
             this._resyncSoon();
         });
@@ -132,6 +158,31 @@ export class Feed {
         if (this.resyncTimer) { clearTimeout(this.resyncTimer); this.resyncTimer = null; }
         this.queue.clear();
         this.dirty.clear();
+        this.loadedIn.clear();
+    }
+
+    /** Forget queued and debounced work for one chunk position, in every dimension. */
+    _dropCoord(coord) {
+        for (const map of [this.queue, this.dirty]) {
+            for (const [key, entry] of [...map]) {
+                if (`${entry.cx},${entry.cz}` === coord) map.delete(key);
+            }
+        }
+    }
+
+    /** Drop queued and debounced chunks of any dimension other than the bot's current one. */
+    _dropStale() {
+        const dimension = this.currentDimension();
+        for (const map of [this.queue, this.dirty]) {
+            for (const [key, entry] of [...map]) {
+                if (entry.dimension === dimension) continue;
+                map.delete(key);
+                if (map === this.queue) this.dropped++;
+            }
+        }
+        for (const [coord, dim] of [...this.loadedIn]) {
+            if (dim !== dimension) this.loadedIn.delete(coord);
+        }
     }
 
     _resyncSoon() {
@@ -147,30 +198,34 @@ export class Feed {
     _resync() {
         if (!this.enabled()) return;
         this.resync = true;
-        const columns = this.bot?.world?.getColumns?.() ?? [];
+        this._dropStale();
+        const dimension = this.currentDimension();
+        const columns = dimension ? this.bot?.world?.getColumns?.() ?? [] : [];
         for (const column of columns) {
             // mineflayer returns chunk coordinates as strings ("-12"), so coerce before the finite check.
             const cx = Number(column?.chunkX), cz = Number(column?.chunkZ);
-            if (Number.isFinite(cx) && Number.isFinite(cz))
-                this.queue.set(`${cx},${cz}`, { cx, cz, attempts: 0 });
+            if (Number.isFinite(cx) && Number.isFinite(cz)) {
+                this.loadedIn.set(`${cx},${cz}`, dimension);
+                this.queue.set(entryKey(dimension, cx, cz), { cx, cz, dimension, attempts: 0 });
+            }
         }
         // A replace:true seen report is the matching ledger resync.
         this.seen?._heartbeat?.().catch?.(() => {});
         this._pump();
     }
 
-    _markDirty(cx, cz) {
-        if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
-        const key = `${cx},${cz}`;
+    _markDirty(cx, cz, dimension) {
+        if (!dimension || !Number.isFinite(cx) || !Number.isFinite(cz)) return;
+        const key = entryKey(dimension, cx, cz);
         const now = this.now();
         const entry = this.dirty.get(key);
         if (entry) entry.last = now;
-        else this.dirty.set(key, { first: now, last: now });
+        else this.dirty.set(key, { cx, cz, dimension, first: now, last: now });
     }
 
-    _enqueue(cx, cz) {
-        if (!this.enabled()) return;
-        const key = `${cx},${cz}`;
+    _enqueue(cx, cz, dimension) {
+        if (!this.enabled() || !dimension) return;
+        const key = entryKey(dimension, cx, cz);
         const now = this.now();
         if (now - (this.lastSent.get(key) ?? -Infinity) < REFORWARD_MS) return;
         if (this.queue.has(key)) return;
@@ -179,7 +234,7 @@ export class Feed {
             if (oldest !== undefined) this.queue.delete(oldest);
             this.resync = true;
         }
-        this.queue.set(key, { cx, cz, attempts: this.queue.get(key)?.attempts ?? 0 });
+        this.queue.set(key, { cx, cz, dimension, attempts: 0 });
         this._pump();
     }
 
@@ -188,8 +243,7 @@ export class Feed {
         for (const [key, entry] of [...this.dirty]) {
             if (now - entry.last >= DEBOUNCE_MS || now - entry.first >= MAX_DELAY_MS) {
                 this.dirty.delete(key);
-                const [cx, cz] = key.split(',').map(Number);
-                this._enqueue(cx, cz);
+                this._enqueue(entry.cx, entry.cz, entry.dimension);
             }
         }
         this._pump();
@@ -207,13 +261,24 @@ export class Feed {
 
     async _sendBatch() {
         if (this.inflight >= MAX_INFLIGHT || this.queue.size === 0) return;
+        // One dimension per request: the bot's current one. An entry queued in any other
+        // dimension has lost its column, so it is dropped rather than read from this world.
+        const dimension = this.currentDimension();
         const batch = [];
         for (const [key, entry] of this.queue) {
             if (batch.length >= BATCH) break;
             this.queue.delete(key);
+            if (!dimension || entry.dimension !== dimension) {
+                this.dropped++;
+                continue;
+            }
             batch.push(entry);
         }
-        if (batch.length === 0) return;
+        if (batch.length === 0) {
+            this._pump();
+            return;
+        }
+        // Serialised synchronously, before any await, from the world of `dimension`.
         const chunks = [];
         for (const entry of batch) {
             try {
@@ -227,12 +292,12 @@ export class Feed {
         }
         const body = JSON.stringify({
             agent: this.agent.name,
-            dimension: 'minecraft:overworld',
+            dimension,
             format: 1,
             chunks,
         });
         let raw = Buffer.from(body, 'utf8');
-        const headers = serviceHeaders({ 'Content-Type': 'application/json' });
+        const headers = serviceHeaders({ 'Content-Type': 'application/json' }, this.agent);
         if (raw.length > GZIP_OVER) {
             raw = await gzip(raw);
             headers['Content-Encoding'] = 'gzip';
@@ -240,7 +305,7 @@ export class Feed {
         this.inflight++;
         try {
             const doFetch = this.fetchImpl ?? globalThis.fetch;
-            const response = await doFetch(`${getServiceUrl()}/chunk_raw`, {
+            const response = await doFetch(`${getServiceUrl(this.agent)}/chunk_raw`, {
                 method: 'POST',
                 headers,
                 body: raw,
@@ -251,7 +316,7 @@ export class Feed {
             this.sent += batch.length;
             const now = this.now();
             for (const entry of batch) {
-                this.lastSent.set(`${entry.cx},${entry.cz}`, now);
+                this.lastSent.set(entryKey(entry.dimension, entry.cx, entry.cz), now);
                 if (this.lastSent.size > 20000) {
                     const oldest = this.lastSent.keys().next().value;
                     if (oldest !== undefined) this.lastSent.delete(oldest);
@@ -274,7 +339,7 @@ export class Feed {
         this.failed++;
         let retry = false;
         for (const entry of batch) {
-            const key = `${entry.cx},${entry.cz}`;
+            const key = entryKey(entry.dimension, entry.cx, entry.cz);
             if ((entry.attempts ?? 0) < 1) {
                 entry.attempts = (entry.attempts ?? 0) + 1;
                 this.queue.set(key, entry);

@@ -137,24 +137,24 @@ test('block changes are debounced (2 s quiet, 10 s max) and re-forwarded at most
     assert.equal(feed.queue.size, 1, '2 s after the last change');
     feed.queue.clear();
     // a chunk forwarded now is not forwarded again for 5 s
-    feed.lastSent.set('0,0', 3500);
-    feed._enqueue(0, 0);
+    feed.lastSent.set('minecraft:overworld|0,0', 3500);
+    feed._enqueue(0, 0, 'minecraft:overworld');
     assert.equal(feed.queue.size, 0);
     clock.now = 8600;
-    feed._enqueue(0, 0);
+    feed._enqueue(0, 0, 'minecraft:overworld');
     assert.equal(feed.queue.size, 1);
     // the 10 s maximum age flushes a chunk that keeps changing
     feed.queue.clear();
     clock.now = 20000;
-    feed._markDirty(1, 1);
-    for (let t = 21000; t <= 30000; t += 1000) { clock.now = t; feed._markDirty(1, 1); feed._tick(); }
+    feed._markDirty(1, 1, 'minecraft:overworld');
+    for (let t = 21000; t <= 30000; t += 1000) { clock.now = t; feed._markDirty(1, 1, 'minecraft:overworld'); feed._tick(); }
     assert.equal(feed.queue.size, 1);
 });
 
 test('queue cap drops the oldest entry and sets resync', () => {
     const { feed } = makeFeed({ column: makeColumn() });
     feed._pump = () => {};
-    for (let i = 0; i < 5000; i++) feed._enqueue(i, 0);
+    for (let i = 0; i < 5000; i++) feed._enqueue(i, 0, 'minecraft:overworld');
     assert.equal(feed.queue.size, 4096);
     assert.equal(feed.resync, true);
 });
@@ -164,7 +164,7 @@ test('the attach-time rescan coerces string chunk coordinates', () => {
     feed._pump = () => {};
     bot.world.getColumns = () => [{ chunkX: '5', chunkZ: '-3' }, { chunkX: 'x', chunkZ: 1 }];
     feed._resync();
-    assert.deepEqual([...feed.queue.keys()], ['5,-3']);
+    assert.deepEqual([...feed.queue.keys()], ['minecraft:overworld|5,-3']);
 });
 
 test('a failed batch is retried once, then dropped with a resync; no throw', async () => {
@@ -229,3 +229,153 @@ test('a gzipped body over 8 KB is decompressible and still valid JSON', async ()
     assert.ok(body.chunks[0].sections[0].data.length > 0);
 });
 
+
+// ---- dimensions: a chunk is labelled with the dimension it was loaded in, never another ----
+
+function makeDimensionWorld() {
+    // A fake mineflayer world that, like the real one, holds only the current dimension's columns.
+    const stone = () => {
+        const column = makeColumn();
+        column.sections[8] = { data: { value: 1 } }; // all stone
+        return column;
+    };
+    const netherrack = () => {
+        const column = makeColumn();
+        column.sections[8] = { data: { value: 4 } }; // all netherrack
+        return column;
+    };
+    const worlds = { 'minecraft:overworld': stone, 'minecraft:the_nether': netherrack };
+    const state = { loaded: new Map() };
+    return {
+        state,
+        switchTo(bot, dimension) {
+            bot.game.dimension = dimension.replace('minecraft:', '');
+            state.loaded = new Map();
+            state.make = worlds[dimension];
+        },
+        load(bot, cx, cz) {
+            state.loaded.set(`${cx},${cz}`, state.make());
+            bot.emit('chunkColumnLoad', { x: cx * 16, z: cz * 16 });
+        },
+        install(bot) {
+            state.make = worlds['minecraft:overworld'];
+            bot.world.getColumn = (cx, cz) => state.loaded.get(`${cx},${cz}`) ?? null;
+            bot.world.getColumns = () => [...state.loaded.keys()].map(k => {
+                const [chunkX, chunkZ] = k.split(',');
+                return { chunkX, chunkZ };
+            });
+        },
+    };
+}
+
+function rawBodies(calls) {
+    return calls.filter(c => String(c.url).endsWith('/chunk_raw')).map(c => {
+        let raw = c.init.body;
+        if (c.init.headers['Content-Encoding'] === 'gzip') raw = zlib.gunzipSync(raw);
+        return JSON.parse(raw.toString('utf8'));
+    });
+}
+
+function palettesOf(body) {
+    return body.chunks.flatMap(chunk => chunk.sections.flatMap(section => section.palette));
+}
+
+test('Overworld -> Nether -> Overworld: nothing from the Nether is ever sent as overworld', async () => {
+    const { feed, bot, calls } = makeFeed();
+    bot.registry.blocksByStateId[4] = { name: 'netherrack' };
+    const world = makeDimensionWorld();
+    world.install(bot);
+    const pump = feed._pump.bind(feed);
+
+    // 1. Overworld: one chunk forwarded, then more work queued and debounced but not yet sent.
+    world.load(bot, 0, 0);
+    await drain(feed);
+    feed._pump = () => {};
+    world.load(bot, 1, 0);
+    bot.emit('blockUpdate', { stateId: 1 }, { stateId: 2, position: { x: 40, y: 65, z: 0 } });
+    assert.equal(feed.queue.size, 1);
+    assert.equal(feed.dirty.size, 1);
+
+    // 2. Portal. The bot is in the Nether before any unload or respawn event reaches the feed,
+    // so the queued overworld entry would read the Nether column at the same coordinates.
+    world.switchTo(bot, 'minecraft:the_nether');
+    world.state.loaded.set('1,0', world.state.make());
+    feed._pump = pump;
+    feed._pump();
+    await drain(feed);
+    assert.equal(rawBodies(calls).length, 1, 'the stale overworld entry was dropped, not sent');
+    assert.ok(feed.dropped >= 1);
+
+    // Then the respawn event and the Nether chunks arrive; a debounced change and the resync run.
+    bot.emit('respawn');
+    clearTimeout(feed.resyncTimer);
+    assert.equal(feed.dirty.size, 0, 'overworld block changes do not survive the switch');
+    world.load(bot, 0, 0);
+    world.load(bot, 5, 5);
+    bot.emit('blockUpdate', { stateId: 4 }, { stateId: 1, position: { x: 80, y: 40, z: 80 } });
+    feed._resync();
+    await drain(feed);
+    feed.lastSent.clear();
+    feed.dirty.forEach(entry => { entry.first = -Infinity; });
+    feed._tick();
+    await drain(feed);
+
+    // 3. Back to the Overworld.
+    world.switchTo(bot, 'minecraft:overworld');
+    bot.emit('respawn');
+    clearTimeout(feed.resyncTimer);
+    world.load(bot, 0, 0);
+    world.load(bot, 1, 0);
+    await drain(feed);
+    feed._resync();
+    await drain(feed);
+
+    const bodies = rawBodies(calls);
+    const overworld = bodies.filter(b => b.dimension === 'minecraft:overworld');
+    const nether = bodies.filter(b => b.dimension === 'minecraft:the_nether');
+    assert.ok(nether.length >= 1, 'Nether chunks carry their own dimension');
+    assert.ok(overworld.length >= 2, 'the Overworld is forwarded again on return');
+    for (const body of bodies) assert.ok(body.dimension, 'every request names a dimension');
+    for (const body of overworld) {
+        assert.ok(!palettesOf(body).includes('minecraft:netherrack'), 'no Nether blocks labelled overworld');
+        assert.ok(!body.chunks.some(chunk => chunk.cx === 5 && chunk.cz === 5), 'no Nether-only chunk labelled overworld');
+    }
+    for (const body of nether)
+        assert.ok(!palettesOf(body).includes('minecraft:stone'), 'no Overworld blocks labelled nether');
+
+    // The seen ledger never files a Nether chunk under the overworld either.
+    await feed.seen.flush();
+    const seenOverworld = calls.filter(c => String(c.url).endsWith('/seen'))
+        .map(c => JSON.parse(c.init.body))
+        .filter(b => b.dimension === 'minecraft:overworld');
+    assert.ok(seenOverworld.length >= 1);
+    for (const body of seenOverworld)
+        assert.ok(!body.chunks.some(([cx, cz]) => cx === 5 && cz === 5), 'Nether chunk not reported as overworld');
+    feed.stop();
+    feed.seen.stop();
+});
+
+test('an unload after the dimension already changed is still filed under the dimension it was loaded in', () => {
+    const { feed, bot } = makeFeed();
+    feed._pump = () => {};
+    const world = makeDimensionWorld();
+    world.install(bot);
+    world.load(bot, 3, 3);
+    world.switchTo(bot, 'minecraft:the_nether');
+    bot.emit('chunkColumnUnload', { x: 48, z: 48 });
+    assert.equal(feed.seen.pending.get('minecraft:overworld')?.get('3,3')?.op, 'unload');
+    assert.equal(feed.seen.pending.get('minecraft:the_nether')?.get('3,3'), undefined);
+    assert.equal(feed.queue.size, 0);
+});
+
+test('chunk events while the dimension is unknown are not forwarded or recorded', () => {
+    const { feed, bot } = makeFeed({ column: makeColumn() });
+    feed._pump = () => {};
+    bot.game.dimension = undefined;
+    feed.seen.pending.clear();
+    bot.emit('chunkColumnLoad', { x: 0, z: 0 });
+    bot.emit('blockUpdate', { stateId: 1 }, { stateId: 2, position: { x: 3, y: 65, z: 4 } });
+    assert.equal(feed.queue.size, 0);
+    assert.equal(feed.dirty.size, 0);
+    assert.equal(feed.seen.pending.size, 0);
+});

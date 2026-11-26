@@ -55,11 +55,14 @@ export class SeenReporter {
         return cfg(this.agent, 'cartography_enabled', false) !== false && cfg(this.agent, 'topography_seen_only', true) !== false;
     }
 
+    /** The bot's current dimension, or null while unknown (events are then not recorded). */
     dimension() {
-        return normalizeDimension(this.agent?.bot?.game?.dimension) ?? 'minecraft:overworld';
+        return normalizeDimension((this.bot ?? this.agent?.bot)?.game?.dimension);
     }
 
     _record(dimension, key, op) {
+        // A missing dimension reads as the overworld on the service, so never guess one.
+        if (!dimension) return;
         let ops = this.pending.get(dimension);
         if (!ops) this.pending.set(dimension, ops = new Map());
         ops.set(key, { op, n: ++this.seq });
@@ -97,6 +100,7 @@ export class SeenReporter {
         const columns = await Promise.resolve(bot.world?.getColumns?.());
         if (!Array.isArray(columns)) return;
         const dimension = this.dimension();
+        if (!dimension) return;
         for (const dim of this.loaded.keys()) this.loaded.set(dim, new Set());
         const set = new Set();
         for (const c of columns) if (Number.isFinite(Number(c?.chunkX)) && Number.isFinite(Number(c?.chunkZ))) set.add(`${Number(c.chunkX)},${Number(c.chunkZ)}`);
@@ -198,8 +202,8 @@ export class SeenReporter {
             if (!resync && !chunks.length && !body.unloaded.length) continue;
             try {
                 const doFetch = this.fetchImpl ?? fetch;
-                const res = await doFetch(`${getServiceUrl()}/seen`, {
-                    method: 'POST', headers: serviceHeaders({ 'Content-Type': 'application/json' }),
+                const res = await doFetch(`${getServiceUrl(this.agent)}/seen`, {
+                    method: 'POST', headers: serviceHeaders({ 'Content-Type': 'application/json' }, this.agent),
                     body: JSON.stringify(body),
                     signal: AbortSignal.timeout(3000),
                 });
