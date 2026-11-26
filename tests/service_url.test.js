@@ -76,6 +76,21 @@ test('a profile service URL is used for every request the agent makes, over env 
     }
 });
 
+test('a profile with its own URL but no token never sends the global token', async () => {
+    const savedToken = settings.cartography_token;
+    settings.cartography_token = 'global-token';
+    try {
+        const sent = await everyRequest(makeAgent({ cartography_service_url: 'http://bot-b.test:9200' }));
+        for (const request of sent)
+            assert.equal(request.headers.Authorization, undefined, request.url);
+        const shared = await everyRequest(makeAgent({}));
+        for (const request of shared)
+            assert.equal(request.headers.Authorization, 'Bearer global-token', request.url);
+    } finally {
+        settings.cartography_token = savedToken;
+    }
+});
+
 test('without a profile URL the agent falls back to the environment variable', async () => {
     const sent = await everyRequest(makeAgent({}));
     for (const request of sent)

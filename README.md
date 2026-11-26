@@ -56,7 +56,8 @@ python main.py --name my-world      # in the cartography-service checkout
 The service URL is resolved per agent: the profile's `cartography_service_url`, then the
 `CARTOGRAPHY_SERVICE_URL` environment variable, then `settings.js`, then `http://127.0.0.1:8090`. Give each
 bot its own URL in its profile to point bots at different services (different worlds, or a remote service);
-a profile `cartography_token` is sent as the bearer token for that service. `topography_perception`,
+a profile `cartography_token` is sent as the bearer token for that service (a profile with its own URL
+never sends the global token). `topography_perception`,
 `topography_feed` (`bot` or `off`) and `topography_debug` can also be set per profile. Results and
 architecture are in the [service README](https://github.com/milkucha/cartography-service).
 

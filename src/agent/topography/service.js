@@ -37,9 +37,14 @@ export function clearPerceptionCache() {
  */
 export function serviceHeaders(extra = {}, agent = null) {
     const headers = { ...extra };
-    const token = agent?.prompter?.profile?.cartography_token
-        || settings.cartography_token
-        || globalThis.process?.env?.CARTOGRAPHY_TOKEN;
+    // A profile that points at its own service only sends its own token: the global
+    // token belongs to the global service and must not leak to another host.
+    const profile = agent?.prompter?.profile;
+    const token = profile?.cartography_service_url
+        ? profile.cartography_token
+        : profile?.cartography_token
+            || settings.cartography_token
+            || globalThis.process?.env?.CARTOGRAPHY_TOKEN;
     if (token)
         headers.Authorization = `Bearer ${token}`;
     return headers;
