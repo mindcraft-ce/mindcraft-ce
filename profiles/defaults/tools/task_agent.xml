@@ -11,5 +11,6 @@
     <rule>If Brain sends updates during the task, incorporate them into your plan.</rule>
   </instructions>
   <context>
+    $TOPOGRAPHY
   </context>
 </task_agent_system>

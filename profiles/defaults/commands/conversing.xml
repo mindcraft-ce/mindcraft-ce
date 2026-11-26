@@ -20,6 +20,8 @@
     <context>
         Summarized memory:'$MEMORY'
         $STATS
+        $TOPOGRAPHY
+        $TOPO_GUIDE
         $INVENTORY
         $COMMAND_DOCS
         $EXAMPLES
