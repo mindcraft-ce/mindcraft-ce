@@ -33,6 +33,33 @@ Mindcraft CE is an experimental fork of Mindcraft with its own features and chan
 > [!Warning]
 > Some of the new features may not work right, proceed at your own risk. If you encounter problems, consider contributing by submitting a pull request to the corresponding branch.
 
+## Cartography
+
+Optional support for [Cartography for Mindcraft-CE](https://github.com/milkucha/cartography-service), a small
+local map service (Python, standard library only). The bot forwards the chunks it loads; the service builds a
+terrain map from them. With it, the bot gets a short terrain summary in its prompt (`$TOPOGRAPHY`) and map
+commands (`!topography`, `!overview`, `!flatAreas`, `!shoreline`, `!landforms`, `!area_composition`,
+`!bridgeSpan`, `!recall`), which native tool calling exposes as tools. It needs no server mod or world save,
+and the bot only knows what it has seen. Only the Overworld is mapped: chunks from other dimensions are sent
+with their own dimension and ignored by the service, and the map commands answer that terrain data is
+Overworld-only.
+
+**Off by default.** To use it, start the service and enable it in `settings.js` or a profile:
+
+```powershell
+python main.py --name my-world      # in the cartography-service checkout
+```
+```json
+{ "cartography_enabled": true, "cartography_service_url": "http://127.0.0.1:8090" }
+```
+
+The service URL is resolved per agent: the profile's `cartography_service_url`, then the
+`CARTOGRAPHY_SERVICE_URL` environment variable, then `settings.js`, then `http://127.0.0.1:8090`. Give each
+bot its own URL in its profile to point bots at different services (different worlds, or a remote service);
+a profile `cartography_token` is sent as the bearer token for that service. `topography_perception`,
+`topography_feed` (`bot` or `off`) and `topography_debug` can also be set per profile. Results and
+architecture are in the [service README](https://github.com/milkucha/cartography-service).
+
 ## Develop
 
 `develop` is the default branch and includes the agent system described below.
