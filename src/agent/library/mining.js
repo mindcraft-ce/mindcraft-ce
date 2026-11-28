@@ -58,6 +58,22 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
             report(`Approaching ${type}; collected ${broken} of ${requested}.`);
             if (type === 'water' || type === 'lava') {
                 if (!await liquid(target)) throw new Error('A bucket and reachable source block are required.');
+            } else if (target.boundingBox === 'empty') {
+                // A block with no collision box (a crop, a flower, grass) can't be hit by the ray the goal below
+                // casts, so that goal was never met and every walk to one timed out. Standing near is enough:
+                // nothing hides a plant from the bot standing beside it. And the walk neither digs, places nor
+                // leaps: a plant never needs it, and in a field a dug or jumped-on cell takes the crops with it.
+                const previous = bot.pathfinder.movements;
+                const walking = new pf.Movements(bot);
+                walking.canDig = false;
+                walking.allowParkour = false;
+                walking.allow1by1towers = false;
+                walking.scafoldingBlocks = [];
+                bot.pathfinder.setMovements(walking);
+                try {
+                    await cancellable(bot, () => bot.pathfinder.goto(new pf.goals.GoalNear(target.position.x, target.position.y, target.position.z, 2)),
+                        20000, () => bot.pathfinder.setGoal(null));
+                } finally { if (previous) bot.pathfinder.setMovements(previous); }
             } else {
                 // Require a visible face in normal reach. Buried ore first needs a route
                 // next to it; retry the visibility goal after tunnelling, never dig blind.
@@ -71,6 +87,8 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
                         20000, () => bot.pathfinder.setGoal(null));
                     await cancellable(bot, () => bot.pathfinder.goto(goal), 15000, () => bot.pathfinder.setGoal(null));
                 }
+            }
+            if (type !== 'water' && type !== 'lava') {
                 assertActionOwner(bot);
                 const block = bot.blockAt(target.position);
                 if (!block || !types.has(block.name)) { excluded.add(key); continue; }
@@ -89,7 +107,7 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
             }
             if (!confirmed.has(key)) { confirmed.add(key); broken++; }
             report(`Broke ${broken} of ${requested} ${type}; collecting drops.`);
-            await cancellable(bot, () => pickup(), 10000, () => bot.pathfinder.setGoal(null));
+            await cancellable(bot, () => pickup(target), 10000, () => bot.pathfinder.setGoal(null));
             if(afterBreak) await afterBreak();
             blocker = '';
         } catch (error) {

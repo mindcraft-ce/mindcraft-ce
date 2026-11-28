@@ -10,7 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
 import { sendToolRequest, supportsNativeTools } from './_tool_request.js';
-import { getToolDocs, getToolDefinitions } from '../agent/commands/tool_registry.js';
+import { getToolDefinitions } from '../agent/commands/tool_registry.js';
 import { responseFormatSchema } from './_response_format.js';
 import { narrationInstructions, narrationConfig } from '../agent/narration.js';
 import { UsageMeter } from './usage.js';
@@ -240,8 +240,13 @@ export class Prompter {
         if (prompt.includes('$ACTION')) {
             prompt = prompt.replaceAll('$ACTION', this.agent.actions.currentActionLabel);
         }
+        // With native tools the same definitions already go in the request's tools field. Pasting them here
+        // as well sent the whole list twice (about 7,000 tokens a call) and made the system prompt change
+        // whenever the tool set did. The help tool still prints the full list on request.
         if (prompt.includes('$COMMAND_DOCS'))
-            prompt = prompt.replaceAll('$COMMAND_DOCS', this.use_tools ? getToolDocs(this.agent) : getCommandDocs(this.agent));
+            prompt = prompt.replaceAll('$COMMAND_DOCS', this.use_tools
+                ? 'Every available tool is given to you through the native function interface.'
+                : getCommandDocs(this.agent));
         if (prompt.includes('$CODE_DOCS')) {
             const code_task_content = (messages || []).slice().reverse().find(msg =>
                 msg.role !== 'system' && msg.content.includes('!newAction(')
