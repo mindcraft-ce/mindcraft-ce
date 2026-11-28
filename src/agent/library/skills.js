@@ -452,7 +452,9 @@ export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
         find: predicate => world.getNearestBlocksWhere(bot, block => predicate(block) &&
             (!block.position || movements.safeToBreak(block) || block.name === 'obsidian'), 64, 128)
             .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian')),
-        pickup: () => pickupNearbyItems(bot, true),
+        // A plant's drops land where the bot can walk. Digging for them would dig through the farmland and the
+        // young crops beside it, so only a solid block's drops may be dug for.
+        pickup: target => pickupNearbyItems(bot, target?.boundingBox !== 'empty'),
         afterBreak: () => autoLight(bot),
         liquid: block => useToolOnBlock(bot, 'bucket', block), exclude,
     });
