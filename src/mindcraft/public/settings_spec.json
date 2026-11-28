@@ -279,6 +279,6 @@
     "model_pricing": {
         "type": "object",
         "default": {},
-        "description": "Optional input_per_million, output_per_million, cached_input_per_million USD pricing when usage has no cost."
+        "description": "Optional input_per_million, output_per_million, cached_input_per_million, cache_write_per_million USD pricing when usage has no cost."
     }
 }
