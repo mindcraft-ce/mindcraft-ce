@@ -35,8 +35,10 @@ test('a plant whose stage could not be read is walked to, and left when it turns
     let digs = 0, walks = 0;
     const bot = {
         registry, game: { gameMode: 'survival' }, inventory: { items: () => [] }, world: {},
+        entity: { position: new Vec3(0, 0, 0) },
         on() {}, off() {}, emit() {},
-        pathfinder: { goto: () => { walks++; return Promise.resolve(); }, setGoal() {} },
+        pathfinder: { movements: null, setMovements(movements) { this.movements = movements; },
+            goto: () => { walks++; return Promise.resolve(); }, setGoal() {} },
         blockAt: () => crop('wheat', 3, new Vec3(1, 0, 0)),
         dig: () => { digs++; return Promise.resolve(); },
     };
