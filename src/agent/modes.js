@@ -290,7 +290,7 @@ async function execute(mode, agent, func, timeout=-1) {
         interrupted_action && // it interrupted a previous action
         !agent.actions.resume_func && // there is no resume function
         !agent.self_prompter.isActive() && // self prompting is not on
-        !code_return.interrupted; // this mode action was not interrupted by something else
+        (!code_return.interrupted || code_return.timedout); // this mode action was not interrupted by something else (its own timeout does not count)
 
     if (should_reprompt) {
         // auto prompt to respond to the interruption
