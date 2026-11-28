@@ -1,5 +1,6 @@
 // Separate from sendRequest: develop's text, vision and embedding contracts stay intact.
 import { randomUUID } from 'node:crypto';
+import { defaultClaudeMaxTokens } from './claude_limits.js';
 
 const defaults = {
     openai: 'gpt-5.4-mini', anthropic: 'claude-sonnet-4-6', google: 'gemini-2.5-flash',
@@ -79,9 +80,10 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
         // Claude 4.6 and later reject a request that ends on an assistant turn (a prefill).
         if (messages[messages.length - 1].role === 'assistant') messages.push({ role: 'user', content: '_' });
         // Without a thinking budget, newer models still think by default and that thinking counts toward
-        // max_tokens: 4,096 ended long turns as "truncated".
+        // max_tokens: 4,096 ended long turns as "truncated". Older models cap output lower, so the
+        // default is model-aware (see claude_limits.js).
         const response = await provider.anthropic.messages.create({
-            ...params, model, max_tokens: params.max_tokens || (params.thinking?.budget_tokens ? params.thinking.budget_tokens + 1000 : 16000),
+            ...params, model, max_tokens: params.max_tokens || defaultClaudeMaxTokens(model, params.thinking?.budget_tokens),
             system: schemaInstructions(systemMessage, responseFormat),
             messages, ...(tools.length ? { tools: tools.map(t => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters })) } : {}),
         }, {signal});

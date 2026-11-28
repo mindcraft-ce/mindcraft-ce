@@ -6,9 +6,9 @@ import { sendToolRequest } from '../src/models/_tool_request.js';
 // toward max_tokens, and a declined request says so instead of looking like an empty reply.
 
 const tools = [{type: 'function', function: {name: 'stats', description: 'Stats', parameters: {type: 'object', properties: {}}}}];
-function claude(reply, params) {
+function claude(reply, params, modelName = 'claude-test') {
     const packs = [];
-    const provider = {model_name: 'claude-test', params, anthropic: {messages: {create: pack => {
+    const provider = {model_name: modelName, params, anthropic: {messages: {create: pack => {
         packs.push(structuredClone(pack));
         return Promise.resolve(reply);
     }}}};
@@ -33,6 +33,15 @@ test('the default max_tokens leaves room for thinking', async () => {
     const set = claude(ok, {max_tokens: 900});
     await sendToolRequest(set.provider, [{role: 'user', content: 'hi'}], 'SYSTEM', tools);
     assert.equal(set.packs[0].max_tokens, 900);
+    const older = claude(ok, undefined, 'claude-3-5-sonnet-latest');
+    await sendToolRequest(older.provider, [{role: 'user', content: 'hi'}], 'SYSTEM', tools);
+    assert.equal(older.packs[0].max_tokens, 8192, '3.5 caps output at 8,192');
+    const claude3 = claude(ok, undefined, 'claude-3-opus-20240229');
+    await sendToolRequest(claude3.provider, [{role: 'user', content: 'hi'}], 'SYSTEM', tools);
+    assert.equal(claude3.packs[0].max_tokens, 4096, 'Claude 3.0 caps output at 4,096');
+    const newer = claude(ok, undefined, 'claude-sonnet-4-6');
+    await sendToolRequest(newer.provider, [{role: 'user', content: 'hi'}], 'SYSTEM', tools);
+    assert.equal(newer.packs[0].max_tokens, 16000);
 });
 
 test('a declined request is reported as declined', async () => {

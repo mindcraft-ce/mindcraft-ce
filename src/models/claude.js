@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strictFormat } from '../utils/text.js';
 import { getKey } from '../utils/keys.js';
+import { defaultClaudeMaxTokens } from './claude_limits.js';
 
 export class Claude {
     static prefix = 'anthropic';
@@ -26,10 +27,11 @@ export class Claude {
         // The default goes in a copy: the native tool path reads this.params as well, and a default written
         // into it here used to become that path's limit too.
         const params = {...this.params};
+        const model = this.model_name || 'claude-sonnet-4-6';
         if (!params.max_tokens) {
-            // max_tokens must be greater than thinking.budget_tokens. Without a budget, newer models still
-            // think by default and that thinking counts toward max_tokens, so 4,096 cut long turns short.
-            params.max_tokens = params.thinking?.budget_tokens ? params.thinking.budget_tokens + 1000 : 16000;
+            // max_tokens must be greater than thinking.budget_tokens, and older Claude models cap output
+            // below the newer default, so the default depends on the model (see claude_limits.js).
+            params.max_tokens = defaultClaudeMaxTokens(model, params.thinking?.budget_tokens);
         }
         let res = null;
         try {
@@ -37,7 +39,7 @@ export class Claude {
             // Newer models now and then end a turn with no text at all; one more try fixes it.
             for (let attempt = 1; attempt <= 2; attempt++) {
                 const resp = await this.anthropic.messages.create({
-                    model: this.model_name || "claude-sonnet-4-6",
+                    model,
                     system: systemMessage,
                     messages: messages,
                     ...params

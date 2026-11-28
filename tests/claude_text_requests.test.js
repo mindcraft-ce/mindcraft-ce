@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 process.env.ANTHROPIC_API_KEY ??= 'test-key-not-used';
 const { Claude } = await import('../src/models/claude.js');
 
-function claude(replies, params) {
-    const model = new Claude('claude-test', null, params);
+function claude(replies, params, modelName = 'claude-test') {
+    const model = new Claude(modelName, null, params);
     const packs = [];
     model.anthropic = {messages: {create: pack => {
         packs.push(structuredClone(pack));
@@ -35,6 +35,15 @@ test('the default max_tokens leaves room for thinking and is not written into th
     const set = claude([text('ok')], {max_tokens: 900});
     await set.model.sendRequest([{role: 'user', content: 'hi'}], 'SYSTEM');
     assert.equal(set.packs[0].max_tokens, 900);
+    const older = claude([text('ok')], undefined, 'claude-3-5-sonnet-latest');
+    await older.model.sendRequest([{role: 'user', content: 'hi'}], 'SYSTEM');
+    assert.equal(older.packs[0].max_tokens, 8192, '3.5 caps output at 8,192');
+    const claude3 = claude([text('ok')], undefined, 'claude-3-opus-20240229');
+    await claude3.model.sendRequest([{role: 'user', content: 'hi'}], 'SYSTEM');
+    assert.equal(claude3.packs[0].max_tokens, 4096, 'Claude 3.0 caps output at 4,096');
+    const newer = claude([text('ok')], undefined, 'claude-sonnet-4-6');
+    await newer.model.sendRequest([{role: 'user', content: 'hi'}], 'SYSTEM');
+    assert.equal(newer.packs[0].max_tokens, 16000);
 });
 
 test('a declined request is reported, not taken for an empty reply', async () => {
