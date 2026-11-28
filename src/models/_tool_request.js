@@ -1,5 +1,6 @@
 // Separate from sendRequest: develop's text, vision and embedding contracts stay intact.
 import { randomUUID } from 'node:crypto';
+import { defaultClaudeMaxTokens } from './claude_limits.js';
 
 const defaults = {
     openai: 'gpt-5.4-mini', anthropic: 'claude-sonnet-4-6', google: 'gemini-2.5-flash',
@@ -39,6 +40,15 @@ export function toolCallMessage(text, calls) {
     return message;
 }
 
+// Claude and Gemini take a single system prompt, so a system note from the conversation (a tool result kept
+// in the history, a death, a mode change) goes where it happened, as a user turn marked SYSTEM, the way
+// strictFormat sends it on the text path. Gluing every such note onto the system prompt put them out of time
+// order and changed the system prompt on every conversation, so nothing after it could be reused from a
+// provider's prompt cache.
+function systemNoteInPlace(turn) {
+    return turn.role === 'system' ? { role: 'user', content: `SYSTEM: ${turn.content}` } : turn;
+}
+
 function schemaInstructions(system, format) {
     return format ? `${system || ''}\nRespond with JSON matching this schema:\n${JSON.stringify(format.json_schema?.schema || format)}` : system;
 }
@@ -57,7 +67,7 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
     for (const key of ['tools', 'tool_choice', 'messages', 'stream', 'response_format', 'stop']) delete params[key];
     const history = structuredClone(turns);
     if (provider.anthropic) {
-        const messages = history.filter(t => t.role !== 'system').map(turn => {
+        const messages = history.map(systemNoteInPlace).map(turn => {
             if (turn.role === 'tool') return { role: 'user', content: [{ type: 'tool_result', tool_use_id: turn.tool_call_id, content: turn.content }] };
             if (turn.provider_content) return { role: 'assistant', content: turn.provider_content };
             if (turn.tool_calls) return { role: 'assistant', content: [
@@ -67,18 +77,25 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
             return turn;
         });
         if (!messages.length || messages[0].role !== 'user') messages.unshift({ role: 'user', content: '_' });
+        // Claude 4.6 and later reject a request that ends on an assistant turn (a prefill).
+        if (messages[messages.length - 1].role === 'assistant') messages.push({ role: 'user', content: '_' });
+        // Without a thinking budget, newer models still think by default and that thinking counts toward
+        // max_tokens: 4,096 ended long turns as "truncated". Older models cap output lower, so the
+        // default is model-aware (see claude_limits.js).
         const response = await provider.anthropic.messages.create({
-            ...params, model, max_tokens: params.max_tokens || ((params.thinking?.budget_tokens || 3096) + 1000),
-            system: schemaInstructions([systemMessage, ...history.filter(t => t.role === 'system').map(t => t.content)].filter(Boolean).join('\n'), responseFormat),
+            ...params, model, max_tokens: params.max_tokens || defaultClaudeMaxTokens(model, params.thinking?.budget_tokens),
+            system: schemaInstructions(systemMessage, responseFormat),
             messages, ...(tools.length ? { tools: tools.map(t => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters })) } : {}),
         }, {signal});
         if (response.stop_reason === 'max_tokens') throw new Error('Tool response was truncated; increase the output token limit');
+        if (response.stop_reason === 'refusal')
+            throw new Error(`Provider declined completion${response.stop_details?.category ? `: ${response.stop_details.category}` : ''}`);
         if (!Array.isArray(response.content)) throw new Error('Provider returned no completion');
         return normalizeToolResponse(response.content.filter(c => c.type === 'text').map(c => c.text).join('\n'),
             response.content.filter(c => c.type === 'tool_use').map(c => ({ id: c.id, name: c.name, arguments: c.input, provider_content: response.content })));
     }
     if (provider.genAI) {
-        const contents = history.filter(t => t.role !== 'system').map(turn => ({
+        const contents = history.map(systemNoteInPlace).map(turn => ({
             role: turn.role === 'assistant' ? 'model' : 'user',
             parts: turn.provider_content || (turn.role === 'tool'
                 ? [{ functionResponse: { name: turn.name, response: { result: turn.content } } }]
@@ -86,7 +103,7 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
         }));
         const response = await provider.genAI.models.generateContent({ model, contents, config: {
             ...params, abortSignal: signal,
-            systemInstruction: schemaInstructions([systemMessage, ...history.filter(t => t.role === 'system').map(t => t.content)].filter(Boolean).join('\n'), responseFormat),
+            systemInstruction: schemaInstructions(systemMessage, responseFormat),
             ...(tools.length ? { tools: [{ functionDeclarations: tools.map(t => ({ name: t.function.name, description: t.function.description, parametersJsonSchema: t.function.parameters })) }] } : {}),
         } });
         const reason = response.candidates?.[0]?.finishReason;

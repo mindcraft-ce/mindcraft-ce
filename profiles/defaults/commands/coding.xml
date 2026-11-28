@@ -28,6 +28,7 @@
         $SELF_PROMPT
         Summarized memory:'$MEMORY'
         $STATS
+        $TOPOGRAPHY
         $INVENTORY
         $CODE_DOCS
         $EXAMPLES

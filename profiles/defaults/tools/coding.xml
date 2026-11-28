@@ -18,6 +18,7 @@
 		<self_prompt>$SELF_PROMPT</self_prompt>
 		<memory>$MEMORY</memory>
 		<stats>$STATS</stats>
+		$TOPOGRAPHY
 		<inventory>$INVENTORY</inventory>
 		<documentation>$CODE_DOCS</documentation>
 		<examples>$EXAMPLES</examples>

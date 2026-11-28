@@ -318,6 +318,70 @@
     "model_pricing": {
         "type": "object",
         "default": {},
-        "description": "Optional input_per_million, output_per_million, cached_input_per_million USD pricing when usage has no cost."
+        "description": "Optional input_per_million, output_per_million, cached_input_per_million, cache_write_per_million USD pricing when usage has no cost."
+    },
+    "cartography_enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable the optional Cartography map service and its terrain tools."
+    },
+    "cartography_service_url": {
+        "type": "string",
+        "default": "",
+        "description": "Cartography service base URL. Empty uses CARTOGRAPHY_SERVICE_URL, then http://127.0.0.1:8090."
+    },
+    "cartography_token": {
+        "type": "string",
+        "default": "",
+        "description": "Bearer token for the Cartography service, when it requires one."
+    },
+    "topography_perception": {
+        "type": "boolean",
+        "default": true,
+        "description": "Add the TOPOGRAPHY terrain block to prompts while Cartography is enabled."
+    },
+    "topography_seen_only": {
+        "type": "boolean",
+        "default": true,
+        "description": "Send the service the chunks this bot has loaded so unseen ground stays unexplored."
+    },
+    "topography_feed": {
+        "type": "string",
+        "default": "bot",
+        "description": "Chunk feed mode: bot forwards loaded chunks, off disables the feed.",
+        "options": [
+            "bot",
+            "off"
+        ]
+    },
+    "topography_debug": {
+        "type": "boolean",
+        "default": false,
+        "description": "Log Cartography request timing and failures."
+    },
+    "topography_far_line": {
+        "type": "boolean",
+        "default": true,
+        "description": "Include the far-features line from previously seen ground in the TOPOGRAPHY block."
+    },
+    "topography_max_chars": {
+        "type": "number",
+        "default": 1200,
+        "description": "Maximum characters for the TOPOGRAPHY prompt block."
+    },
+    "topography_render_chunks": {
+        "type": "number",
+        "default": 16,
+        "description": "Width in chunks of the TOPOGRAPHY window."
+    },
+    "topography_perception_materials": {
+        "type": "boolean",
+        "default": false,
+        "description": "Ask the service for material composition in perception responses."
+    },
+    "topography_perception_timeout_ms": {
+        "type": "number",
+        "default": 1500,
+        "description": "Timeout in milliseconds for one perception request."
     }
 }

@@ -10,10 +10,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { selectAPI, createModel } from './_model_map.js';
 import { sendToolRequest, supportsNativeTools } from './_tool_request.js';
-import { getToolDocs, getToolDefinitions } from '../agent/commands/tool_registry.js';
+import { getToolDefinitions } from '../agent/commands/tool_registry.js';
 import { responseFormatSchema } from './_response_format.js';
 import { narrationInstructions, narrationConfig } from '../agent/narration.js';
 import { UsageMeter } from './usage.js';
+import { fetchPerception, pushPosition, isOverworld } from '../agent/topography/service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -211,11 +212,41 @@ export class Prompter {
             let inventory = await getCommand('!inventory').perform(this.agent);
             prompt = prompt.replaceAll('$INVENTORY', inventory);
         }
+        const topographyEnabled = this.profile?.cartography_enabled ?? settings.cartography_enabled ?? false;
+        const perceptionEnabled = topographyEnabled && (this.profile?.topography_perception ?? settings.topography_perception ?? true);
+        const topographyDebug = this.profile?.topography_debug ?? settings.topography_debug ?? false;
+        if (prompt.includes('$TOPOGRAPHY')) {
+            let perception = '';
+            if (perceptionEnabled) {
+                try {
+                    perception = await fetchPerception(this.agent, { enabled: perceptionEnabled, debug: topographyDebug });
+                } catch (error) {
+                    console.warn('Failed to build topography perception:', error);
+                    perception = '';
+                }
+            }
+            prompt = prompt.replaceAll('$TOPOGRAPHY', perception);
+            if (perceptionEnabled)
+                pushPosition(this.agent, { enabled: perceptionEnabled, debug: topographyDebug });
+        }
+        if (prompt.includes('$TOPO_GUIDE')) {
+            prompt = prompt.replaceAll(
+                '$TOPO_GUIDE',
+                perceptionEnabled && isOverworld(this.agent)
+                    ? 'When a TOPOGRAPHY block is present, prefer it for nearby terrain and water before scanning. North is -Z, south is +Z. For highest/lowest ground or area/direction questions, use its highest ground, highest by direction, and built lines, or !area_composition. !topography is a 1D line profile for bridges and roads, not an area search. For places beyond the TOPOGRAPHY block, or that you saw earlier, use !overview.'
+                    : ''
+            );
+        }
         if (prompt.includes('$ACTION')) {
             prompt = prompt.replaceAll('$ACTION', this.agent.actions.currentActionLabel);
         }
+        // With native tools the same definitions already go in the request's tools field. Pasting them here
+        // as well sent the whole list twice (about 7,000 tokens a call) and made the system prompt change
+        // whenever the tool set did. The help tool still prints the full list on request.
         if (prompt.includes('$COMMAND_DOCS'))
-            prompt = prompt.replaceAll('$COMMAND_DOCS', this.use_tools ? getToolDocs(this.agent) : getCommandDocs(this.agent));
+            prompt = prompt.replaceAll('$COMMAND_DOCS', this.use_tools
+                ? 'Every available tool is given to you through the native function interface.'
+                : getCommandDocs(this.agent));
         if (prompt.includes('$CODE_DOCS')) {
             const code_task_content = (messages || []).slice().reverse().find(msg =>
                 msg.role !== 'system' && msg.content.includes('!newAction(')

@@ -452,7 +452,9 @@ export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
         find: predicate => world.getNearestBlocksWhere(bot, block => predicate(block) &&
             (!block.position || movements.safeToBreak(block) || block.name === 'obsidian'), 64, 128)
             .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian')),
-        pickup: () => pickupNearbyItems(bot, true),
+        // A plant's drops land where the bot can walk. Digging for them would dig through the farmland and the
+        // young crops beside it, so only a solid block's drops may be dug for.
+        pickup: target => pickupNearbyItems(bot, target?.boundingBox !== 'empty'),
         afterBreak: () => autoLight(bot),
         liquid: block => useToolOnBlock(bot, 'bucket', block), exclude,
     });
@@ -915,6 +917,13 @@ export async function discard(bot, itemName, num=-1) {
     return true;
 }
 
+// The containers the chest skills use: chests, trapped chests and barrels all hold 27 stacks and open the same
+// way. Only chests were searched for, so a bot standing by a barrel said there was no chest nearby.
+const CHEST_BLOCKS = ['chest', 'trapped_chest', 'barrel'];
+function nearestChest(bot) {
+    return world.getNearestBlocks(bot, CHEST_BLOCKS, 32, 1)[0] ?? null;
+}
+
 export async function putInChest(bot, itemName, num=-1) {
     assertActionOwner(bot);
     /**
@@ -926,9 +935,9 @@ export async function putInChest(bot, itemName, num=-1) {
      * @example
      * await skills.putInChest(bot, "oak_log");
      **/
-    let chest = world.getNearestBlock(bot, 'chest', 32);
+    let chest = nearestChest(bot);
     if (!chest) {
-        log(bot, `Could not find a chest nearby.`);
+        log(bot, `Could not find a chest or barrel nearby.`);
         return false;
     }
     let item = bot.inventory.findInventoryItem(itemName);
@@ -956,9 +965,9 @@ export async function takeFromChest(bot, itemName, num=-1) {
      * @example
      * await skills.takeFromChest(bot, "oak_log");
      * **/
-    let chest = world.getNearestBlock(bot, 'chest', 32);
+    let chest = nearestChest(bot);
     if (!chest) {
-        log(bot, `Could not find a chest nearby.`);
+        log(bot, `Could not find a chest or barrel nearby.`);
         return false;
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
@@ -1001,9 +1010,9 @@ export async function viewChest(bot) {
      * @example
      * await skills.viewChest(bot);
      * **/
-    let chest = world.getNearestBlock(bot, 'chest', 32);
+    let chest = nearestChest(bot);
     if (!chest) {
-        log(bot, `Could not find a chest nearby.`);
+        log(bot, `Could not find a chest or barrel nearby.`);
         return false;
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);

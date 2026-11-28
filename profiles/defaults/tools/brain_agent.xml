@@ -12,4 +12,6 @@
     <rule>$NARRATION_RULES</rule>
   </rules>
   <memory>$MEMORY</memory>
+  $TOPOGRAPHY
+  $TOPO_GUIDE
 </brain_agent_system>
