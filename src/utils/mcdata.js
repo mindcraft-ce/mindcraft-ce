@@ -104,6 +104,56 @@ export const HAND_OPENED_DOORS = [
 ]
 
 
+/**
+ * Throttle position packets to avoid kicks on Paper/Spigot servers.
+ * Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET
+ * when mineflayer sends position updates faster than 50ms apart.
+ *
+ * Only while the client does not end its own ticks. From 1.21.2 a client that does sends tick_end after
+ * each tick's movement, so it sends at most one position packet per tick already. A packet held back by
+ * the timer here would be written outside its tick, next to the following tick's own position packet,
+ * and a newer server kicks that ("Invalid move player packet received").
+ */
+export function throttlePositionPackets(bot) {
+    let lastPositionUpdate = 0;
+    let pendingPositionPacket = null;
+    let endsOwnTicks = false;
+    const POSITION_THROTTLE_MS = 50;
+    const originalWrite = bot._client.write.bind(bot._client);
+    bot._client.write = function(name, data) {
+        if (name === 'tick_end') {
+            endsOwnTicks = true;
+            // A packet still held back when the first tick_end comes would be written later, outside its
+            // tick. It is dropped instead: a position packet says where the bot is, not how far it moved,
+            // and the client sends the bot's position again in a later tick (at least once a second).
+            if (pendingPositionPacket) {
+                clearTimeout(pendingPositionPacket);
+                pendingPositionPacket = null;
+            }
+        }
+        if (!endsOwnTicks && (name === 'position' || name === 'position_look' || name === 'look')) {
+            const now = Date.now();
+            if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
+                // Queue this packet so the last position update is never lost
+                if (!pendingPositionPacket) {
+                    pendingPositionPacket = setTimeout(() => {
+                        pendingPositionPacket = null;
+                        lastPositionUpdate = Date.now();
+                        originalWrite(name, data);
+                    }, POSITION_THROTTLE_MS - (now - lastPositionUpdate));
+                }
+                return;
+            }
+            lastPositionUpdate = now;
+            if (pendingPositionPacket) {
+                clearTimeout(pendingPositionPacket);
+                pendingPositionPacket = null;
+            }
+        }
+        return originalWrite(name, data);
+    };
+}
+
 export function initBot(username) {
     mc_version = settings.minecraft_version;
     const options = {
@@ -126,35 +176,7 @@ export function initBot(username) {
 
     enableFabricRegistrySync(bot);
 
-    // Throttle position packets to avoid kicks on Paper/Spigot servers
-    // Paper enforces stricter packet rate limits than vanilla, causing ECONNRESET
-    // when mineflayer sends position updates faster than 50ms apart
-    let lastPositionUpdate = 0;
-    let pendingPositionPacket = null;
-    const POSITION_THROTTLE_MS = 50;
-    const originalWrite = bot._client.write.bind(bot._client);
-    bot._client.write = function(name, data) {
-        if (name === 'position' || name === 'position_look' || name === 'look') {
-            const now = Date.now();
-            if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
-                // Queue this packet so the last position update is never lost
-                if (!pendingPositionPacket) {
-                    pendingPositionPacket = setTimeout(() => {
-                        pendingPositionPacket = null;
-                        lastPositionUpdate = Date.now();
-                        originalWrite(name, data);
-                    }, POSITION_THROTTLE_MS - (now - lastPositionUpdate));
-                }
-                return;
-            }
-            lastPositionUpdate = now;
-            if (pendingPositionPacket) {
-                clearTimeout(pendingPositionPacket);
-                pendingPositionPacket = null;
-            }
-        }
-        return originalWrite(name, data);
-    };
+    throttlePositionPackets(bot);
 
     // Suppress PartialReadError for non-critical packets
     // Paper servers sometimes send packets that node-minecraft-protocol
