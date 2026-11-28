@@ -29,6 +29,23 @@ export function isUnripeCrop(block) {
     return Number.isFinite(age) && age < RIPE_AGE[block.name];
 }
 
+// Sugar cane, bamboo and cactus grow up from their bottom block, and only that block regrows the plant. A
+// player cuts the stalk above it and leaves it, so collecting does the same: breaking the second block brings
+// down everything above it, and the plant grows back. Bedrock Edition calls sugar cane `reeds`.
+//
+// Which blocks are bottoms is read from the blocks the search found: one of the same kind directly beneath
+// means it is not the bottom. One with nothing of its kind seen beneath it is taken for a bottom and left,
+// and the block is checked again once the bot stands at it, before anything is broken.
+const STALKS = new Set(['sugar_cane', 'reeds', 'bamboo', 'cactus']);
+export function plantBases(blocks) {
+    const stalks = blocks.filter(block => STALKS.has(block?.name) && block.position);
+    const tall = new Set(stalks.map(block => `${block.name} ${block.position.offset(0, 1, 0)}`));
+    return new Set(stalks.filter(block => !tall.has(`${block.name} ${block.position}`)).map(block => block.position.toString()));
+}
+export function isPlantBase(block, below) {
+    return STALKS.has(block?.name) && below?.name !== block.name;
+}
+
 export async function collectBlocks(bot, type, requested, {find, pickup, liquid, afterBreak, exclude = [], now = Date.now} = {}) {
     if (!Number.isSafeInteger(requested) || requested < 1) return toolResult('failed', 'Block count must be a positive integer.', 'bad_args');
     const before = counts(bot);
@@ -61,13 +78,18 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
     while (broken < requested && attempts++ < Math.max(6, requested * 4)) {
         if (interrupt()) break;
         assertActionOwner(bot);
+        const bases = [...types].some(name => STALKS.has(name)) ? plantBases(find(block => types.has(block.name))) : new Set();
         const blocks = find(block => types.has(block.name) && !isUnripeCrop(block) && (!block.position || (!excluded.has(block.position.toString()) &&
+            !bases.has(block.position.toString()) &&
             !failed.has(block.position.toString()))) && (type !== 'water' && type !== 'lava' || block.metadata === 0))
-            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()));
+            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()) &&
+                !bases.has(block.position.toString()));
         const target = blocks[0];
         if (!target) {
             const young = find(block => types.has(block.name) && isUnripeCrop(block)).length > 0;
-            blocker ||= young ? `The ${type} nearby is not fully grown yet; breaking it now would waste it.` : `No reachable ${type} found nearby.`;
+            blocker ||= young ? `The ${type} nearby is not fully grown yet; breaking it now would waste it.`
+                : bases.size ? `The ${type} nearby is only the bottom block of each plant; it is left to grow back.`
+                : `No reachable ${type} found nearby.`;
             break;
         }
         const key = target.position.toString();
@@ -109,7 +131,8 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
             if (type !== 'water' && type !== 'lava') {
                 assertActionOwner(bot);
                 const block = bot.blockAt(target.position);
-                if (!block || !types.has(block.name) || isUnripeCrop(block)) { excluded.add(key); continue; }
+                if (!block || !types.has(block.name) || isUnripeCrop(block) ||
+                    isPlantBase(block, bot.blockAt(block.position.offset(0, -1, 0)))) { excluded.add(key); continue; }
                 await bot.tool.equipForBlock(block);
                 if (bot.game.gameMode !== 'creative' && !block.canHarvest(bot.heldItem?.type)) {
                     blocker = `Missing the required tool to harvest ${block.name}.`;
