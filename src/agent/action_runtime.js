@@ -11,7 +11,6 @@ export class ActionManager {
         this.resume_func = null;
         this.resume_name = '';
         this.resumeVersion = 0;
-        this.timedout = false;
         this.owner = null;
         this.sequence = 0;
         this.startQueue = Promise.resolve();
@@ -57,12 +56,11 @@ export class ActionManager {
             this.executing = true;
             this.currentActionLabel = label;
             this.currentActionFn = fn;
-            this.timedout = false;
             this.progress.reset();
         } finally { release(); }
         const timer = timeout > 0 ? setTimeout(() => {
             if (this.owner === owner) {
-                this.timedout = true;
+                owner.timedout = true;
                 owner.controller.abort(Object.assign(new Error(`Action timed out after ${timeout} minutes`), {code: 'timeout'}));
                 withoutAction(() => this.agent.requestInterrupt());
             }
@@ -106,7 +104,7 @@ export class ActionManager {
     }
     _finish(owner, result, output) {
         const ended = {...result, success: ['ok', 'partial'].includes(result.status), message: result.text || output,
-            interrupted: owner.signal.aborted, timedout: owner.signal.reason?.code === 'timeout'};
+            interrupted: owner.signal.aborted, timedout: Boolean(owner.timedout)};
         if (this.owner === owner) this.lastResult = ended;
         this.agent.bot.emit('action_complete', {id: owner.id, result: ended});
         return ended;

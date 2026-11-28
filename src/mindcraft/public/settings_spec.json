@@ -19,6 +19,16 @@
         "description": "The minecraft server port to connect to. -1 for auto-detect.",
         "default": 55916
     },
+    "mindserver_port": {
+        "type": "number",
+        "description": "Port for the MindServer that manages agents and hosts the UI.",
+        "default": 8080
+    },
+    "auto_open_ui": {
+        "type": "boolean",
+        "description": "Open the MindServer UI in a browser on startup.",
+        "default": false
+    },
     "auth": {
         "type": "string",
         "description": "The authentication method to use",
@@ -37,6 +47,13 @@
             "assistant",
             "creative",
             "god_mode"
+        ]
+    },
+    "profiles": {
+        "type": "array",
+        "description": "Profile files to load. Individual profiles override the base profile and settings.",
+        "default": [
+            "./andy.json"
         ]
     },
     "load_memory": {
@@ -109,6 +126,23 @@
         "description": "Whether to log all prompts to file. Can be very verbose.",
         "default": false
     },
+    "log_level": {
+        "type": "string",
+        "description": "Minimum log level for all modules.",
+        "default": "info",
+        "options": [
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "none"
+        ]
+    },
+    "log_module_levels": {
+        "type": "object",
+        "description": "Per-module log level overrides, keyed by module name.",
+        "default": {}
+    },
     "show_command_syntax": {
         "type": "string",
         "description": "Whether to show \"full\" command syntax, \"shortened\" command syntax, or \"none\"",
@@ -143,6 +177,11 @@
         "type": "number",
         "description": "Number of minutes to allow code execution. -1 for no timeout",
         "default": -1
+    },
+    "block_place_delay": {
+        "type": "number",
+        "description": "Delay in milliseconds between block placements when using native actions.",
+        "default": 0
     },
     "task": {
         "type": "object",
