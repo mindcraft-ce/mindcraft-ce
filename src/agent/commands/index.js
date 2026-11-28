@@ -1,10 +1,13 @@
 import { getBlockId, getItemId } from "../../utils/mcdata.js";
 import { actionsList } from './actions.js';
 import { queryList } from './queries.js';
+import { topographyList } from './topography.js';
+import settings from '../settings.js';
+import { terrainUnavailableMessage } from '../topography/service.js';
 
 let suppressNoDomainWarning = true;
 
-const commandList = queryList.concat(actionsList);
+const commandList = queryList.concat(topographyList, actionsList);
 const commandMap = {};
 for (let command of commandList) {
     commandMap[command.name] = command;
@@ -13,6 +16,30 @@ for (let command of commandList) {
 // Expose canonical definitions to native tool calling without a second registry of actions.
 export function getCommands() {
     return Object.values(commandMap);
+}
+
+const TOPOGRAPHY_COMMANDS = new Set(topographyList.map(command => command.name));
+
+function topographyDisabled(agent) {
+    const profile = agent?.prompter?.profile;
+    const enabled = profile?.cartography_enabled ?? settings.cartography_enabled ?? false;
+    return enabled === false;
+}
+
+/** True when a command is hidden for this agent (the map commands while `cartography_enabled` is off). */
+export function isCommandHidden(agent, name) {
+    const commandName = name.startsWith('!') ? name : `!${name}`;
+    return TOPOGRAPHY_COMMANDS.has(commandName) && topographyDisabled(agent);
+}
+
+/** Message to return instead of running a command right now (map commands outside the overworld), else null. */
+export function commandUnavailableMessage(agent, name) {
+    const commandName = name.startsWith('!') ? name : `!${name}`;
+    if (isCommandHidden(agent, commandName))
+        return `Command ${commandName} is disabled for this agent.`;
+    if (TOPOGRAPHY_COMMANDS.has(commandName))
+        return terrainUnavailableMessage(agent);
+    return null;
 }
 
 export function getCommand(name) {
@@ -219,6 +246,9 @@ export async function executeCommand(agent, message) {
     if (typeof parsed === 'string')
         return parsed; //The command was incorrectly formatted or an invalid input was given.
     else {
+        const unavailable = commandUnavailableMessage(agent, parsed.commandName);
+        if (unavailable)
+            return unavailable;
         console.log('parsed command:', parsed);
         const command = getCommand(parsed.commandName);
         let numArgs = 0;
@@ -249,6 +279,9 @@ export function getCommandDocs(agent) {
     Use the commands with the syntax: !commandName or !commandName("arg1", 1.2, ...) if the command takes arguments.\n
     Do not use codeblocks. Use double quotes for strings. Only use one command in each response, trailing commands and comments will be ignored.\n`;
     for (let command of commandList) {
+        if (isCommandHidden(agent, command.name)) {
+            continue;
+        }
         if (agent.blocked_actions.includes(command.name)) {
             continue;
         }

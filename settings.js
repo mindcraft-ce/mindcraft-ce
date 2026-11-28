@@ -142,7 +142,23 @@ const settings = {
 
     "spawn_timeout": 30, // num seconds allowed for the bot to spawn before throwing error. Increase when spawning takes a while.
     "block_place_delay": 0, // delay between placing blocks (ms) if using newAction. helps avoid bot being kicked by anti-cheat mechanisms on servers.
-  
+
+    // Optional Cartography map service (https://github.com/milkucha/cartography-service).
+    // Off by default. The bot forwards chunks it loads and can read a short terrain summary into
+    // its prompt; only the Overworld is mapped. Profiles can override every value below.
+    "cartography_enabled": false,
+    "cartography_service_url": "", // empty uses CARTOGRAPHY_SERVICE_URL, then http://127.0.0.1:8090
+    "cartography_token": "", // bearer token for the service, if it needs one
+    "topography_perception": true, // add the TOPOGRAPHY block to prompts
+    "topography_seen_only": true, // tell the service which chunks this bot has seen
+    "topography_feed": "bot", // "bot" forwards loaded chunks; "off" disables the feed
+    "topography_debug": false,
+    "topography_far_line": true,
+    "topography_max_chars": 1200,
+    "topography_render_chunks": 16,
+    "topography_perception_materials": false,
+    "topography_perception_timeout_ms": 1500,
+
     "log_all_prompts": false, // log ALL prompts to file
 };
 

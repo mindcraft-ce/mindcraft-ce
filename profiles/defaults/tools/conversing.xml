@@ -23,6 +23,8 @@
 		<available_tools>$COMMAND_DOCS</available_tools>
 		<self_prompt>$SELF_PROMPT</self_prompt>
 		<memory>$MEMORY</memory>
+		$TOPOGRAPHY
+		$TOPO_GUIDE
 		<examples>$EXAMPLES</examples>
 	</context>
 	<trigger>Conversation Begin:</trigger>

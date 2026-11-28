@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setSettings } from '../src/agent/settings.js';
-import { getCommands, getCommand } from '../src/agent/commands/index.js';
+import { getCommands, getCommand, isCommandHidden } from '../src/agent/commands/index.js';
 import { getToolDefinitions, executeTool } from '../src/agent/commands/tool_registry.js';
 import { sendToolRequest, toolCallMessage } from '../src/models/_tool_request.js';
 import { TaskAgent } from '../src/agent/agents/task.js';
@@ -15,7 +15,8 @@ const completion = (content, tool_calls = []) => ({ choices: [{ finish_reason: '
 test('native schemas retain develop commands, optional arguments and per-agent restrictions', () => {
     setSettings({ allow_insecure_coding: true });
     const names = getToolDefinitions({}).map(t => t.function.name);
-    for (const command of getCommands()) assert.ok(names.includes(command.name.slice(1)), command.name);
+    // Commands hidden by a setting (the map commands while cartography_enabled is off) are not tools.
+    for (const command of getCommands().filter(c => !isCommandHidden({}, c.name))) assert.ok(names.includes(command.name.slice(1)), command.name);
     const plan = getToolDefinitions({}).find(t => t.function.name === 'getCraftingPlan');
     assert.deepEqual(plan.function.parameters.required, ['targetItem']);
     const restricted = getToolDefinitions({blocked_actions: ['!goToPlayer', 'placeBlockAt', '!stop']}).map(t => t.function.name);
