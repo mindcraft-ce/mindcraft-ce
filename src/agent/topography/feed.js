@@ -261,74 +261,72 @@ export class Feed {
 
     async _sendBatch() {
         if (this.inflight >= MAX_INFLIGHT || this.queue.size === 0) return;
-        // One dimension per request: the bot's current one. An entry queued in any other
-        // dimension has lost its column, so it is dropped rather than read from this world.
-        const dimension = this.currentDimension();
-        const batch = [];
-        for (const [key, entry] of this.queue) {
-            if (batch.length >= BATCH) break;
-            this.queue.delete(key);
-            if (!dimension || entry.dimension !== dimension) {
-                this.dropped++;
-                continue;
-            }
-            batch.push(entry);
-        }
-        if (batch.length === 0) {
-            this._pump();
-            return;
-        }
-        // Serialised synchronously, before any await, from the world of `dimension`.
-        const chunks = [];
-        for (const entry of batch) {
-            try {
-                const payload = this.serialize(entry.cx, entry.cz);
-                if (payload) chunks.push(payload);
-            } catch { /* skip a chunk that cannot be serialised */ }
-        }
-        if (chunks.length === 0) {
-            this._pump();
-            return;
-        }
-        const body = JSON.stringify({
-            agent: this.agent.name,
-            dimension,
-            format: 1,
-            chunks,
-        });
-        let raw = Buffer.from(body, 'utf8');
-        const headers = serviceHeaders({ 'Content-Type': 'application/json' }, this.agent);
-        if (raw.length > GZIP_OVER) {
-            raw = await gzip(raw);
-            headers['Content-Encoding'] = 'gzip';
-        }
+        // Count the whole batch, including serialisation and gzip, so a burst of chunk loads cannot
+        // start more concurrent batches than MAX_INFLIGHT while earlier ones are still compressing.
         this.inflight++;
         try {
-            const doFetch = this.fetchImpl ?? globalThis.fetch;
-            const response = await doFetch(`${getServiceUrl(this.agent)}/chunk_raw`, {
-                method: 'POST',
-                headers,
-                body: raw,
-                signal: AbortSignal.timeout(TIMEOUT_MS),
-            });
-            if (!response.ok)
-                throw new Error(`HTTP ${response.status}`);
-            this.sent += batch.length;
-            const now = this.now();
-            for (const entry of batch) {
-                this.lastSent.set(entryKey(entry.dimension, entry.cx, entry.cz), now);
-                if (this.lastSent.size > 20000) {
-                    const oldest = this.lastSent.keys().next().value;
-                    if (oldest !== undefined) this.lastSent.delete(oldest);
+            // One dimension per request: the bot's current one. An entry queued in any other
+            // dimension has lost its column, so it is dropped rather than read from this world.
+            const dimension = this.currentDimension();
+            const batch = [];
+            for (const [key, entry] of this.queue) {
+                if (batch.length >= BATCH) break;
+                this.queue.delete(key);
+                if (!dimension || entry.dimension !== dimension) {
+                    this.dropped++;
+                    continue;
                 }
+                batch.push(entry);
             }
-            if (this.resync) {
-                // first success after a failure: everything loaded is re-sent
-                this.resync = false;
-                this.seen?._heartbeat?.().catch?.(() => {});
+            if (batch.length === 0) return;
+            // Serialised synchronously, before any await, from the world of `dimension`.
+            const chunks = [];
+            for (const entry of batch) {
+                try {
+                    const payload = this.serialize(entry.cx, entry.cz);
+                    if (payload) chunks.push(payload);
+                } catch { /* skip a chunk that cannot be serialised */ }
             }
-        } catch (error) {
-            this._onFailure(batch, error);
+            if (chunks.length === 0) return;
+            const body = JSON.stringify({
+                agent: this.agent.name,
+                dimension,
+                format: 1,
+                chunks,
+            });
+            let raw = Buffer.from(body, 'utf8');
+            const headers = serviceHeaders({ 'Content-Type': 'application/json' }, this.agent);
+            if (raw.length > GZIP_OVER) {
+                raw = await gzip(raw);
+                headers['Content-Encoding'] = 'gzip';
+            }
+            try {
+                const doFetch = this.fetchImpl ?? globalThis.fetch;
+                const response = await doFetch(`${getServiceUrl(this.agent)}/chunk_raw`, {
+                    method: 'POST',
+                    headers,
+                    body: raw,
+                    signal: AbortSignal.timeout(TIMEOUT_MS),
+                });
+                if (!response.ok)
+                    throw new Error(`HTTP ${response.status}`);
+                this.sent += batch.length;
+                const now = this.now();
+                for (const entry of batch) {
+                    this.lastSent.set(entryKey(entry.dimension, entry.cx, entry.cz), now);
+                    if (this.lastSent.size > 20000) {
+                        const oldest = this.lastSent.keys().next().value;
+                        if (oldest !== undefined) this.lastSent.delete(oldest);
+                    }
+                }
+                if (this.resync) {
+                    // first success after a failure: everything loaded is re-sent
+                    this.resync = false;
+                    this.seen?._heartbeat?.().catch?.(() => {});
+                }
+            } catch (error) {
+                this._onFailure(batch, error);
+            }
         } finally {
             this.inflight--;
             if (this.queue.size > 0) this._pump();

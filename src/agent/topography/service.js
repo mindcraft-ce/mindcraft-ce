@@ -4,8 +4,10 @@ const DEFAULT_SERVICE_URL = 'http://127.0.0.1:8090';
 const DEFAULT_SIZE_CHUNKS = 16;
 const DEFAULT_TIMEOUT_MS = 1500;
 const CACHE_TTL_MS = 1000;
+const FAILURE_TTL_MS = 10000;
 const DEFAULT_MAX_BLOCK_CHARS = 1200;
 const PUSH_INTERVAL_MS = 2000;
+const PUSH_TIMEOUT_MS = 1500;
 
 const cache = new Map();
 let lastPushKey = null;
@@ -635,6 +637,8 @@ export async function fetchPerception(agent, opts = {}) {
         } else {
             console.warn(`Topography perception unavailable: ${message}`);
         }
+        // Keep a short negative cache: one dead service should not add its timeout to every prompt.
+        cache.set(key, { value: '', expiresAt: Date.now() + FAILURE_TTL_MS });
         return '';
     }
 }
@@ -668,7 +672,8 @@ export function pushPosition(agent, opts = {}) {
         const request = fetch(url, {
             method: 'POST',
             headers: serviceHeaders({ 'Content-Type': 'application/json' }, agent),
-            body
+            body,
+            signal: AbortSignal.timeout(PUSH_TIMEOUT_MS)
         });
         if (opts.debug) {
             request.then(response => {

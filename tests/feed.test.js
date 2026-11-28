@@ -379,3 +379,25 @@ test('chunk events while the dimension is unknown are not forwarded or recorded'
     assert.equal(feed.dirty.size, 0);
     assert.equal(feed.seen.pending.size, 0);
 });
+
+test('chunk batches never exceed the inflight limit while compressing', async () => {
+    let active = 0, max = 0;
+    const waiters = [];
+    const doFetch = async (url) => {
+        if (!String(url).endsWith('/chunk_raw')) return { ok: true };
+        active++;
+        max = Math.max(max, active);
+        await new Promise(resolve => waiters.push(resolve));
+        active--;
+        return { ok: true };
+    };
+    const { feed } = makeFeed({ column: makeColumn(), fetchImpl: doFetch });
+    for (let i = 0; i < 20; i++) feed._enqueue(i, i, 'minecraft:overworld');
+    await settle(25);
+    assert.ok(max <= 2, `started ${max} chunk batches at once`);
+    for (let i = 0; i < 50 && (feed.queue.size > 0 || feed.inflight > 0); i++) {
+        while (waiters.length) waiters.shift()();
+        await settle(10);
+    }
+    assert.equal(feed.queue.size, 0);
+});
